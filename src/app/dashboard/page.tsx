@@ -1,18 +1,17 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, doc, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "../providers";
 import { formatPhoneFriendly, getWhatsAppLink } from "@/lib/whatsapp";
-import { 
-  Search, 
-  Filter, 
-  MessageSquare, 
-  Trash2, 
-  Clock, 
-  CheckCircle2, 
-  UserX, 
+import { LEAD_STATUSES, type LeadStatus } from "@/lib/leadTypes";
+import {
+  Search,
+  Filter,
+  MessageSquare,
+  Trash2,
+  Clock,
   CalendarCheck,
   TrendingUp,
   Inbox,
@@ -30,19 +29,21 @@ interface Lead {
   dataEscolhida: string;
   horarioEscolhido: string;
   observacao?: string;
-  status: "Novo" | "Em contato" | "Agendado" | "Atendido" | "Perdido";
+  status: LeadStatus;
+  customerUid?: string;
   origem: string;
   createdAt: any;
   updatedAt: any;
 }
 
 const statusOptions = [
-  { value: "Novo", label: "Novo", color: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
-  { value: "Em contato", label: "Em contato", color: "bg-amber-500/10 text-amber-400 border-amber-500/20" },
-  { value: "Agendado", label: "Agendado", color: "bg-purple-500/10 text-purple-400 border-purple-500/20" },
-  { value: "Atendido", label: "Atendido", color: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
-  { value: "Perdido", label: "Perdido", color: "bg-rose-500/10 text-rose-400 border-rose-500/20" }
-];
+  { value: "Novo",        label: "Novo",        color: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
+  { value: "Em contato",  label: "Em contato",  color: "bg-amber-500/10 text-amber-400 border-amber-500/20" },
+  { value: "Agendado",    label: "Agendado",    color: "bg-purple-500/10 text-purple-400 border-purple-500/20" },
+  { value: "Atendido",    label: "Atendido",    color: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
+  { value: "Cancelado",   label: "Cancelado",   color: "bg-red-500/10 text-red-400 border-red-500/20" },
+  { value: "Perdido",     label: "Perdido",     color: "bg-rose-500/10 text-rose-400 border-rose-500/20" },
+] satisfies { value: LeadStatus; label: string; color: string }[];
 
 export default function DashboardHome() {
   const { user } = useAuth();
@@ -50,6 +51,9 @@ export default function DashboardHome() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("Todos");
+  // Per-lead loading state and inline error for status changes
+  const [updatingLeadId, setUpdatingLeadId] = useState<string | null>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
 
   // Real-time subscription to Leads
   useEffect(() => {
@@ -73,17 +77,34 @@ export default function DashboardHome() {
     return () => unsubscribe();
   }, [user]);
 
-  // Update Lead Status
-  const handleUpdateStatus = async (leadId: string, newStatus: Lead["status"]) => {
-    if (!user) return;
+  // Update Lead Status — via endpoint seguro que sincroniza lead + índice do cliente atomicamente
+  const handleUpdateStatus = async (leadId: string, newStatus: LeadStatus) => {
+    if (!user || updatingLeadId) return;
+    setUpdatingLeadId(leadId);
+    setStatusError(null);
     try {
-      const leadDocRef = doc(db, "professionals", user.uid, "leads", leadId);
-      await updateDoc(leadDocRef, {
-        status: newStatus,
-        updatedAt: new Date()
-      });
-    } catch (e) {
+      const token = await user.getIdToken();
+      const res = await fetch(
+        `/api/professionals/${user.uid}/leads/${leadId}/status`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ status: newStatus }),
+        }
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? `Erro HTTP ${res.status}`);
+      }
+      // onSnapshot reflete automaticamente a mudança — nenhuma atualização local necessária
+    } catch (e: any) {
       console.error("Error updating lead status:", e);
+      setStatusError(e.message ?? "Erro ao atualizar status.");
+    } finally {
+      setUpdatingLeadId(null);
     }
   };
 
@@ -190,6 +211,15 @@ export default function DashboardHome() {
         </div>
       )}
 
+      {/* Inline status error banner */}
+      {statusError && (
+        <div className="flex items-center gap-3 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>{statusError}</span>
+          <button onClick={() => setStatusError(null)} className="ml-auto text-red-400/60 hover:text-red-300 text-xs">✕</button>
+        </div>
+      )}
+
       {/* Main Content Area */}
       <div className="bg-slate-900/30 border border-slate-800/80 rounded-2xl p-4 md:p-6 backdrop-blur-sm">
         {/* Filters and Search Bar */}
@@ -290,20 +320,27 @@ export default function DashboardHome() {
                       
                       {/* Status */}
                       <td className="py-4 px-4">
-                        <select
-                          value={lead.status}
-                          onChange={(e) => handleUpdateStatus(lead.id, e.target.value as Lead["status"])}
-                          className={`
-                            px-3 py-1.5 rounded-full text-xs font-semibold border focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer transition-all
-                            ${currentStatus.color}
-                          `}
-                        >
-                          {statusOptions.map(opt => (
-                            <option key={opt.value} value={opt.value} className="bg-slate-900 text-slate-300">
-                              {opt.label}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="relative inline-flex items-center">
+                          <select
+                            value={lead.status}
+                            disabled={updatingLeadId === lead.id}
+                            onChange={(e) => handleUpdateStatus(lead.id, e.target.value as LeadStatus)}
+                            className={`
+                              pl-3 pr-7 py-1.5 rounded-full text-xs font-semibold border focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all
+                              ${updatingLeadId === lead.id ? "opacity-50 cursor-wait" : "cursor-pointer"}
+                              ${currentStatus.color}
+                            `}
+                          >
+                            {statusOptions.map(opt => (
+                              <option key={opt.value} value={opt.value} className="bg-slate-900 text-slate-300">
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                          {updatingLeadId === lead.id && (
+                            <Loader2 className="absolute right-1.5 h-3 w-3 animate-spin text-current pointer-events-none" />
+                          )}
+                        </div>
                       </td>
 
                       {/* Ações */}

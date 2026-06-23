@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Ensure accounts doc also has "customer" type
+    // Garante que accounts/{uid} existe e contém "customer" — sem gravação desnecessária
     const accountRef = dbAdmin.collection("accounts").doc(uid);
     const accountSnap = await accountRef.get();
     if (!accountSnap.exists) {
@@ -40,12 +40,14 @@ export async function POST(req: NextRequest) {
       });
     } else {
       const data = accountSnap.data();
-      if (!data?.accountTypes?.includes("customer")) {
+      // Só grava se "customer" ainda não está presente — verdadeiramente idempotente
+      if (!Array.isArray(data?.accountTypes) || !data.accountTypes.includes("customer")) {
         await accountRef.update({
           accountTypes: FieldValue.arrayUnion("customer"),
           updatedAt: FieldValue.serverTimestamp(),
         });
       }
+      // else: nenhuma gravação — updatedAt preservado
     }
 
     return NextResponse.json({ ok: true, uid });

@@ -29,14 +29,27 @@ export default function DashboardLayout({
   const { user, profile, loading, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Auth Guard — must be logged in AND have a valid professional document
+  // Auth Guard — must be logged in AND have a valid active professional document
   useEffect(() => {
     if (loading) return;
     if (!user) { router.push("/login"); return; }
     if (!profile) { router.push("/portal"); return; }
-    if (profile.professionalStatus === "suspended" || profile.professionalStatus === "cancelled") {
-      router.push("/portal");
+
+    const status = profile.professionalStatus;
+
+    // Onboarding incompleto → redireciona para concluir cadastro
+    if (status === "onboarding") {
+      router.push("/professional/onboarding");
+      return;
     }
+
+    // Suspenso ou cancelado → portal (sem acesso ao dashboard)
+    if (status === "suspended" || status === "cancelled") {
+      router.push("/portal");
+      return;
+    }
+
+    // Profissionais antigos sem professionalStatus têm acesso (fallback compatível)
   }, [user, profile, loading, router]);
 
   const handleLogout = async () => {

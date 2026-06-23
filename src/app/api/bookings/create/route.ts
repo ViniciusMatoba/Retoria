@@ -6,6 +6,7 @@ import {
   minutesToTime,
   isPastDateTimeSaoPaulo,
 } from "@/lib/timezone";
+import { buildCustomerBookingIndex } from "@/lib/leadTypes";
 
 // Parser helper to extract duration in minutes from service description
 const parseServiceDurationMinutes = (duracaoStr: string): number => {
@@ -35,17 +36,24 @@ const parseServiceDurationMinutes = (duracaoStr: string): number => {
 
 export async function POST(req: NextRequest) {
   try {
-    // Optionally resolve customerUid from auth token (server-side only, never from body)
+    // Resolve customerUid do token Bearer (server-side only, nunca do body)
     let customerUid: string | null = null;
     const authHeader = req.headers.get("Authorization");
     if (authHeader?.startsWith("Bearer ")) {
+      // Header presente: token DEVE ser válido. Token inválido ou expirado → 401.
+      // Isso evita que um usuário autenticado pense que o agendamento está vinculado
+      // à sua conta quando na verdade o token expirou e seria criado de forma anônima.
       try {
         const decoded = await authAdmin.verifyIdToken(authHeader.slice(7));
         customerUid = decoded.uid;
       } catch {
-        // Token invalid — proceed as anonymous booking
+        return NextResponse.json(
+          { error: "Sessão expirada. Faça login novamente para vincular o agendamento à sua conta." },
+          { status: 401 }
+        );
       }
     }
+    // Sem header Authorization → agendamento anônimo permitido (customerUid = null)
 
     const body = await req.json();
 
@@ -201,12 +209,13 @@ export async function POST(req: NextRequest) {
 
       transaction.set(newLeadRef, leadPayload);
 
-      // If authenticated: write customer booking index (Admin SDK — matches firestore.rules allow write: if false)
+      // Se autenticado: grava índice do cliente via Admin SDK
       if (customerUid) {
         const bookingIndexRef = dbAdmin
           .collection("customerAccounts").doc(customerUid)
           .collection("bookings").doc(newLeadRef.id);
-        transaction.set(bookingIndexRef, {
+        const now = FieldValue.serverTimestamp();
+        transaction.set(bookingIndexRef, buildCustomerBookingIndex({
           bookingId: newLeadRef.id,
           professionalId,
           professionalName: profData?.nome ?? profData?.nomeNegocio ?? "",
@@ -216,10 +225,9 @@ export async function POST(req: NextRequest) {
           startTime: horarioEscolhido,
           endTime: horarioFim,
           status: "Novo",
-          sourcePath: `professionals/${professionalId}/leads/${newLeadRef.id}`,
-          createdAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-        });
+          createdAt: now,
+          updatedAt: now,
+        }));
 
         // Write customer relationship to professional's subcollection
         const customerRelRef = dbAdmin

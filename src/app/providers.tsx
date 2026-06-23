@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, User, signOut } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import type { Account, CustomerAccount } from "@/lib/accountUtils";
 
@@ -66,23 +66,30 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const [customerProfile, setCustomerProfile] = useState<CustomerAccount | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = async (uid: string) => {
+  // Retorna o perfil para uso no onAuthStateChanged (sem depender de setState assíncrono)
+  const fetchProfile = async (uid: string): Promise<ProfessionalProfile | null> => {
     try {
       const snap = await getDoc(doc(db, "professionals", uid));
-      setProfile(snap.exists() ? (snap.data() as ProfessionalProfile) : null);
+      const data = snap.exists() ? (snap.data() as ProfessionalProfile) : null;
+      setProfile(data);
+      return data;
     } catch {
       setProfile(null);
+      return null;
     }
   };
 
-  const fetchAccount = async (user: User) => {
+  // Retorna a conta para uso no onAuthStateChanged
+  const fetchAccount = async (user: User): Promise<Account | null> => {
     try {
       const ref = doc(db, "accounts", user.uid);
       const snap = await getDoc(ref);
       if (snap.exists()) {
-        setAccount(snap.data() as Account);
+        const data = snap.data() as Account;
+        setAccount(data);
+        return data;
       } else {
-        // Auto-create for any authenticated user
+        // Auto-criação para qualquer usuário autenticado (profissionais antigos incluídos)
         const newAccount: Account = {
           uid: user.uid,
           email: user.email ?? "",
@@ -93,9 +100,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
         };
         await setDoc(ref, newAccount);
         setAccount(newAccount);
+        return newAccount;
       }
     } catch {
       setAccount(null);
+      return null;
     }
   };
 
@@ -128,11 +137,33 @@ export function Providers({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
-        await Promise.all([
+        const [profData, accData] = await Promise.all([
           fetchProfile(currentUser.uid),
           fetchAccount(currentUser),
           fetchCustomerProfile(currentUser.uid),
         ]);
+
+        // Corrige accountTypes de profissionais antigos (sem gravação desnecessária)
+        if (
+          profData !== null &&
+          accData !== null &&
+          !accData.accountTypes.includes("professional")
+        ) {
+          try {
+            await updateDoc(doc(db, "accounts", currentUser.uid), {
+              accountTypes: arrayUnion("professional"),
+              updatedAt: serverTimestamp(),
+            });
+            // Atualiza estado local sem re-fetch
+            setAccount((prev) =>
+              prev
+                ? { ...prev, accountTypes: [...prev.accountTypes, "professional"] }
+                : prev
+            );
+          } catch {
+            // Não crítico — apenas navegação
+          }
+        }
       } else {
         setProfile(null);
         setAccount(null);

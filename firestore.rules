@@ -14,23 +14,60 @@ service cloud.firestore {
       return isOwner(profId);
     }
 
-    // ─── Global account (navigation/type registry) ────────────────────────
+    // ─── Global account (navegação / registro de tipo) ────────────────────────
+    // accountTypes é apenas navegação — NÃO é usado para autorização de acesso.
     match /accounts/{uid} {
-      allow read, write: if isOwner(uid);
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid)
+        && request.resource.data.uid == uid
+        && request.resource.data.keys().hasOnly([
+             'uid', 'email', 'displayName', 'accountTypes', 'createdAt', 'updatedAt'
+           ]);
+      allow update: if isOwner(uid)
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['displayName', 'accountTypes', 'updatedAt']);
     }
 
-    // ─── Customer accounts ────────────────────────────────────────────────
+    // ─── Customer accounts ────────────────────────────────────────────────────
     match /customerAccounts/{uid} {
-      allow read, write: if isOwner(uid);
+      // Leitura: apenas o próprio titular
+      allow read: if isOwner(uid);
 
-      // Booking index — read only by the owner; writes via Admin SDK only
+      // Criação: o cliente pode criar o próprio documento com campos permitidos.
+      // uid, email e createdAt são definidos na criação e depois imutáveis.
+      allow create: if isOwner(uid)
+        && request.resource.data.uid == uid
+        && request.resource.data.keys().hasOnly([
+             'uid', 'name', 'email', 'phone', 'createdAt', 'updatedAt'
+           ])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1
+        && request.resource.data.name.size() <= 120
+        && request.resource.data.email is string;
+
+      // Atualização: apenas name, phone e updatedAt podem mudar.
+      // uid, email e createdAt são imutáveis.
+      allow update: if isOwner(uid)
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['name', 'phone', 'updatedAt'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1
+        && request.resource.data.name.size() <= 120;
+
+      // Índice de agendamentos — somente leitura pelo titular; gravação via Admin SDK
       match /bookings/{bookingId} {
         allow read: if isOwner(uid);
         allow write: if false;
       }
     }
 
-    // ─── Professionals ────────────────────────────────────────────────────
+    // ─── Professionals ────────────────────────────────────────────────────────
     match /professionals/{profId} {
       allow read: if true;
       allow write: if isProfessional(profId);
@@ -49,16 +86,16 @@ service cloud.firestore {
         allow read, write: if isProfessional(profId);
       }
 
-      // Customer relationships — visible only to the professional
+      // Relacionamento profissional → cliente — somente leitura pelo profissional; gravação via Admin SDK
       match /customers/{customerUid} {
         allow read: if isProfessional(profId);
-        allow write: if false; // Admin SDK only
+        allow write: if false;
       }
 
-      // Usage metrics — visible only to the professional
+      // Métricas de uso — somente leitura pelo profissional; gravação via Admin SDK
       match /usage/{period} {
         allow read: if isProfessional(profId);
-        allow write: if false; // Admin SDK only
+        allow write: if false;
       }
     }
   }

@@ -164,16 +164,15 @@ export default function PublicBookingExperience({
     }
 
     try {
-      // Attach auth token if user is logged in (customerUid resolved server-side from token)
+      // Tenta anexar token Bearer se o usuário estiver autenticado.
+      // Se getIdToken falhar (token expirado), NÃO fazemos fallback silencioso:
+      // enviamos o header com o token inválido e o servidor retornará 401.
+      // O usuário verá uma mensagem clara em vez de criar um agendamento anônimo achando que está vinculado.
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       const currentUser = auth.currentUser;
       if (currentUser) {
-        try {
-          const token = await currentUser.getIdToken();
-          headers["Authorization"] = `Bearer ${token}`;
-        } catch {
-          // Proceed without token if getIdToken fails
-        }
+        const token = await currentUser.getIdToken();
+        headers["Authorization"] = `Bearer ${token}`;
       }
 
       const response = await fetch("/api/bookings/create", {
@@ -190,6 +189,14 @@ export default function PublicBookingExperience({
         }),
       });
       const resData = await response.json();
+
+      // 401 → sessão expirada: redireciona para login preservando página atual
+      if (response.status === 401) {
+        const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
+        window.location.href = `/login?returnUrl=${returnUrl}`;
+        return;
+      }
+
       if (!response.ok) throw new Error(resData.error || "Erro ao criar agendamento.");
 
       const [year, month, day] = selectedSlot.data.split("-");
