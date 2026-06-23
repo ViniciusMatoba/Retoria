@@ -108,7 +108,21 @@ const periodOptions = [
   { value: 1, label: "Hoje" },
   { value: 7, label: "Próximos 7 dias" },
   { value: 15, label: "Próximos 15 dias" },
-  { value: 30, label: "Próximos 30 dias" }
+  { value: 30, label: "Próximos 30 dias" },
+  { value: 45, label: "Próximos 45 dias" },
+  { value: 60, label: "Próximos 60 dias" },
+  { value: 90, label: "Próximos 90 dias" },
+  { value: 180, label: "Próximos 180 dias" }
+];
+
+const windowDaysOptions = [
+  { value: 7, label: "Próximos 7 dias" },
+  { value: 15, label: "Próximos 15 dias" },
+  { value: 30, label: "Próximos 30 dias" },
+  { value: 45, label: "Próximos 45 dias" },
+  { value: 60, label: "Próximos 60 dias" },
+  { value: 90, label: "Próximos 90 dias" },
+  { value: 180, label: "Próximos 180 dias" }
 ];
 
 export default function SlotsPage() {
@@ -128,6 +142,7 @@ export default function SlotsPage() {
   const [agendaConfig, setAgendaConfig] = useState<Record<string, DayConfig>>(defaultDays);
   const [slotDuration, setSlotDuration] = useState(30);
   const [periodDays, setPeriodDays] = useState(15);
+  const [windowDays, setWindowDays] = useState(30);
   
   // Smart Preview Modal
   const [showPreview, setShowPreview] = useState(false);
@@ -160,6 +175,11 @@ export default function SlotsPage() {
       // Load duration
       if (profile.agendaConfig.duracaoSlot) {
         setSlotDuration(profile.agendaConfig.duracaoSlot);
+      }
+
+      // Load visibility window
+      if (profile.agendaConfig.janelaAgendamentoDias) {
+        setWindowDays(profile.agendaConfig.janelaAgendamentoDias);
       }
       
       // Load days config
@@ -366,6 +386,46 @@ export default function SlotsPage() {
     return { candidates, pastCount };
   };
 
+  const handleSaveConfigOnly = async () => {
+    if (!user) return;
+    setError("");
+    setSuccess("");
+
+    // Validate settings
+    const validationError = validateSettings();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    // Check if at least one day is active
+    const hasActiveDay = Object.values(agendaConfig).some(d => d.ativo);
+    if (!hasActiveDay) {
+      setError("Ative pelo menos um dia da semana para salvar a rotina.");
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const profRef = doc(db, "professionals", user.uid);
+      await updateDoc(profRef, {
+        agendaConfig: {
+          ...agendaConfig,
+          duracaoSlot: slotDuration,
+          janelaAgendamentoDias: windowDays
+        },
+        updatedAt: new Date()
+      });
+      await refreshProfile();
+      setSuccess("Configurações da agenda salvas com sucesso!");
+    } catch (err: any) {
+      console.error(err);
+      setError("Erro ao salvar configurações: " + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleOpenSmartPreview = async () => {
     if (!user) return;
     setError("");
@@ -393,7 +453,8 @@ export default function SlotsPage() {
       await updateDoc(profRef, {
         agendaConfig: {
           ...agendaConfig,
-          duracaoSlot: slotDuration
+          duracaoSlot: slotDuration,
+          janelaAgendamentoDias: windowDays
         },
         updatedAt: new Date()
       });
@@ -872,40 +933,62 @@ export default function SlotsPage() {
               {/* Generation Period */}
               <div className="border-t border-slate-850 pt-4">
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Período de Geração</label>
-                <div className="grid grid-cols-2 gap-2">
+                <select
+                  value={periodDays}
+                  onChange={(e) => setPeriodDays(Number(e.target.value))}
+                  className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-sm focus:outline-none focus:border-indigo-500 font-semibold font-mono"
+                >
                   {periodOptions.map(opt => (
-                    <button
-                      key={opt.value}
-                      onClick={() => setPeriodDays(opt.value)}
-                      className={`
-                        py-2 rounded-xl text-xs font-bold border transition-all
-                        ${periodDays === opt.value
-                          ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/10" 
-                          : "bg-slate-950 border-slate-800 text-slate-450 hover:border-slate-700"
-                        }
-                      `}
-                    >
-                      {opt.label}
-                    </button>
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
-                </div>
+                </select>
               </div>
 
-              {/* Action Trigger */}
-              <button
-                onClick={handleOpenSmartPreview}
-                disabled={actionLoading}
-                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-700/50 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm transition-all shadow-lg active:scale-[0.98] flex items-center justify-center gap-2 mt-2"
-              >
-                {actionLoading ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <>
-                    <Sparkles className="h-4.5 w-4.5" />
-                    <span>Gerar Agenda Automática</span>
-                  </>
-                )}
-              </button>
+              {/* Public Visibility Window */}
+              <div className="border-t border-slate-850 pt-4">
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                  Até quantos dias futuros seus clientes podem visualizar?
+                </label>
+                <select
+                  value={windowDays}
+                  onChange={(e) => setWindowDays(Number(e.target.value))}
+                  className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-sm focus:outline-none focus:border-indigo-500 font-semibold font-mono"
+                >
+                  {windowDaysOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Action Triggers */}
+              <div className="pt-2 space-y-2.5 border-t border-slate-850">
+                <button
+                  onClick={handleSaveConfigOnly}
+                  disabled={actionLoading}
+                  className="w-full py-2.5 bg-slate-950 hover:bg-slate-850 border border-slate-800 disabled:opacity-50 disabled:cursor-not-allowed text-slate-350 hover:text-slate-100 font-bold rounded-xl text-xs transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                >
+                  {actionLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <span>Salvar Configurações</span>
+                  )}
+                </button>
+                
+                <button
+                  onClick={handleOpenSmartPreview}
+                  disabled={actionLoading}
+                  className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-700/50 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm transition-all shadow-lg active:scale-[0.98] flex items-center justify-center gap-2"
+                >
+                  {actionLoading ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <>
+                      <Sparkles className="h-4.5 w-4.5" />
+                      <span>Gerar Agenda Automática</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           )}
 

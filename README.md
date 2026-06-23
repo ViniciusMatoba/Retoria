@@ -17,6 +17,17 @@ Este projeto é um MVP (Minimum Viable Product) focado na validação de mercado
 
 ---
 
+## 📅 Gerador Inteligente e Janela de Exibição Pública
+
+O Retoria separa claramente o conceito de **geração de horários** no banco de dados e a **exibição de horários** para os clientes:
+
+1. **Período de Geração**: Define a quantidade de dias no futuro para os quais o profissional deseja calcular e salvar os horários disponíveis em lote (ex: próximos 90 dias).
+2. **Janela de Exibição Pública (`janelaAgendamentoDias`)**: Limita até quantos dias futuros os clientes conseguem visualizar e selecionar na página pública `/p/[slug]` (ex: próximos 15 dias).
+   * **Vantagem**: Reduz o volume de opções para o cliente final, facilitando a decisão e evitando escassez percebida ou agenda muito espaçada.
+   * **Otimização**: Limita as consultas de leitura no Cloud Firestore apenas ao intervalo da janela configurada, reduzindo custos de tráfego, enquanto mantém o controle total e visualização completa de todos os horários no painel (dashboard) do profissional.
+
+---
+
 ## 🛠️ Stack Utilizada
 
 - **Framework**: [Next.js 16](https://nextjs.org/) (React & TypeScript)

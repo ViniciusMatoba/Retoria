@@ -28,6 +28,11 @@ interface Professional {
   descricaoCurta?: string;
   fotoLogoUrl?: string;
   corPrincipal?: string;
+  agendaConfig?: {
+    duracaoSlot?: number;
+    janelaAgendamentoDias?: number;
+    [key: string]: any;
+  };
 }
 
 interface Service {
@@ -97,9 +102,10 @@ export default function PublicBookingPage({ params }: PageProps) {
         setProfessional(profData);
         
         // Load services and slots for this professional
+        const windowDays = profData.agendaConfig?.janelaAgendamentoDias || 30;
         await Promise.all([
           fetchServices(docSnap.id),
-          fetchAvailableSlots(docSnap.id)
+          fetchAvailableSlots(docSnap.id, windowDays)
         ]);
 
       } catch (err) {
@@ -128,22 +134,34 @@ export default function PublicBookingPage({ params }: PageProps) {
     }
   };
 
-  const fetchAvailableSlots = async (profId: string) => {
+  const fetchAvailableSlots = async (profId: string, windowDays: number = 30) => {
     try {
       const slotsRef = collection(db, "professionals", profId, "availableSlots");
-      const todayStr = new Date().toISOString().split("T")[0];
-      // Fetch only available slots from today onwards
+      const today = new Date();
+      const todayStr = today.toISOString().split("T")[0];
+
+      // Calculate max allowed date (today + windowDays)
+      const maxDate = new Date();
+      maxDate.setDate(today.getDate() + windowDays);
+      const maxDateStr = maxDate.toISOString().split("T")[0];
+
+      // Fetch only available slots from today up to maxDateStr
       const q = query(
         slotsRef, 
         where("disponivel", "==", true), 
         where("data", ">=", todayStr),
+        where("data", "<=", maxDateStr),
         orderBy("data", "asc"),
         orderBy("horario", "asc")
       );
       const querySnapshot = await getDocs(q);
       const slotsData: AvailableSlot[] = [];
       querySnapshot.forEach((doc) => {
-        slotsData.push({ id: doc.id, ...doc.data() } as AvailableSlot);
+        const d = doc.data();
+        // In-memory safety filter layer
+        if (d.data && d.data <= maxDateStr) {
+          slotsData.push({ id: doc.id, ...d } as AvailableSlot);
+        }
       });
       setSlots(slotsData);
     } catch (e) {
