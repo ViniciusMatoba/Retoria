@@ -67,6 +67,16 @@ const weekdayKeys = [
   "sabado"   // 6
 ];
 
+const uiDisplayDays = [
+  "segunda",
+  "terca",
+  "quarta",
+  "quinta",
+  "sexta",
+  "sabado",
+  "domingo"
+];
+
 const weekdayLabels: Record<string, string> = {
   segunda: "Segunda-feira",
   terca: "Terça-feira",
@@ -83,8 +93,8 @@ const defaultDays: Record<string, DayConfig> = {
   quarta: { ativo: true, inicio: "09:00", fim: "18:00", intervaloInicio: "12:00", intervaloFim: "13:00" },
   quinta: { ativo: true, inicio: "09:00", fim: "18:00", intervaloInicio: "12:00", intervaloFim: "13:00" },
   sexta: { ativo: true, inicio: "09:00", fim: "18:00", intervaloInicio: "12:00", intervaloFim: "13:00" },
-  sabado: { ativo: false, inicio: "", fim: "", intervaloInicio: "", intervaloFim: "" },
-  domingo: { ativo: false, inicio: "", fim: "", intervaloInicio: "", intervaloFim: "" }
+  sabado: { ativo: false, inicio: "09:00", fim: "18:00", intervaloInicio: "12:00", intervaloFim: "13:00" },
+  domingo: { ativo: false, inicio: "09:00", fim: "18:00", intervaloInicio: "12:00", intervaloFim: "13:00" }
 };
 
 const durationOptions = [
@@ -760,7 +770,7 @@ export default function SlotsPage() {
 
               {/* Loop all 7 days in weekdayKeys */}
               <div className="space-y-4 max-h-[380px] overflow-y-auto pr-1">
-                {weekdayKeys.map(dayKey => {
+                {uiDisplayDays.map(dayKey => {
                   const dayConfig = agendaConfig[dayKey] || defaultDays[dayKey];
                   const label = weekdayLabels[dayKey];
                   
@@ -1129,9 +1139,9 @@ export default function SlotsPage() {
               <div className="flex justify-between border-b border-slate-850 pb-2.5">
                 <span className="text-slate-500 font-semibold">Dias ativos na semana:</span>
                 <span className="font-bold text-indigo-400">
-                  {Object.entries(agendaConfig)
-                    .filter(([_, d]) => d.ativo)
-                    .map(([k, _]) => weekdayLabels[k].split("-")[0])
+                  {uiDisplayDays
+                    .filter(k => agendaConfig[k]?.ativo)
+                    .map(k => weekdayLabels[k].split("-")[0])
                     .join(", ")}
                 </span>
               </div>
