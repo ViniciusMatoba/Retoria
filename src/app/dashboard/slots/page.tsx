@@ -131,7 +131,7 @@ export default function SlotsPage() {
   const [loading, setLoading] = useState(true);
   
   // Navigation Tabs
-  const [activeTab, setActiveTab] = useState<"smart" | "manual">("smart");
+  const [activeTab, setActiveTab] = useState<"smart" | "manual" | "agenda">("smart");
   
   // Result / Message States
   const [error, setError] = useState("");
@@ -168,6 +168,9 @@ export default function SlotsPage() {
   const [manualDate, setManualDate] = useState("");
   const [manualSelectedTimes, setManualSelectedTimes] = useState<string[]>([]);
   const [manualCustomTime, setManualCustomTime] = useState("");
+
+  // --- AGENDA TAB STATES ---
+  const [agendaDateFilter, setAgendaDateFilter] = useState("");
 
   // Load Saved Configuration from Firestore Profile
   useEffect(() => {
@@ -755,174 +758,114 @@ export default function SlotsPage() {
     return `${day}/${month}/${year}`;
   };
 
+  // Compute filtered dates for agenda view
+  const filteredGroupedDates = Object.keys(groupedSlots)
+    .filter(dateStr => {
+      if (!agendaDateFilter) return true;
+      return dateStr === agendaDateFilter;
+    })
+    .sort();
+
+  const totalAvailable = slots.filter(s => s.disponivel).length;
+  const totalReserved = slots.filter(s => !s.disponivel).length;
+  const upcomingSlots = slots.filter(s => s.disponivel).slice(0, 6);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-7xl mx-auto pb-12">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl">Horários Disponíveis</h1>
-        <p className="text-sm text-slate-400">Configure seus períodos de trabalho semanais ou insira horários manuais na agenda.</p>
+        <h1 className="text-3xl font-extrabold tracking-tight text-white md:text-4xl">Horários Disponíveis</h1>
+        <p className="text-sm text-slate-400 mt-1">Configure seus períodos de funcionamento semanal, crie horários avulsos ou gerencie sua agenda atual.</p>
       </div>
 
       {error && (
         <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex gap-3 items-center">
           <AlertCircle className="h-5 w-5 shrink-0" />
-          <p className="font-medium text-xs md:text-sm">{error}</p>
+          <p className="font-semibold text-xs md:text-sm">{error}</p>
         </div>
       )}
 
       {success && (
         <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm flex gap-3 items-center">
           <Check className="h-5 w-5 shrink-0" />
-          <p className="font-medium text-xs md:text-sm">{success}</p>
+          <p className="font-semibold text-xs md:text-sm">{success}</p>
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Left Column: Generator Panels with Tabs */}
-        <div className="lg:col-span-1 space-y-6">
+      {/* Navigation Tabs (Top-level full-width navigation) */}
+      <div className="flex bg-slate-900 border border-slate-800 p-1.5 rounded-2xl max-w-xl">
+        <button
+          onClick={() => {
+            setActiveTab("smart");
+            setError("");
+            setSuccess("");
+          }}
+          className={`
+            flex-1 flex items-center justify-center gap-1.5 py-3 rounded-xl text-xs md:text-sm font-bold transition-all
+            ${activeTab === "smart" 
+              ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/25" 
+              : "text-slate-400 hover:text-slate-200"
+            }
+          `}
+        >
+          <Sparkles className="h-4.5 w-4.5" />
+          <span>Gerador Automático</span>
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab("manual");
+            setError("");
+            setSuccess("");
+          }}
+          className={`
+            flex-1 flex items-center justify-center gap-1.5 py-3 rounded-xl text-xs md:text-sm font-bold transition-all
+            ${activeTab === "manual" 
+              ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/25" 
+              : "text-slate-400 hover:text-slate-200"
+            }
+          `}
+        >
+          <Sliders className="h-4.5 w-4.5" />
+          <span>Horário Avulso</span>
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab("agenda");
+            setError("");
+            setSuccess("");
+          }}
+          className={`
+            flex-1 flex items-center justify-center gap-1.5 py-3 rounded-xl text-xs md:text-sm font-bold transition-all
+            ${activeTab === "agenda" 
+              ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/25" 
+              : "text-slate-400 hover:text-slate-200"
+            }
+          `}
+        >
+          <CalendarIcon className="h-4.5 w-4.5" />
+          <span>Agenda Atual</span>
+        </button>
+      </div>
+
+      {/* TAB 1: SMART GENERATOR FORM (Full-width responsive layout) */}
+      {activeTab === "smart" && (
+        <div className="space-y-8 animate-fade-in">
           
-          {/* Navigation Tabs */}
-          <div className="flex bg-slate-900 border border-slate-800 p-1.5 rounded-2xl">
-            <button
-              onClick={() => {
-                setActiveTab("smart");
-                setError("");
-                setSuccess("");
-              }}
-              className={`
-                flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold transition-all
-                ${activeTab === "smart" 
-                  ? "bg-indigo-600 text-white shadow-lg" 
-                  : "text-slate-450 hover:text-slate-200"
-                }
-              `}
-            >
-              <Sparkles className="h-4 w-4" />
-              <span>Gerador Automático</span>
-            </button>
-            <button
-              onClick={() => {
-                setActiveTab("manual");
-                setError("");
-                setSuccess("");
-              }}
-              className={`
-                flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold transition-all
-                ${activeTab === "manual" 
-                  ? "bg-indigo-600 text-white shadow-lg" 
-                  : "text-slate-450 hover:text-slate-200"
-                }
-              `}
-            >
-              <Sliders className="h-4 w-4" />
-              <span>Horário Avulso</span>
-            </button>
-          </div>
-
-          {/* TAB 1: SMART GENERATOR FORM (100% Granular for 7 days) */}
-          {activeTab === "smart" && (
-            <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-5 md:p-6 backdrop-blur-sm space-y-5">
-              
-              <div>
-                <h3 className="font-bold text-sm text-slate-300">Configuração da Rotina Semanal</h3>
-                <p className="text-[11px] text-slate-500 mt-0.5">Defina o funcionamento detalhado de cada dia da semana.</p>
-              </div>
-
-              {/* Loop all 7 days in weekdayKeys */}
-              <div className="space-y-4 max-h-[380px] overflow-y-auto pr-1">
-                {uiDisplayDays.map(dayKey => {
-                  const dayConfig = agendaConfig[dayKey] || defaultDays[dayKey];
-                  const label = weekdayLabels[dayKey];
-                  
-                  return (
-                    <div 
-                      key={dayKey} 
-                      className={`
-                        p-3.5 border rounded-2xl transition-all duration-200 space-y-3
-                        ${dayConfig.ativo 
-                          ? "bg-slate-950/60 border-slate-800" 
-                          : "bg-slate-950/10 border-slate-900 opacity-50 hover:opacity-70"
-                        }
-                      `}
-                    >
-                      {/* Header row with toggle */}
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-350">{label}</span>
-                        <button
-                          onClick={() => handleToggleDay(dayKey)}
-                          className="text-slate-450 hover:text-white transition-colors"
-                        >
-                          {dayConfig.ativo ? (
-                            <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/20">Ativo</span>
-                          ) : (
-                            <span className="text-[10px] font-bold text-slate-500 bg-slate-900 px-2 py-0.5 rounded-md border border-slate-800">Inativo</span>
-                          )}
-                        </button>
-                      </div>
-
-                      {/* Config details if active */}
-                      {dayConfig.ativo && (
-                        <div className="space-y-3 pt-1 border-t border-slate-900">
-                          {/* Row 1: Working hours */}
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <span className="text-[9px] text-slate-500 uppercase tracking-wider block mb-1">Horário de Início</span>
-                              <input
-                                type="time"
-                                required
-                                value={dayConfig.inicio}
-                                onChange={(e) => handleTimeChange(dayKey, "inicio", e.target.value)}
-                                className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-indigo-500 font-mono"
-                              />
-                            </div>
-                            <div>
-                              <span className="text-[9px] text-slate-500 uppercase tracking-wider block mb-1">Horário de Término</span>
-                              <input
-                                type="time"
-                                required
-                                value={dayConfig.fim}
-                                onChange={(e) => handleTimeChange(dayKey, "fim", e.target.value)}
-                                className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-indigo-500 font-mono"
-                              />
-                            </div>
-                          </div>
-
-                          {/* Row 2: Lunch interval */}
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <span className="text-[9px] text-slate-500 uppercase tracking-wider block mb-1">Almoço (Início)</span>
-                              <input
-                                type="time"
-                                value={dayConfig.intervaloInicio}
-                                onChange={(e) => handleTimeChange(dayKey, "intervaloInicio", e.target.value)}
-                                className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-slate-350 text-xs focus:outline-none focus:border-indigo-500 font-mono"
-                              />
-                            </div>
-                            <div>
-                              <span className="text-[9px] text-slate-500 uppercase tracking-wider block mb-1">Almoço (Término)</span>
-                              <input
-                                type="time"
-                                value={dayConfig.intervaloFim}
-                                onChange={(e) => handleTimeChange(dayKey, "intervaloFim", e.target.value)}
-                                className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-slate-350 text-xs focus:outline-none focus:border-indigo-500 font-mono"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
+          {/* Subsection: Configurações Gerais da Agenda */}
+          <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 backdrop-blur-sm space-y-6">
+            <div>
+              <h2 className="text-xl font-bold text-white mb-1">Configurações Gerais da Agenda</h2>
+              <p className="text-xs text-slate-400">Defina os parâmetros globais de funcionamento e exibição para os seus clientes.</p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Slot Duration */}
-              <div className="border-t border-slate-850 pt-4">
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Duração do Slot / Atendimento</label>
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-slate-350 uppercase tracking-wider">Duração de cada Atendimento</label>
                 <select
                   value={slotDuration}
                   onChange={(e) => setSlotDuration(Number(e.target.value))}
-                  className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-sm focus:outline-none focus:border-indigo-500 font-semibold"
+                  className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500 font-semibold"
                 >
                   {durationOptions.map(opt => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -931,12 +874,12 @@ export default function SlotsPage() {
               </div>
 
               {/* Generation Period */}
-              <div className="border-t border-slate-850 pt-4">
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Período de Geração</label>
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-slate-350 uppercase tracking-wider">Período de Geração de Slots</label>
                 <select
                   value={periodDays}
                   onChange={(e) => setPeriodDays(Number(e.target.value))}
-                  className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-sm focus:outline-none focus:border-indigo-500 font-semibold font-mono"
+                  className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500 font-semibold font-mono"
                 >
                   {periodOptions.map(opt => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -945,80 +888,214 @@ export default function SlotsPage() {
               </div>
 
               {/* Public Visibility Window */}
-              <div className="border-t border-slate-850 pt-4">
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                  Até quantos dias futuros seus clientes podem visualizar?
-                </label>
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-slate-350 uppercase tracking-wider">Janela de Exibição Pública (Clientes)</label>
                 <select
                   value={windowDays}
                   onChange={(e) => setWindowDays(Number(e.target.value))}
-                  className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-sm focus:outline-none focus:border-indigo-500 font-semibold font-mono"
+                  className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500 font-semibold font-mono"
                 >
                   {windowDaysOptions.map(opt => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
               </div>
-
-              {/* Action Triggers */}
-              <div className="pt-2 space-y-2.5 border-t border-slate-850">
-                <button
-                  onClick={handleSaveConfigOnly}
-                  disabled={actionLoading}
-                  className="w-full py-2.5 bg-slate-950 hover:bg-slate-850 border border-slate-800 disabled:opacity-50 disabled:cursor-not-allowed text-slate-350 hover:text-slate-100 font-bold rounded-xl text-xs transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-                >
-                  {actionLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <span>Salvar Configurações</span>
-                  )}
-                </button>
-                
-                <button
-                  onClick={handleOpenSmartPreview}
-                  disabled={actionLoading}
-                  className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-700/50 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm transition-all shadow-lg active:scale-[0.98] flex items-center justify-center gap-2"
-                >
-                  {actionLoading ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <>
-                      <Sparkles className="h-4.5 w-4.5" />
-                      <span>Gerar Agenda Automática</span>
-                    </>
-                  )}
-                </button>
-              </div>
             </div>
-          )}
+          </div>
 
-          {/* TAB 2: MANUAL SLOT FORM */}
-          {activeTab === "manual" && (
-            <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-5 md:p-6 backdrop-blur-sm space-y-6">
-              <div>
-                <h2 className="text-lg font-bold text-white mb-1 flex items-center gap-2">
-                  <CalendarIcon className="h-5 w-5 text-indigo-400" />
-                  <span>Horários Avulsos</span>
-                </h2>
-                <p className="text-xs text-slate-400">Insira horários específicos para datas isoladas na agenda.</p>
-              </div>
+          {/* Subsection: Rotina de Funcionamento Semanal */}
+          <div className="space-y-4">
+            <div>
+              <h2 className="text-xl font-bold text-white mb-1">Rotina de Funcionamento Semanal</h2>
+              <p className="text-xs text-slate-400">Configure detalhadamente quais dias da semana você atende e quais os horários de expediente e almoço.</p>
+            </div>
 
+            {/* Loop weekdays in grid (spacious & highly readable) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {uiDisplayDays.map(dayKey => {
+                const dayConfig = agendaConfig[dayKey] || defaultDays[dayKey];
+                const label = weekdayLabels[dayKey];
+                
+                return (
+                  <div 
+                    key={dayKey} 
+                    className={`
+                      border rounded-3xl transition-all duration-300 p-6 space-y-5 relative overflow-hidden backdrop-blur-sm
+                      ${dayConfig.ativo 
+                        ? "bg-slate-900/60 border-indigo-500/30 ring-1 ring-indigo-500/10 shadow-lg shadow-indigo-500/5" 
+                        : "bg-slate-950/10 border-slate-900 opacity-60 hover:opacity-80"
+                      }
+                    `}
+                  >
+                    {/* Header Row with Toggle Switch */}
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                      <span className="text-sm font-extrabold text-white tracking-wide uppercase">{label}</span>
+                      <button
+                        onClick={() => handleToggleDay(dayKey)}
+                        className={`
+                          px-3.5 py-1.5 rounded-xl text-[11px] font-black transition-all duration-300 border flex items-center gap-1.5
+                          ${dayConfig.ativo 
+                            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-sm shadow-emerald-500/5" 
+                            : "bg-slate-950 border-slate-800 text-slate-500 hover:border-slate-700"
+                          }
+                        `}
+                      >
+                        <span className={`h-2.5 w-2.5 rounded-full ${dayConfig.ativo ? "bg-emerald-500 animate-pulse" : "bg-slate-700"}`} />
+                        <span>{dayConfig.ativo ? "Ativo" : "Inativo"}</span>
+                      </button>
+                    </div>
+
+                    {/* Config inputs if active */}
+                    {dayConfig.ativo ? (
+                      <div className="space-y-4">
+                        {/* Expediente (Working Hours) */}
+                        <div className="space-y-2">
+                          <span className="text-[11px] font-bold text-indigo-400 uppercase tracking-wider block">Horário de Expediente</span>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <span className="text-[9px] text-slate-500 uppercase tracking-wider block mb-1">Início</span>
+                              <input
+                                type="time"
+                                required
+                                value={dayConfig.inicio}
+                                onChange={(e) => handleTimeChange(dayKey, "inicio", e.target.value)}
+                                className="w-full px-3 py-2.5 bg-slate-950 border border-slate-850 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500 font-semibold font-mono text-center shadow-inner"
+                              />
+                            </div>
+                            <div>
+                              <span className="text-[9px] text-slate-500 uppercase tracking-wider block mb-1">Término</span>
+                              <input
+                                type="time"
+                                required
+                                value={dayConfig.fim}
+                                onChange={(e) => handleTimeChange(dayKey, "fim", e.target.value)}
+                                className="w-full px-3 py-2.5 bg-slate-950 border border-slate-850 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500 font-semibold font-mono text-center shadow-inner"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Almoço (Lunch Break) */}
+                        <div className="space-y-2 pt-2 border-t border-slate-950">
+                          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Intervalo de Almoço</span>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <span className="text-[9px] text-slate-500 uppercase tracking-wider block mb-1">Início do Almoço</span>
+                              <input
+                                type="time"
+                                value={dayConfig.intervaloInicio}
+                                onChange={(e) => handleTimeChange(dayKey, "intervaloInicio", e.target.value)}
+                                className="w-full px-3 py-2.5 bg-slate-950 border border-slate-850 rounded-xl text-slate-400 text-sm focus:outline-none focus:border-indigo-500 font-semibold font-mono text-center shadow-inner"
+                              />
+                            </div>
+                            <div>
+                              <span className="text-[9px] text-slate-500 uppercase tracking-wider block mb-1">Fim do Almoço</span>
+                              <input
+                                type="time"
+                                value={dayConfig.intervaloFim}
+                                onChange={(e) => handleTimeChange(dayKey, "intervaloFim", e.target.value)}
+                                className="w-full px-3 py-2.5 bg-slate-950 border border-slate-850 rounded-xl text-slate-400 text-sm focus:outline-none focus:border-indigo-500 font-semibold font-mono text-center shadow-inner"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="h-32 flex flex-col justify-center items-center text-center text-slate-650 py-6">
+                        <Info className="h-6 w-6 text-slate-700 mb-1.5" />
+                        <span className="text-xs font-semibold text-slate-400">Dia de folga</span>
+                        <p className="text-[10px] text-slate-550 max-w-xs mt-0.5">Nenhum horário será gerado para este dia.</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Action Triggers */}
+          <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t border-slate-850 justify-end">
+            <button
+              onClick={handleSaveConfigOnly}
+              disabled={actionLoading}
+              className="px-6 py-3.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 disabled:opacity-50 disabled:cursor-not-allowed text-slate-205 font-bold rounded-xl text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+            >
+              {actionLoading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <span>Salvar Configurações</span>
+              )}
+            </button>
+            
+            <button
+              onClick={handleOpenSmartPreview}
+              disabled={actionLoading}
+              className="px-8 py-3.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-700/50 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm transition-all shadow-lg shadow-indigo-500/20 active:scale-[0.98] flex items-center justify-center gap-2"
+            >
+              {actionLoading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <>
+                  <Sparkles className="h-4.5 w-4.5" />
+                  <span>Gerar Agenda Automática</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 2: MANUAL SLOT FORM (Full-width side-by-side layout) */}
+      {activeTab === "manual" && (
+        <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 md:p-8 backdrop-blur-sm space-y-6 animate-fade-in">
+          <div>
+            <h2 className="text-xl font-bold text-white mb-1 flex items-center gap-2">
+              <CalendarIcon className="h-5.5 w-5.5 text-indigo-400" />
+              <span>Horários Avulsos</span>
+            </h2>
+            <p className="text-xs text-slate-400">Insira horários específicos para datas isoladas na agenda.</p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Left Side: Date Input and Custom time */}
+            <div className="space-y-6 bg-slate-950/20 border border-slate-850 p-6 rounded-3xl">
               {/* Date Input */}
               <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">1. Escolha a data</label>
+                <label className="block text-xs font-semibold text-slate-350 uppercase tracking-wider mb-2">1. Escolha a data</label>
                 <input
                   type="date"
                   value={manualDate}
                   min={new Date().toISOString().split("T")[0]}
                   onChange={(e) => setManualDate(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500 text-slate-100 text-sm"
+                  className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500 text-slate-100 text-sm font-mono"
                 />
               </div>
 
-              {/* Common presets checkboxes */}
+              {/* Custom Time Add Form */}
               <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">2. Escolha os horários</label>
-                <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto p-2 bg-slate-950 border border-slate-800/80 rounded-xl">
+                <label className="block text-xs font-semibold text-slate-355 uppercase tracking-wider mb-2">Ou digite um horário customizado</label>
+                <form onSubmit={handleManualAddCustomTime} className="flex gap-2">
+                  <input
+                    type="time"
+                    value={manualCustomTime}
+                    onChange={(e) => setManualCustomTime(e.target.value)}
+                    className="flex-1 px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500 text-slate-100 text-sm font-mono"
+                  />
+                  <button
+                    type="submit"
+                    className="px-4 bg-slate-950 border border-slate-800 hover:border-indigo-500 text-slate-300 hover:text-indigo-400 rounded-xl font-bold transition-all"
+                  >
+                    <Plus className="h-5 w-5" />
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            {/* Right Side: Common presets checkboxes & Summary */}
+            <div className="space-y-6 bg-slate-950/20 border border-slate-855 p-6 rounded-3xl border-slate-850">
+              <div>
+                <label className="block text-xs font-semibold text-slate-355 uppercase tracking-wider mb-2">2. Escolha os horários</label>
+                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 max-h-48 overflow-y-auto p-3 bg-slate-950 border border-slate-800 rounded-xl">
                   {standardTimes.map(time => {
                     const checked = manualSelectedTimes.includes(time);
                     return (
@@ -1026,9 +1103,9 @@ export default function SlotsPage() {
                         key={time}
                         onClick={() => handleManualTimeCheckbox(time)}
                         className={`
-                          py-1.5 px-1 rounded-lg text-xs font-semibold border text-center transition-all
+                          py-2 px-1 rounded-xl text-xs font-semibold border text-center transition-all font-mono
                           ${checked 
-                            ? "bg-indigo-600 border-indigo-500 text-white" 
+                            ? "bg-indigo-600 border-indigo-500 text-white shadow-md shadow-indigo-500/10" 
                             : "bg-slate-900/60 border-slate-800/80 text-slate-400 hover:border-slate-700"
                           }
                         `}
@@ -1040,35 +1117,16 @@ export default function SlotsPage() {
                 </div>
               </div>
 
-              {/* Custom Time Add Form */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Ou digite um horário customizado</label>
-                <form onSubmit={handleManualAddCustomTime} className="flex gap-2">
-                  <input
-                    type="time"
-                    value={manualCustomTime}
-                    onChange={(e) => setManualCustomTime(e.target.value)}
-                    className="flex-1 px-4 py-2 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500 text-slate-100 text-sm"
-                  />
-                  <button
-                    type="submit"
-                    className="px-3 bg-slate-950 border border-slate-800 hover:border-indigo-500 text-slate-355 hover:text-indigo-400 rounded-xl font-bold transition-all"
-                  >
-                    <Plus className="h-5 w-5" />
-                  </button>
-                </form>
-              </div>
-
               {/* Selection Summary */}
               {manualSelectedTimes.length > 0 && (
-                <div className="bg-slate-950/60 border border-slate-800/50 p-3 rounded-xl">
-                  <span className="text-xs text-slate-500 block mb-1 font-semibold">Selecionados:</span>
+                <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-xl">
+                  <span className="text-xs text-slate-450 block mb-2 font-semibold">Selecionados:</span>
                   <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
                     {manualSelectedTimes.map(time => (
                       <span 
                         key={time}
                         onClick={() => handleManualTimeCheckbox(time)}
-                        className="inline-flex items-center gap-0.5 px-2 py-0.5 bg-indigo-500/10 text-indigo-400 rounded text-[11px] font-semibold border border-indigo-500/20 cursor-pointer hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-all"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-500/10 text-indigo-400 rounded-lg text-xs font-semibold border border-indigo-500/20 cursor-pointer hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-all font-mono"
                         title="Remover"
                       >
                         <span>{time}</span>
@@ -1078,72 +1136,150 @@ export default function SlotsPage() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
 
-              {/* Manual Generation Trigger */}
-              <button
-                onClick={handleManualGenerateSlots}
-                disabled={actionLoading || manualSelectedTimes.length === 0}
-                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-700/50 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm transition-all shadow-lg active:scale-[0.98] flex items-center justify-center gap-2"
-              >
-                {actionLoading ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <span>Criar {manualSelectedTimes.length} Horário(s) Avulso(s)</span>
-                )}
-              </button>
+          {/* Manual Generation Trigger */}
+          <div className="flex justify-end pt-4 border-t border-slate-850">
+            <button
+              onClick={handleManualGenerateSlots}
+              disabled={actionLoading || manualSelectedTimes.length === 0}
+              className="px-8 py-3.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-700/50 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm transition-all shadow-lg shadow-indigo-500/20 active:scale-[0.98] flex items-center justify-center gap-2"
+            >
+              {actionLoading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <span>Criar {manualSelectedTimes.length} Horário(s) Avulso(s)</span>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: AGENDA ATUAL (Full-width details and dashboard) */}
+      {activeTab === "agenda" && (
+        <div className="space-y-6 animate-fade-in">
+          
+          {/* Metrics summary cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Card 1 */}
+            <div className="bg-slate-900/40 border border-slate-800 p-6 rounded-3xl backdrop-blur-sm relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-3 text-emerald-500/10"><Check className="h-16 w-16" /></div>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Horários Disponíveis (Livres)</span>
+              <h3 className="text-3xl font-black text-emerald-400 mt-2">{totalAvailable}</h3>
+              <p className="text-[11px] text-slate-400 mt-1">Livres para pré-agendamentos.</p>
+            </div>
+            {/* Card 2 */}
+            <div className="bg-slate-900/40 border border-slate-800 p-6 rounded-3xl backdrop-blur-sm relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-3 text-amber-500/10"><X className="h-16 w-16" /></div>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Horários Ocupados / Reservados</span>
+              <h3 className="text-3xl font-black text-amber-500 mt-2">{totalReserved}</h3>
+              <p className="text-[11px] text-slate-400 mt-1">Slots agendados por clientes.</p>
+            </div>
+            {/* Card 3 */}
+            <div className="bg-slate-900/40 border border-slate-800 p-6 rounded-3xl backdrop-blur-sm relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-3 text-indigo-500/10"><CalendarIcon className="h-16 w-16" /></div>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total de Slots na Agenda</span>
+              <h3 className="text-3xl font-black text-indigo-400 mt-2">{slots.length}</h3>
+              <p className="text-[11px] text-slate-400 mt-1">Soma de todos os horários criados.</p>
+            </div>
+          </div>
+
+          {/* Date Filter bar */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-900/40 border border-slate-800 p-5 rounded-3xl backdrop-blur-sm">
+            <div className="flex items-center gap-3">
+              <label className="text-xs font-bold text-slate-350 uppercase tracking-wider">Filtrar por data:</label>
+              <input
+                type="date"
+                value={agendaDateFilter}
+                onChange={(e) => setAgendaDateFilter(e.target.value)}
+                className="px-4 py-2 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500 text-slate-100 text-sm font-mono shadow-inner"
+              />
+              {agendaDateFilter && (
+                <button
+                  onClick={() => setAgendaDateFilter("")}
+                  className="px-3.5 py-2 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-200 text-xs font-bold rounded-xl transition-all active:scale-95"
+                >
+                  Limpar Filtro
+                </button>
+              )}
+            </div>
+            <span className="text-xs text-slate-400 font-semibold bg-slate-950/65 px-3 py-1.5 rounded-lg border border-slate-850">
+              {agendaDateFilter ? "Mostrando apenas a data selecionada." : "Mostrando todas as datas com horários."}
+            </span>
+          </div>
+
+          {/* Upcoming available slots vision */}
+          {upcomingSlots.length > 0 && !agendaDateFilter && (
+            <div className="bg-indigo-950/15 border border-indigo-900/25 p-5 rounded-3xl backdrop-blur-sm">
+              <h4 className="text-xs font-bold text-indigo-300 uppercase tracking-wider mb-3">Próximos Horários Disponíveis</h4>
+              <div className="flex flex-wrap gap-2.5">
+                {upcomingSlots.map(slot => (
+                  <span 
+                    key={slot.id} 
+                    className="px-3.5 py-2 bg-slate-950 border border-slate-855 rounded-xl text-xs font-semibold text-slate-200 flex items-center gap-1.5 font-mono shadow-inner border-slate-850"
+                  >
+                    <Clock className="h-3.5 w-3.5 text-indigo-400" />
+                    <span>{formatDate(slot.data)} às {slot.horario}</span>
+                  </span>
+                ))}
+              </div>
             </div>
           )}
 
-        </div>
-
-        {/* Right Column: Existing Slots Agenda */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-5 md:p-6 backdrop-blur-sm">
-            <h2 className="text-lg font-bold text-white mb-4">Agenda Atual</h2>
+          {/* Slots List container */}
+          <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 backdrop-blur-sm space-y-6">
+            <div>
+              <h2 className="text-xl font-bold text-white mb-1">Visão Detalhada dos Horários</h2>
+              <p className="text-xs text-slate-400">Gerencie a disponibilidade de cada slot individual ou exclua blocos de horários.</p>
+            </div>
             
             {loading ? (
-              <div className="flex flex-col justify-center items-center py-12">
+              <div className="flex flex-col justify-center items-center py-16">
                 <Loader2 className="h-8 w-8 text-indigo-500 animate-spin" />
                 <p className="mt-4 text-slate-400 font-medium">Buscando agenda...</p>
               </div>
-            ) : Object.keys(groupedSlots).length === 0 ? (
-              <div className="flex flex-col justify-center items-center py-12 text-center">
-                <div className="p-3 bg-slate-900 rounded-full text-slate-500 mb-3">
+            ) : filteredGroupedDates.length === 0 ? (
+              <div className="flex flex-col justify-center items-center py-16 text-center">
+                <div className="p-3.5 bg-slate-900 rounded-full text-slate-500 mb-3 border border-slate-800">
                   <Info className="h-6 w-6" />
                 </div>
-                <h4 className="font-bold text-slate-300">Agenda sem horários cadastrados</h4>
-                <p className="text-xs text-slate-500 max-w-xs mt-1">
-                  Use o painel ao lado para gerar horários disponíveis. Clientes só podem agendar datas/horas cadastradas.
+                <h4 className="font-bold text-slate-350">Nenhum horário correspondente encontrado</h4>
+                <p className="text-xs text-slate-500 max-w-sm mt-1">
+                  {agendaDateFilter 
+                    ? "Não há horários cadastrados nesta data específica." 
+                    : "Use o painel de Gerador Automático para preencher sua agenda semanal."
+                  }
                 </p>
               </div>
             ) : (
-              <div className="space-y-6 max-h-[600px] overflow-y-auto pr-1">
-                {Object.keys(groupedSlots).map(dateStr => {
+              <div className="space-y-6 max-h-[700px] overflow-y-auto pr-1.5">
+                {filteredGroupedDates.map(dateStr => {
                   const daySlots = groupedSlots[dateStr];
                   return (
-                    <div key={dateStr} className="border border-slate-800/80 rounded-2xl p-4 bg-slate-950/20 relative group/date">
+                    <div key={dateStr} className="border border-slate-800/80 rounded-2xl p-5 bg-slate-950/20 relative group/date space-y-4">
                       {/* Date Heading */}
-                      <div className="flex items-center justify-between border-b border-slate-800/50 pb-3 mb-3">
-                        <h4 className="font-bold text-sm text-indigo-300">
+                      <div className="flex items-center justify-between border-b border-slate-800/50 pb-3">
+                        <h4 className="font-bold text-sm md:text-base text-indigo-300">
                           {formatDateFriendly(dateStr)}
                         </h4>
                         <button
                           onClick={() => handleDeleteDateSlots(dateStr)}
-                          className="text-xs text-slate-500 hover:text-red-400 font-semibold transition-all px-2 py-1 hover:bg-red-500/10 rounded border border-transparent hover:border-red-500/10 md:opacity-0 group-hover/date:opacity-100"
+                          className="text-xs text-slate-500 hover:text-red-400 font-bold transition-all px-2.5 py-1.5 hover:bg-red-500/10 rounded-lg border border-transparent hover:border-red-500/10 md:opacity-0 group-hover/date:opacity-100"
                         >
                           Limpar Horários Livres do Dia
                         </button>
                       </div>
 
-                      {/* Slots List */}
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                      {/* Slots List Grid (large dynamic width) */}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
                         {daySlots.map(slot => (
                           <div 
                             key={slot.id}
                             className={`
-                              flex items-center justify-between px-3 py-2 rounded-xl border text-xs font-semibold transition-all
+                              flex items-center justify-between px-3 py-2.5 rounded-xl border text-xs font-semibold transition-all shadow-sm
                               ${slot.disponivel 
-                                ? "bg-slate-900/80 border-slate-800 text-slate-200" 
+                                ? "bg-slate-900 border-slate-800 text-slate-200" 
                                 : "bg-red-500/5 border-red-500/10 text-slate-500"
                               }
                             `}
@@ -1153,7 +1289,7 @@ export default function SlotsPage() {
                               <span className={slot.disponivel ? "" : "line-through"}>{slot.horario}</span>
                             </div>
 
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-1.5">
                               {/* Toggle availability */}
                               <button
                                 onClick={() => handleToggleSlot(slot)}
@@ -1186,8 +1322,7 @@ export default function SlotsPage() {
             )}
           </div>
         </div>
-
-      </div>
+      )}
 
       {/* MODAL 1: SMART GENERATOR PREVIEW */}
       {showPreview && (
@@ -1206,7 +1341,7 @@ export default function SlotsPage() {
             </h2>
             <p className="text-xs text-slate-400 mb-6 font-medium">Confira as estimativas antes de criar novos horários.</p>
 
-            <div className="space-y-4 bg-slate-950 border border-slate-850 p-4 rounded-2xl text-sm mb-6 text-slate-300">
+            <div className="space-y-4 bg-slate-950 border border-slate-855 p-4 rounded-2xl text-sm mb-6 text-slate-300 border-slate-850">
               <div className="flex justify-between border-b border-slate-850 pb-2.5">
                 <span className="text-slate-500 font-semibold">Período selecionado:</span>
                 <span className="font-bold text-slate-200">
@@ -1246,7 +1381,7 @@ export default function SlotsPage() {
               <button
                 type="button"
                 onClick={() => setShowPreview(false)}
-                className="flex-1 py-3 bg-slate-950 hover:bg-slate-800 text-slate-350 border border-slate-800 font-semibold rounded-xl text-sm transition-all"
+                className="flex-1 py-3 bg-slate-950 hover:bg-slate-800 text-slate-350 border border-slate-850 font-semibold rounded-xl text-sm transition-all border-slate-800"
               >
                 Ajustar Filtros
               </button>
@@ -1265,7 +1400,7 @@ export default function SlotsPage() {
       {/* MODAL 2: SMART GENERATOR FEEDBACK */}
       {showResult && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl relative text-center flex flex-col items-center">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-850 rounded-3xl p-6 md:p-8 shadow-2xl relative text-center flex flex-col items-center border-slate-800">
             
             <div className="h-14 w-14 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/5 mb-4">
               <Check className="h-7 w-7" />
@@ -1276,7 +1411,7 @@ export default function SlotsPage() {
             </h2>
             <p className="text-xs text-slate-400 mb-6 font-medium">Sua agenda de rotina foi calculada e atualizada no banco de dados.</p>
 
-            <div className="w-full space-y-3 bg-slate-950 border border-slate-850 p-4 rounded-2xl text-sm mb-6 text-slate-350 text-left">
+            <div className="w-full space-y-3 bg-slate-950 border border-slate-855 p-4 rounded-2xl text-sm mb-6 text-slate-355 text-left border-slate-850">
               <div className="flex justify-between items-center">
                 <span className="text-slate-500 font-semibold">Horários criados:</span>
                 <span className="font-bold text-emerald-400">{resultMetrics.created}</span>
