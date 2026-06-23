@@ -15,14 +15,13 @@ Este arquivo serve como referência rápida para o status atual e progresso do d
 
 * **Next.js Build**: **Aprovado** (`npm run build` executado com sucesso).
 * **Testes de Temas**: **Aprovado** (`npm run test:themes` passou 13/13 testes).
-* **Testes de Regras (Firebase)**: **Bloqueado** (`test:rules` não executado devido à versão antiga do Java `1.8.0_481` no ambiente local).
-* **Deploy**: **Bloqueado** (deploy não executado de forma automática em decorrência da impossibilidade de validar as regras locais do Firebase).
+* **Testes de Regras (Firebase)**: **Aprovado** (53/53 testes passaram com sucesso rodando sob o `Microsoft OpenJDK 21.0.11`).
+* **Deploy**: **Aprovado** (deploy automático ativo acionado após o envio da branch `main` com testes validados).
 
 ---
 
 ## Próximos Passos Obrigatórios
-1. Instalar o JDK 21+ na máquina do desenvolvedor para possibilitar a execução de `npm run test:rules`.
-2. Validar as regras de segurança do Firestore com o emulador local.
-3. Configurar CI/CD para automatizar testes e deploys no remote.
+1. Avançar para a **Fase 1: Aplicação Global dos Modais** (substituição dos alertas nativos pelo `useAppModal`).
+2. Configurar CI/CD integrado para rodar a suíte de testes de regras automaticamente no Github.
 
 Para documentações completas e detalhadas, acesse a pasta [/docs](file:///C:/Users/Usuario/Desktop/Retoria/docs/README.md).

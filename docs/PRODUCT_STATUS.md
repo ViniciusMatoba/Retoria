@@ -20,8 +20,8 @@ Este documento apresenta o estado real de desenvolvimento e testes do projeto Re
 
 * **Build**: `npm run build` compilando com sucesso (Next.js 16/Turbopack).
 * **Testes de Temas**: `npm run test:themes` passando com **13/13 testes de sucesso**.
-* **Testes de Regras (Firestore/Storage)**: `npm run test:rules` **NÃO EXECUTADO** localmente.
-  * **Bloqueio**: A execução falhou porque o ambiente local possui apenas a versão antiga do Java (`java version 1.8.0_481`), enquanto as ferramentas do Firebase CLI exigem JDK 21+.
+* **Testes de Regras (Firestore/Storage)**: `npm run test:rules` **CONCLUÍDO E APROVADO** com **53/53 testes passando com sucesso**.
+  * **Java**: Utilizado o `Microsoft OpenJDK 21.0.11` (instalado via winget), atendendo à especificação mínima de JDK 21+ exigida pelo emulador do Firebase.
 
 ---
 
