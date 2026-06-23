@@ -54,7 +54,12 @@ export default function PublicThemeProvider({
   } as React.CSSProperties;
 
   // Resolve background style inline
-  const bgStyle: React.CSSProperties = { ...styleVariables };
+  const bgStyle: React.CSSProperties = { 
+    ...styleVariables,
+    fontFamily: "var(--theme-body-font)",
+    color: themeConfig.textColor,
+    backgroundColor: themeConfig.backgroundColor // Fallback background color
+  };
   if (themeConfig.backgroundType === "solid") {
     bgStyle.backgroundColor = themeConfig.backgroundColor;
   } else if (themeConfig.backgroundType === "gradient" && themeConfig.backgroundGradient) {

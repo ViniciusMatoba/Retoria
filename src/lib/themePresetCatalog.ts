@@ -56,7 +56,7 @@ export interface ThemePreset {
 
 const base = getDefaultThemeConfig();
 
-export const themePresetCatalog: ThemePreset[] = [
+const rawThemePresetCatalog: ThemePreset[] = [
   {
     id: "beauty-elegant",
     name: "Essência Elegante",
@@ -549,6 +549,17 @@ export const themePresetCatalog: ThemePreset[] = [
   },
 ];
 
+export const themePresetCatalog: ThemePreset[] = rawThemePresetCatalog.filter((preset) => {
+  const result = validateThemePreset(preset);
+  if (!result.valid) {
+    if (process.env.NODE_ENV !== "production") {
+      console.error(`Preset inválido: ${preset.id}`, result.errors);
+    }
+    return false;
+  }
+  return true;
+});
+
 export function getThemePresetById(id: string): ThemePreset | null {
   return themePresetCatalog.find((p) => p.id === id) ?? null;
 }
@@ -569,42 +580,78 @@ export function searchThemePresets(query: string): ThemePreset[] {
   );
 }
 
+export function validateThemePreset(preset: ThemePreset): {
+  valid: boolean;
+  errors: Array<{ field: string; message: string }>;
+} {
+  const errors: Array<{ field: string; message: string }> = [];
+
+  if (!preset.id) {
+    errors.push({ field: "id", message: "ID do preset está ausente." });
+  }
+  if (!preset.name) {
+    errors.push({ field: "name", message: "Nome do preset está ausente." });
+  }
+  if (!preset.recommendedSegments || preset.recommendedSegments.length === 0) {
+    errors.push({ field: "recommendedSegments", message: "O preset deve ter pelo menos um segmento recomendado." });
+  } else {
+    for (const seg of preset.recommendedSegments) {
+      if (!SEGMENT_LABELS[seg]) {
+        errors.push({ field: "recommendedSegments", message: `Segmento recomendado inválido: ${seg}` });
+      }
+    }
+  }
+  if (!preset.tags || preset.tags.length === 0) {
+    errors.push({ field: "tags", message: "O preset deve ter pelo menos uma tag." });
+  }
+  if (preset.mode !== "light" && preset.mode !== "dark") {
+    errors.push({ field: "mode", message: `Modo inválido: ${preset.mode}` });
+  }
+
+  // Preview validation
+  if (!preset.preview) {
+    errors.push({ field: "preview", message: "Configuração de preview está ausente." });
+  } else {
+    const previewFields = ["backgroundStyle", "primaryColor", "surfaceColor", "textColor", "headingFont", "bodyFont"];
+    for (const f of previewFields) {
+      if (!preset.preview[f as keyof typeof preset.preview]) {
+        errors.push({ field: `preview.${f}`, message: `Campo de preview ausente: ${f}` });
+      }
+    }
+  }
+
+  // ThemeConfig validation
+  if (!preset.theme) {
+    errors.push({ field: "theme", message: "Configuração de tema (theme) está ausente." });
+  } else {
+    const result = validateThemeConfig(preset.theme);
+    if (!result.valid) {
+      errors.push({ field: "theme", message: result.error || "ThemeConfig inválido." });
+    }
+  }
+
+  return { valid: errors.length === 0, errors };
+}
+
 export function validateThemePresetCatalog(): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
   const ids = new Set<string>();
 
-  const allowedFontFamilies = fontCatalog.map((f) => f.family);
-
   for (const preset of themePresetCatalog) {
-    if (!preset.id) errors.push(`Preset sem ID.`);
-    if (ids.has(preset.id)) errors.push(`ID duplicado: ${preset.id}`);
+    if (!preset.id) {
+      errors.push("Preset sem ID.");
+      continue;
+    }
+    if (ids.has(preset.id)) {
+      errors.push(`ID duplicado: ${preset.id}`);
+    }
     ids.add(preset.id);
 
-    if (!preset.name) errors.push(`[${preset.id}] sem nome.`);
-    if (!preset.recommendedSegments.length) errors.push(`[${preset.id}] sem segmentos.`);
-    if (!preset.tags.length) errors.push(`[${preset.id}] sem tags.`);
-
-    if (!allowedFontFamilies.includes(preset.theme.headingFont)) {
-      errors.push(`[${preset.id}] fonte de título fora do catálogo: ${preset.theme.headingFont}`);
-    }
-    if (!allowedFontFamilies.includes(preset.theme.bodyFont)) {
-      errors.push(`[${preset.id}] fonte de texto fora do catálogo: ${preset.theme.bodyFont}`);
-    }
-
-    if (preset.theme.backgroundType === "gradient" && preset.theme.backgroundGradient) {
-      if (!gradientPresets[preset.theme.backgroundGradient]) {
-        errors.push(`[${preset.id}] gradiente inválido: ${preset.theme.backgroundGradient}`);
-      }
-    }
-    if (preset.theme.backgroundType === "preset" && preset.theme.backgroundPreset) {
-      if (!bgPatterns[preset.theme.backgroundPreset]) {
-        errors.push(`[${preset.id}] padrão de fundo inválido: ${preset.theme.backgroundPreset}`);
-      }
-    }
-
-    const result = validateThemeConfig(preset.theme);
+    const result = validateThemePreset(preset);
     if (!result.valid) {
-      errors.push(`[${preset.id}] ThemeConfig inválido: ${result.error}`);
+      for (const err of result.errors) {
+        errors.push(`[${preset.id}] Campo: ${err.field} - Motivo: ${err.message}`);
+      }
     }
   }
 

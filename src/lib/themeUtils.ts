@@ -456,7 +456,7 @@ export function validateThemeConfig(config: ThemeConfig): { valid: boolean; erro
 
   // Safety block: prevent custom external urls manually injected
   const storageHost = "firebasestorage.googleapis.com";
-  if (config.backgroundImageUrl && !config.backgroundImageUrl.includes(storageHost)) {
+  if (config.backgroundImageUrl && !config.backgroundImageUrl.startsWith("/") && !config.backgroundImageUrl.includes(storageHost)) {
     return { valid: false, error: "Apenas imagens hospedadas no Firebase Storage da Retoria são aceitas." };
   }
 
@@ -528,4 +528,64 @@ export function getButtonRadius(style: string): string {
     case "pill": return "9999px";
     default: return "8px";
   }
+}
+
+export function normalizeThemeConfig(config: any): ThemeConfig {
+  const base = getDefaultThemeConfig();
+  if (!config) return base;
+
+  const normalized = { ...base, ...config };
+
+  // 1. Sanitize Colors
+  const colorFields: Array<keyof ThemeConfig> = [
+    "primaryColor", "secondaryColor", "accentColor",
+    "backgroundColor", "surfaceColor", "textColor", "mutedTextColor"
+  ];
+  for (const field of colorFields) {
+    if (!normalized[field] || !validateHexColor(normalized[field])) {
+      normalized[field] = base[field];
+    }
+  }
+
+  // 2. Sanitize Fonts
+  const allowedFonts = fontCatalog.map(f => f.family);
+  if (!allowedFonts.includes(normalized.headingFont)) {
+    normalized.headingFont = base.headingFont;
+  }
+  if (!allowedFonts.includes(normalized.bodyFont)) {
+    normalized.bodyFont = base.bodyFont;
+  }
+
+  // 3. Sanitize background type and options
+  if (!["solid", "gradient", "preset", "image"].includes(normalized.backgroundType)) {
+    normalized.backgroundType = base.backgroundType;
+  }
+
+  if (normalized.backgroundGradient && !gradientPresets[normalized.backgroundGradient]) {
+    normalized.backgroundGradient = null;
+    if (normalized.backgroundType === "gradient") {
+      normalized.backgroundType = "solid";
+    }
+  }
+
+  if (normalized.backgroundPreset && !bgPatterns[normalized.backgroundPreset]) {
+    normalized.backgroundPreset = null;
+    if (normalized.backgroundType === "preset") {
+      normalized.backgroundType = "solid";
+    }
+  }
+
+  // 4. Sanitize background image (critical for compatibility with old saved external URLs)
+  if (normalized.backgroundImageUrl) {
+    if (!isAllowedPublicImageUrl(normalized.backgroundImageUrl)) {
+      console.warn(`[ThemeConfig] URL de fundo inválida detectada e removida: ${normalized.backgroundImageUrl}`);
+      normalized.backgroundImageUrl = null;
+      normalized.backgroundStoragePath = null;
+      if (normalized.backgroundType === "image") {
+        normalized.backgroundType = "solid";
+      }
+    }
+  }
+
+  return normalized;
 }

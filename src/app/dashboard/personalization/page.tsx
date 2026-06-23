@@ -8,7 +8,8 @@ import {
   ThemeConfig, 
   getDefaultThemeConfig, 
   validateThemeConfig, 
-  applyThemePreset 
+  applyThemePreset,
+  normalizeThemeConfig
 } from "../../../lib/themeUtils";
 
 import ThemePresetCatalog from "./components/ThemePresetCatalog";
@@ -19,6 +20,7 @@ import ComponentStyleEditor from "./components/ComponentStyleEditor";
 import ThemePreview from "./components/ThemePreview";
 import { getThemePresetById } from "@/lib/themePresetCatalog";
 import type { Professional, Service, AvailableSlot } from "@/app/p/[slug]/components/PublicBookingExperience";
+import { useAppModal } from "@/components/ModalProvider";
 
 import {
   Palette,
@@ -38,6 +40,7 @@ import {
 
 export default function PersonalizationPage() {
   const { user, profile, refreshProfile } = useAuth();
+  const { showSuccessModal, showErrorModal, showConfirmationModal } = useAppModal();
   
   const [draftConfig, setDraftConfig] = useState<ThemeConfig | null>(null);
   const [sourcePresetId, setSourcePresetId] = useState<string | null>(null);
@@ -51,11 +54,7 @@ export default function PersonalizationPage() {
   // Initialize draft config from profile
   useEffect(() => {
     if (profile) {
-      if (profile.themeConfig) {
-        setDraftConfig({ ...getDefaultThemeConfig(), ...profile.themeConfig });
-      } else {
-        setDraftConfig(getDefaultThemeConfig());
-      }
+      setDraftConfig(normalizeThemeConfig(profile.themeConfig));
     }
   }, [profile]);
 
@@ -109,10 +108,22 @@ export default function PersonalizationPage() {
     const id = sourcePresetId ?? draftConfig?.sourcePresetId!;
     const catalogPreset = getThemePresetById(id);
     if (!catalogPreset) return;
-    if (!window.confirm(`Restaurar o tema "${catalogPreset.name}" ao estado original? As edições manuais serão perdidas.`)) return;
-    setDraftConfig({ ...catalogPreset.theme, preset: id, sourcePresetId: id });
-    setError("");
-    setSuccess("Tema original restaurado. Salve para aplicar as mudanças.");
+
+    showConfirmationModal({
+      title: `Restaurar o tema "${catalogPreset.name}"?`,
+      description: "As edições manuais feitas no tema serão perdidas.",
+      confirmLabel: "Restaurar",
+      cancelLabel: "Cancelar",
+      variant: "warning",
+      onConfirm: () => {
+        setDraftConfig({ ...catalogPreset.theme, preset: id, sourcePresetId: id });
+        setError("");
+        showSuccessModal({
+          title: "Tema restaurado",
+          description: "O tema original foi aplicado no rascunho. Salve para confirmar.",
+        });
+      }
+    });
   };
 
   const handleSave = async () => {
@@ -137,10 +148,16 @@ export default function PersonalizationPage() {
         }
       });
       await refreshProfile();
-      setSuccess("Configurações visuais salvas com sucesso!");
+      showSuccessModal({
+        title: "Tema salvo",
+        description: "A personalização da sua página foi atualizada com sucesso.",
+      });
     } catch (err: any) {
       console.error("Save theme error:", err);
-      setError("Erro ao salvar personalização: " + err.message);
+      showErrorModal({
+        title: "Não foi possível salvar o tema",
+        description: "A personalização anterior foi mantida. Revise as informações e tente novamente.",
+      });
     } finally {
       setIsSaving(false);
     }
@@ -149,40 +166,48 @@ export default function PersonalizationPage() {
   const handleDiscard = () => {
     setError("");
     setSuccess("");
-    if (profile.themeConfig) {
-      setDraftConfig({ ...getDefaultThemeConfig(), ...profile.themeConfig });
-    } else {
-      setDraftConfig(getDefaultThemeConfig());
-    }
-    alert("Alterações descartadas.");
+
+    const original = profile.themeConfig
+      ? { ...getDefaultThemeConfig(), ...profile.themeConfig }
+      : getDefaultThemeConfig();
+
+    const hasChanges = JSON.stringify(draftConfig) !== JSON.stringify(original);
+
+    if (!hasChanges) return;
+
+    showConfirmationModal({
+      title: "Descartar alterações?",
+      description: "As mudanças feitas na personalização ainda não foram salvas.",
+      confirmLabel: "Descartar",
+      cancelLabel: "Continuar editando",
+      variant: "danger",
+      onConfirm: () => {
+        if (profile.themeConfig) {
+          setDraftConfig({ ...getDefaultThemeConfig(), ...profile.themeConfig });
+        } else {
+          setDraftConfig(getDefaultThemeConfig());
+        }
+      }
+    });
   };
 
-  const handleRestoreDefault = async () => {
-    if (!user) return;
-    if (!window.confirm("Deseja restaurar as configurações visuais padrões da Retoria? Isso limpará suas cores e imagens customizadas.")) return;
+  const handleRestoreDefault = () => {
+    const defaultConfig = getDefaultThemeConfig();
+    const isDefaultAlready = JSON.stringify(draftConfig) === JSON.stringify(defaultConfig);
 
-    setIsSaving(true);
-    setError("");
-    setSuccess("");
+    if (isDefaultAlready) return;
 
-    try {
-      const defaultConfig = getDefaultThemeConfig();
-      const docRef = doc(db, "professionals", user.uid);
-      await updateDoc(docRef, {
-        themeConfig: {
-          ...defaultConfig,
-          updatedAt: new Date()
-        }
-      });
-      await refreshProfile();
-      setDraftConfig(defaultConfig);
-      setSuccess("Tema padrão restaurado!");
-    } catch (err: any) {
-      console.error("Restore theme error:", err);
-      setError("Erro ao restaurar: " + err.message);
-    } finally {
-      setIsSaving(false);
-    }
+    showConfirmationModal({
+      title: "Restaurar tema padrão?",
+      description: "A personalização atual será substituída pelo tema padrão no rascunho. Você precisará clicar em Salvar para confirmar.",
+      confirmLabel: "Restaurar",
+      cancelLabel: "Cancelar",
+      variant: "warning",
+      onConfirm: () => {
+        setDraftConfig(defaultConfig);
+        setError("");
+      }
+    });
   };
 
   return (

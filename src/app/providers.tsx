@@ -5,6 +5,7 @@ import { onAuthStateChanged, User, signOut } from "firebase/auth";
 import { doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import type { Account, CustomerAccount } from "@/lib/accountUtils";
+import { AppModalProvider } from "@/components/ModalProvider";
 
 export interface ProfessionalProfile {
   id: string;
@@ -187,7 +188,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
         logout,
       }}
     >
-      {children}
+      <AppModalProvider>
+        {children}
+      </AppModalProvider>
     </AuthContext.Provider>
   );
 }

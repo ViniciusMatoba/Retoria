@@ -5,7 +5,7 @@ import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { getSaoPauloToday, addDaysSaoPaulo } from "@/lib/timezone";
 import { Loader2, AlertCircle } from "lucide-react";
-import { getDefaultThemeConfig, ThemeConfig } from "@/lib/themeUtils";
+import { getDefaultThemeConfig, normalizeThemeConfig, ThemeConfig } from "@/lib/themeUtils";
 import PublicBookingExperience, {
   Professional,
   Service,
@@ -15,6 +15,8 @@ import PublicBookingExperience, {
 interface PageProps {
   params: Promise<{ slug: string }>;
 }
+
+export const dynamic = "force-dynamic";
 
 export default function PublicBookingPage({ params }: PageProps) {
   const resolvedParams = use(params);
@@ -76,14 +78,18 @@ export default function PublicBookingPage({ params }: PageProps) {
 
         const docSnap = querySnapshot.docs[0];
         const profData = { id: docSnap.id, ...docSnap.data() } as Professional;
+        console.log("PUBLIC PAGE LOADED PROFILE DATA:", {
+          id: profData.id,
+          nomeNegocio: profData.nomeNegocio,
+          corPrincipal: profData.corPrincipal,
+          themeConfig: profData.themeConfig
+        });
 
         const rawTheme = (profData.themeConfig || {}) as Partial<ThemeConfig>;
-        const defaultTheme = getDefaultThemeConfig();
-        profData.themeConfig = {
-          ...defaultTheme,
+        profData.themeConfig = normalizeThemeConfig({
           ...rawTheme,
-          primaryColor: rawTheme.primaryColor || profData.corPrincipal || defaultTheme.primaryColor,
-        };
+          primaryColor: rawTheme.primaryColor || profData.corPrincipal
+        });
 
         setProfessional(profData);
         const windowDays = profData.agendaConfig?.janelaAgendamentoDias || 30;
