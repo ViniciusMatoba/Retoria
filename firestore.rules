@@ -1,0 +1,65 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isAuth() && request.auth.uid == uid;
+    }
+
+    function isProfessional(profId) {
+      return isOwner(profId);
+    }
+
+    // ─── Global account (navigation/type registry) ────────────────────────
+    match /accounts/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // ─── Customer accounts ────────────────────────────────────────────────
+    match /customerAccounts/{uid} {
+      allow read, write: if isOwner(uid);
+
+      // Booking index — read only by the owner; writes via Admin SDK only
+      match /bookings/{bookingId} {
+        allow read: if isOwner(uid);
+        allow write: if false;
+      }
+    }
+
+    // ─── Professionals ────────────────────────────────────────────────────
+    match /professionals/{profId} {
+      allow read: if true;
+      allow write: if isProfessional(profId);
+
+      match /services/{serviceId} {
+        allow read: if true;
+        allow write: if isProfessional(profId);
+      }
+
+      match /availableSlots/{slotId} {
+        allow read: if true;
+        allow write: if isProfessional(profId);
+      }
+
+      match /leads/{leadId} {
+        allow read, write: if isProfessional(profId);
+      }
+
+      // Customer relationships — visible only to the professional
+      match /customers/{customerUid} {
+        allow read: if isProfessional(profId);
+        allow write: if false; // Admin SDK only
+      }
+
+      // Usage metrics — visible only to the professional
+      match /usage/{period} {
+        allow read: if isProfessional(profId);
+        allow write: if false; // Admin SDK only
+      }
+    }
+  }
+}

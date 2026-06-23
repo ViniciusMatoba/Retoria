@@ -1,0 +1,43 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    function isOwner(profId) {
+      return request.auth != null && request.auth.uid == profId;
+    }
+    
+    function isAllowedImageType() {
+      return request.resource.contentType.matches('image/(jpeg|png|webp)');
+    }
+
+    // Logo Rules (2MB)
+    match /logos/{profId}/logo {
+      allow read: if true;
+      allow write: if isOwner(profId)
+                   && (
+                     request.resource == null
+                     || (isAllowedImageType() && request.resource.size < 2 * 1024 * 1024)
+                   );
+    }
+    
+    // Service Images (2MB)
+    match /services/{profId}/{serviceId}/cover {
+      allow read: if true;
+      allow write: if isOwner(profId)
+                   && (
+                     request.resource == null
+                     || (isAllowedImageType() && request.resource.size < 2 * 1024 * 1024)
+                   );
+    }
+    
+    // Background Images (3MB)
+    match /backgrounds/{profId}/main {
+      allow read: if true;
+      allow write: if isOwner(profId)
+                   && (
+                     request.resource == null
+                     || (isAllowedImageType() && request.resource.size < 3 * 1024 * 1024)
+                   );
+    }
+  }
+}

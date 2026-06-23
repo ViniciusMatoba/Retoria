@@ -12,9 +12,24 @@ import {
   updateDoc, 
   getDocs, 
   where,
-  writeBatch 
+  writeBatch,
+  runTransaction
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { formatPhoneFriendly, getWhatsAppLink } from "@/lib/whatsapp";
+import { 
+  timeToMinutes, 
+  minutesToTime, 
+  addMinutesToTime, 
+  getSaoPauloToday, 
+  dateToSaoPauloKey, 
+  addDaysSaoPaulo, 
+  getStartOfWeekSaoPaulo, 
+  isPastDateTimeSaoPaulo, 
+  formatDateFriendlySaoPaulo, 
+  formatDateShortSaoPaulo, 
+  getMonthNameSaoPaulo 
+} from "@/lib/timezone";
 import { useAuth } from "../../providers";
 import { 
   Calendar as CalendarIcon, 
@@ -29,7 +44,13 @@ import {
   ToggleRight,
   Info,
   Sliders,
-  Sparkles
+  Sparkles,
+  MessageSquare,
+  Phone,
+  User,
+  Users,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 
 interface AvailableSlot {
@@ -41,6 +62,16 @@ interface AvailableSlot {
   createdAt: any;
   updatedAt: any;
   source?: string;
+  bookingId?: string;
+  ocupacaoTipo?: "principal" | "continuacao";
+}
+
+interface Service {
+  id: string;
+  nome: string;
+  descricaoCurta: string;
+  duracaoEstimada: string;
+  ativo: boolean;
 }
 
 interface DayConfig {
@@ -103,6 +134,46 @@ const durationOptions = [
   { value: 45, label: "45 minutos" },
   { value: 60, label: "60 minutos" }
 ];
+
+const defaultCalendarColors = {
+  disponivel: "#22C55E",
+  agendado: "#3B82F6",
+  atendido: "#8B5CF6",
+  cancelado: "#EF4444",
+  bloqueado: "#6B7280",
+  perdido: "#F97316",
+  novo: "#06B6D4",
+  emContato: "#EAB308",
+  continuacao: "#6366F1"
+};
+
+const originOptions: Record<string, { label: string, color: string }> = {
+  "web-slug": { label: "Web Pública", color: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20" },
+  "web-publica": { label: "Web Pública", color: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20" },
+  "whatsapp": { label: "WhatsApp", color: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
+  "instagram": { label: "Instagram", color: "bg-pink-500/10 text-pink-400 border-pink-500/20" },
+  "ligacao": { label: "Ligação", color: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
+  "indicacao": { label: "Indicação", color: "bg-amber-500/10 text-amber-400 border-amber-500/20" },
+  "presencial": { label: "Presencial", color: "bg-teal-500/10 text-teal-400 border-teal-500/20" },
+  "outro": { label: "Outro", color: "bg-slate-500/10 text-slate-400 border-slate-500/20" }
+};
+
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case "Novo":
+      return "bg-blue-500/10 text-blue-400 border-blue-500/20";
+    case "Em contato":
+      return "bg-amber-500/10 text-amber-400 border-amber-500/20";
+    case "Agendado":
+      return "bg-purple-500/10 text-purple-400 border-purple-500/20";
+    case "Atendido":
+      return "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+    case "Cancelado":
+      return "bg-rose-500/10 text-rose-400 border-rose-500/20";
+    default:
+      return "bg-slate-500/10 text-slate-400 border-slate-500/20";
+  }
+};
 
 const periodOptions = [
   { value: 1, label: "Hoje" },
@@ -171,6 +242,49 @@ export default function SlotsPage() {
 
   // --- AGENDA TAB STATES ---
   const [agendaDateFilter, setAgendaDateFilter] = useState("");
+  const [services, setServices] = useState<Service[]>([]);
+  const [leads, setLeads] = useState<any[]>([]);
+
+  // --- MANUAL BOOKING MODAL STATES ---
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [bookingNome, setBookingNome] = useState("");
+  const [bookingTelefone, setBookingTelefone] = useState("");
+  const [bookingObservacao, setBookingObservacao] = useState("");
+  const [bookingServicoId, setBookingServicoId] = useState("");
+  const [bookingData, setBookingData] = useState("");
+  const [bookingHorario, setBookingHorario] = useState("");
+  const [bookingOrigem, setBookingOrigem] = useState("whatsapp");
+  const [bookingDuracaoOption, setBookingDuracaoOption] = useState("30");
+  const [bookingDuracaoCustom, setBookingDuracaoCustom] = useState("");
+  const [bookingError, setBookingError] = useState("");
+
+  // --- CALENDAR & COLOR THEME STATES ---
+  const [calendarView, setCalendarView] = useState<"month" | "week" | "day">("month");
+  const [calendarRefDate, setCalendarRefDate] = useState<string>("");
+  const [calendarColors, setCalendarColors] = useState<Record<string, string>>(defaultCalendarColors);
+  const [colorEditor, setColorEditor] = useState<Record<string, string>>(defaultCalendarColors);
+  const [showColorsConfig, setShowColorsConfig] = useState(false);
+  
+  // --- CALENDAR FILTERS ---
+  const [filterServico, setFilterServico] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterOrigem, setFilterOrigem] = useState("");
+  const [filterSearch, setFilterSearch] = useState("");
+
+  // --- EDIT BOOKING MODAL STATES ---
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingLead, setEditingLead] = useState<any | null>(null);
+  const [editNome, setEditNome] = useState("");
+  const [editTelefone, setEditTelefone] = useState("");
+  const [editObservacao, setEditObservacao] = useState("");
+  const [editServicoId, setEditServicoId] = useState("");
+  const [editData, setEditData] = useState("");
+  const [editHorario, setEditHorario] = useState("");
+  const [editOrigem, setEditOrigem] = useState("whatsapp");
+  const [editStatus, setEditStatus] = useState("Agendado");
+  const [editDuracaoOption, setEditDuracaoOption] = useState("30");
+  const [editDuracaoCustom, setEditDuracaoCustom] = useState("");
+  const [editError, setEditError] = useState("");
 
   // Load Saved Configuration from Firestore Profile
   useEffect(() => {
@@ -196,13 +310,22 @@ export default function SlotsPage() {
       });
       setAgendaConfig(cleanDays);
     }
+
+    if (profile?.calendarColorConfig) {
+      const mergedColors = {
+        ...defaultCalendarColors,
+        ...profile.calendarColorConfig
+      };
+      setCalendarColors(mergedColors);
+      setColorEditor(mergedColors);
+    }
   }, [profile]);
 
-  // Initialize Default Tomorrow Date for Manual Generator
+  // Initialize Default Tomorrow Date and Reference Date using America/Sao_Paulo fuso
   useEffect(() => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    setManualDate(tomorrow.toISOString().split("T")[0]);
+    const todayStr = getSaoPauloToday();
+    setCalendarRefDate(todaySP => todaySP || todayStr); // preserve state if already set, else set today
+    setManualDate(addDaysSaoPaulo(todayStr, 1));
   }, []);
 
   // Load all slots in real-time
@@ -227,14 +350,88 @@ export default function SlotsPage() {
     return () => unsubscribe();
   }, [user]);
 
-  // Group slots by date for sidebar display
-  const groupedSlots = slots.reduce((acc: { [key: string]: AvailableSlot[] }, slot) => {
-    if (!acc[slot.data]) {
-      acc[slot.data] = [];
+  // Load services and leads in real-time
+  useEffect(() => {
+    if (!user) return;
+
+    // Load active services
+    const servicesRef = collection(db, "professionals", user.uid, "services");
+    const servicesQuery = query(servicesRef, where("ativo", "==", true), orderBy("nome", "asc"));
+    
+    getDocs(servicesQuery).then(snap => {
+      const servicesList: Service[] = [];
+      snap.forEach(doc => {
+        servicesList.push({ id: doc.id, ...doc.data() } as Service);
+      });
+      setServices(servicesList);
+    }).catch(err => console.error("Error loading services:", err));
+
+    // Load leads in real-time
+    const leadsRef = collection(db, "professionals", user.uid, "leads");
+    const unsubscribeLeads = onSnapshot(leadsRef, (snapshot) => {
+      const leadsList: any[] = [];
+      snapshot.forEach(doc => {
+        leadsList.push({ id: doc.id, ...doc.data() });
+      });
+      setLeads(leadsList);
+    }, (err) => {
+      console.error("Error loading leads:", err);
+    });
+
+    return () => {
+      unsubscribeLeads();
+    };
+  }, [user]);
+
+  // Initialize and clear inputs for manual booking modal
+  useEffect(() => {
+    if (showBookingModal) {
+      setBookingNome("");
+      setBookingTelefone("");
+      setBookingObservacao("");
+      setBookingServicoId("");
+      setBookingData(agendaDateFilter || new Date().toISOString().split("T")[0]);
+      setBookingHorario("");
+      setBookingOrigem("whatsapp");
+      setBookingDuracaoOption("30");
+      setBookingDuracaoCustom("");
+      setBookingError("");
     }
-    acc[slot.data].push(slot);
-    return acc;
-  }, {});
+  }, [showBookingModal, agendaDateFilter]);
+
+  // Memoized query maps for performance optimization (O(1) lookups)
+  const { leadByBookingId, leadByDateTime, slotsByDate } = React.useMemo(() => {
+    const leadMap = new Map<string, any>();
+    const dateTimeMap = new Map<string, any>();
+    
+    leads.forEach(l => {
+      leadMap.set(l.id, l);
+      dateTimeMap.set(`${l.dataEscolhida}_${l.horarioEscolhido}`, l);
+    });
+
+    const slotsMap = new Map<string, AvailableSlot[]>();
+    slots.forEach(s => {
+      if (!slotsMap.has(s.data)) {
+        slotsMap.set(s.data, []);
+      }
+      slotsMap.get(s.data)!.push(s);
+    });
+
+    return { 
+      leadByBookingId: leadMap, 
+      leadByDateTime: dateTimeMap,
+      slotsByDate: slotsMap 
+    };
+  }, [leads, slots]);
+
+  // Group slots by date for components compatibility
+  const groupedSlots = React.useMemo(() => {
+    const res: Record<string, AvailableSlot[]> = {};
+    slotsByDate.forEach((list, key) => {
+      res[key] = list;
+    });
+    return res;
+  }, [slotsByDate]);
 
   // --- SMART GENERATOR LOGIC ---
   const handleToggleDay = (dayKey: string) => {
@@ -257,17 +454,152 @@ export default function SlotsPage() {
     }));
   };
 
-  // Helper: parse HH:MM to minutes
-  const timeToMinutes = (t: string) => {
-    const [h, m] = t.split(":").map(Number);
-    return h * 60 + m;
+  // Helper: parse service duration to option and custom values
+  const parseServiceDuration = (duracaoStr: string): { option: string; customVal: string } => {
+    if (!duracaoStr) return { option: "30", customVal: "" };
+    const lower = duracaoStr.toLowerCase();
+    let totalMinutes = 0;
+    if (lower.includes("h") || lower.includes("hora")) {
+      const parts = lower.split(/h|hora/);
+      const hours = parseInt(parts[0].replace(/\D/g, ""), 10);
+      if (!isNaN(hours)) {
+        totalMinutes += hours * 60;
+      }
+      if (parts[1]) {
+        const mins = parseInt(parts[1].replace(/\D/g, ""), 10);
+        if (!isNaN(mins)) {
+          totalMinutes += mins;
+        }
+      }
+    } else {
+      const mins = parseInt(lower.replace(/\D/g, ""), 10);
+      if (!isNaN(mins)) {
+        totalMinutes = mins;
+      }
+    }
+    if (totalMinutes <= 0) {
+      return { option: "30", customVal: "" };
+    }
+    const standardOptions = ["15", "30", "45", "60", "90", "120"];
+    if (standardOptions.includes(String(totalMinutes))) {
+      return { option: String(totalMinutes), customVal: "" };
+    } else {
+      return { option: "custom", customVal: String(totalMinutes) };
+    }
   };
 
-  // Helper: format minutes to HH:MM
-  const minutesToTime = (min: number) => {
-    const h = Math.floor(min / 60);
-    const m = min % 60;
-    return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+  // Helper: get lead duration in minutes
+  const getLeadDurationInMinutes = (lead: any, servicesList: Service[], defaultSlotDuration: number) => {
+    if (lead.duracaoAgendamento) {
+      return Number(lead.duracaoAgendamento);
+    }
+    if (lead.serviceId) {
+      const service = servicesList.find(s => s.id === lead.serviceId);
+      if (service) {
+        const parsed = parseInt(service.duracaoEstimada.replace(/\D/g, ""), 10);
+        if (!isNaN(parsed) && parsed > 0) return parsed;
+      }
+    }
+    return defaultSlotDuration || 30;
+  };
+
+  // sRGB relative luminance helper
+  const getRelativeLuminance = (hex: string): number => {
+    const cleanHex = hex.replace("#", "");
+    if (cleanHex.length !== 6) return 0;
+    const r = parseInt(cleanHex.substring(0, 2), 16) / 255;
+    const g = parseInt(cleanHex.substring(2, 4), 16) / 255;
+    const b = parseInt(cleanHex.substring(4, 6), 16) / 255;
+    const f = (x: number) => x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+  };
+
+  // WCAG Contrast Ratio
+  const getContrastRatio = (color1: string, color2: string): number => {
+    const l1 = getRelativeLuminance(color1);
+    const l2 = getRelativeLuminance(color2);
+    const lighter = Math.max(l1, l2);
+    const darker = Math.min(l1, l2);
+    return (lighter + 0.05) / (darker + 0.05);
+  };
+
+  // Select the text color that gives maximum contrast
+  const getBestTextColor = (bgHex: string): { textHex: string, ratio: number, isWcagCompliant: boolean } => {
+    const lightRatio = getContrastRatio(bgHex, "#ffffff");
+    const darkRatio = getContrastRatio(bgHex, "#0f172a"); // slate-900
+    const textHex = lightRatio >= darkRatio ? "#ffffff" : "#0f172a";
+    const ratio = Math.max(lightRatio, darkRatio);
+    return { textHex, ratio, isWcagCompliant: ratio >= 4.5 };
+  };
+
+  // Centralized visual style function
+  const getCalendarStatusStyle = (status: string, colorConfig: any) => {
+    const colors = colorConfig || defaultCalendarColors;
+    let color = "#6B7280";
+    let label = status;
+
+    switch (status) {
+      case "Disponível":
+        color = colors.disponivel || defaultCalendarColors.disponivel;
+        label = "Livre";
+        break;
+      case "Bloqueado":
+        color = colors.bloqueado || defaultCalendarColors.bloqueado;
+        label = "Bloqueado";
+        break;
+      case "Continuação":
+        color = colors.continuacao || defaultCalendarColors.continuacao;
+        label = "Continuação";
+        break;
+      case "Novo":
+        color = colors.novo || defaultCalendarColors.novo;
+        label = "Novo";
+        break;
+      case "Em contato":
+        color = colors.emContato || defaultCalendarColors.emContato;
+        label = "Em contato";
+        break;
+      case "Agendado":
+        color = colors.agendado || defaultCalendarColors.agendado;
+        label = "Agendado";
+        break;
+      case "Atendido":
+        color = colors.atendido || defaultCalendarColors.atendido;
+        label = "Atendido";
+        break;
+      case "Cancelado":
+        color = colors.cancelado || defaultCalendarColors.cancelado;
+        label = "Cancelado";
+        break;
+      case "Perdido":
+        color = colors.perdido || defaultCalendarColors.perdido;
+        label = "Perdido";
+        break;
+    }
+
+    const { textHex, ratio, isWcagCompliant } = getBestTextColor(color);
+
+    return {
+      bg: color,
+      text: textHex,
+      border: color,
+      label,
+      rawColor: color,
+      ratio,
+      isWcagCompliant
+    };
+  };
+
+  // Origin badges label mapper for custom visualization
+  const originLabels: Record<string, string> = {
+    "web-slug": "Web Pública",
+    "web-publica": "Web Pública",
+    "whatsapp": "WhatsApp",
+    "instagram": "Instagram",
+    "ligacao": "Ligação",
+    "indicacao": "Indicação",
+    "presencial": "Presencial",
+    "outro": "Outro"
   };
 
   // Capitalize day names for errors
@@ -743,11 +1075,782 @@ export default function SlotsPage() {
     }
   };
 
+  // --- MANUAL BOOKING HANDLERS ---
+  const handleServiceSelect = (serviceId: string) => {
+    setBookingServicoId(serviceId);
+    const service = services.find(s => s.id === serviceId);
+    if (service) {
+      const { option, customVal } = parseServiceDuration(service.duracaoEstimada);
+      setBookingDuracaoOption(option);
+      setBookingDuracaoCustom(customVal);
+    }
+  };
+
+  const handleCreateManualBooking = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    setBookingError("");
+
+    // Form validation
+    const trimmedNome = bookingNome.trim();
+    if (trimmedNome.length < 2 || trimmedNome.length > 80) {
+      setBookingError("O nome do cliente deve conter entre 2 e 80 caracteres.");
+      return;
+    }
+
+    const formattedPhone = bookingTelefone.replace(/\D/g, "");
+    if (formattedPhone.length < 10 || formattedPhone.length > 20) {
+      setBookingError("O telefone deve ter entre 10 e 20 dígitos (incluindo o DDD).");
+      return;
+    }
+
+    if (!bookingServicoId) {
+      setBookingError("Por favor, selecione um serviço.");
+      return;
+    }
+
+    if (!bookingData || !bookingHorario) {
+      setBookingError("Por favor, selecione data e horário.");
+      return;
+    }
+
+    // Determine final duration
+    let duration = 30;
+    if (bookingDuracaoOption === "custom") {
+      duration = parseInt(bookingDuracaoCustom, 10);
+      if (isNaN(duration) || duration <= 0) {
+        setBookingError("Por favor, informe uma duração personalizada válida em minutos.");
+        return;
+      }
+    } else {
+      duration = parseInt(bookingDuracaoOption, 10);
+    }
+
+    const startMinutes = timeToMinutes(bookingHorario);
+    const endMinutes = startMinutes + duration;
+
+    // Check conflict: active leads overlapping
+    const conflictsWithLeads = leads.some(l => {
+      if (l.status === "Perdido") return false;
+      if (l.dataEscolhida !== bookingData) return false;
+      const existStart = timeToMinutes(l.horarioInicio || l.horarioEscolhido);
+      const existDur = getLeadDurationInMinutes(l, services, slotDuration);
+      const existEnd = existStart + existDur;
+      // Overlap condition: start1 < end2 && start2 < end1
+      return startMinutes < existEnd && existStart < endMinutes;
+    });
+
+    // Check conflict: unavailable slots overlapping
+    const conflictsWithBlockedSlots = slots.some(s => 
+      s.data === bookingData &&
+      !s.disponivel &&
+      timeToMinutes(s.horario) >= startMinutes &&
+      timeToMinutes(s.horario) < endMinutes
+    );
+
+    if (conflictsWithLeads || conflictsWithBlockedSlots) {
+      setBookingError("Este período entra em conflito com outro agendamento já existente.");
+      return;
+    }
+
+    // Filter overlapping slots to update them
+    const targetSlots = slots.filter(s => 
+      s.data === bookingData && 
+      timeToMinutes(s.horario) >= startMinutes && 
+      timeToMinutes(s.horario) < endMinutes
+    );
+
+    if (targetSlots.length === 0) {
+      setBookingError("O horário de início selecionado não está cadastrado na agenda.");
+      return;
+    }
+
+    setActionLoading(true);
+
+    try {
+      await runTransaction(db, async (transaction) => {
+        // 1. Fetch and verify slot availability inside transaction
+        const slotRefs = [];
+        for (const slot of targetSlots) {
+          const slotRef = doc(db, "professionals", user.uid, "availableSlots", slot.id);
+          const docSnap = await transaction.get(slotRef);
+          if (!docSnap.exists()) {
+            throw new Error(`O horário ${slot.horario} não foi encontrado.`);
+          }
+          if (!docSnap.data().disponivel) {
+            throw new Error(`O horário ${slot.horario} já está ocupado ou reservado.`);
+          }
+          slotRefs.push(slotRef);
+        }
+
+        // 2. Prepare Lead document payload
+        const leadsRef = collection(db, "professionals", user.uid, "leads");
+        const newLeadRef = doc(leadsRef);
+        const service = services.find(s => s.id === bookingServicoId);
+
+        const leadPayload = {
+          professionalId: user.uid,
+          nome: trimmedNome,
+          telefone: formattedPhone,
+          servicoEscolhido: service?.nome || "",
+          serviceId: bookingServicoId,
+          dataEscolhida: bookingData,
+          horarioEscolhido: bookingHorario,
+          observacao: bookingObservacao.trim(),
+          status: "Agendado",
+          origem: bookingOrigem,
+          duracaoServicoPadrao: service?.duracaoEstimada || "",
+          duracaoAgendamento: duration,
+          horarioInicio: bookingHorario,
+          horarioFim: addMinutesToTime(bookingHorario, duration),
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+
+        // 3. Write Lead
+        transaction.set(newLeadRef, leadPayload);
+
+        // 4. Mark slots as unavailable
+        for (const ref of slotRefs) {
+          transaction.update(ref, {
+            disponivel: false,
+            updatedAt: new Date()
+          });
+        }
+      });
+
+      setSuccess("Agendamento manual cadastrado com sucesso!");
+      setShowBookingModal(false);
+    } catch (err: any) {
+      console.error(err);
+      setBookingError("Erro ao salvar agendamento: " + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // --- EDIT BOOKING HANDLERS ---
+  const handleOpenEditModal = (lead: any) => {
+    setEditingLead(lead);
+    setEditNome(lead.nome || "");
+    setEditTelefone(lead.telefone || "");
+    setEditObservacao(lead.observacao || "");
+    setEditServicoId(lead.serviceId || "");
+    setEditData(lead.dataEscolhida || "");
+    setEditHorario(lead.horarioEscolhido || "");
+    setEditOrigem(lead.origem || "whatsapp");
+    setEditStatus(lead.status || "Agendado");
+    
+    // Parse duration
+    const leadDur = lead.duracaoAgendamento || 30;
+    const { option, customVal } = parseServiceDuration(`${leadDur} minutos`);
+    setEditDuracaoOption(option);
+    setEditDuracaoCustom(customVal);
+    setEditError("");
+    setShowEditModal(true);
+  };
+
+  const handleEditServiceSelect = (serviceId: string) => {
+    setEditServicoId(serviceId);
+    const service = services.find(s => s.id === serviceId);
+    if (service) {
+      const { option, customVal } = parseServiceDuration(service.duracaoEstimada);
+      setEditDuracaoOption(option);
+      setEditDuracaoCustom(customVal);
+    }
+  };
+
+  const handleSaveEditBooking = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !editingLead) return;
+    setEditError("");
+
+    // Form validation
+    const trimmedNome = editNome.trim();
+    if (trimmedNome.length < 2 || trimmedNome.length > 80) {
+      setEditError("O nome deve ter entre 2 e 80 caracteres.");
+      return;
+    }
+
+    const formattedPhone = editTelefone.replace(/\D/g, "");
+    if (formattedPhone.length < 10 || formattedPhone.length > 20) {
+      setEditError("O telefone deve ter entre 10 e 20 dígitos (incluindo o DDD).");
+      return;
+    }
+
+    let duration = 30;
+    if (editDuracaoOption === "custom") {
+      duration = parseInt(editDuracaoCustom, 10);
+      if (isNaN(duration) || duration <= 0) {
+        setEditError("Duração personalizada inválida.");
+        return;
+      }
+    } else {
+      duration = parseInt(editDuracaoOption, 10);
+    }
+
+    const newStart = timeToMinutes(editHorario);
+    const newEnd = newStart + duration;
+    const newHorarioFim = minutesToTime(newEnd);
+
+    setActionLoading(true);
+
+    try {
+      await runTransaction(db, async (transaction) => {
+        const leadDocRef = doc(db, "professionals", user.uid, "leads", editingLead.id);
+        const service = services.find(s => s.id === editServicoId);
+
+        // 1. Fetch old slots associated with this booking
+        const slotsRef = collection(db, "professionals", user.uid, "availableSlots");
+        const oldSlotsSnap = await getDocs(query(slotsRef, where("bookingId", "==", editingLead.id)));
+
+        const willBeInactive = editStatus === "Cancelado";
+        let newOverlappingRefs: any[] = [];
+
+        // 2. If it will be active, verify new slot availability
+        if (!willBeInactive) {
+          const newSlotsSnap = await getDocs(query(slotsRef, where("data", "==", editData)));
+          const allNewSlots = newSlotsSnap.docs.map(d => ({
+            ref: d.ref,
+            id: d.id,
+            ...d.data()
+          })) as any[];
+
+          const overlapping = allNewSlots.filter(s => {
+            const slotInicio = timeToMinutes(s.horario);
+            const slotFim = slotInicio + slotDuration;
+            return slotInicio < newEnd && slotFim > newStart;
+          });
+
+          overlapping.sort((a, b) => timeToMinutes(a.horario) - timeToMinutes(b.horario));
+
+          // Validate coverage
+          let isCovered = false;
+          if (overlapping.length > 0) {
+            const firstStart = timeToMinutes(overlapping[0].horario);
+            const lastEnd = timeToMinutes(overlapping[overlapping.length - 1].horario) + slotDuration;
+
+            if (firstStart <= newStart && lastEnd >= newEnd) {
+              let hasGap = false;
+              for (let i = 0; i < overlapping.length - 1; i++) {
+                const curEnd = timeToMinutes(overlapping[i].horario) + slotDuration;
+                const nextStart = timeToMinutes(overlapping[i+1].horario);
+                if (curEnd < nextStart) {
+                  hasGap = true;
+                  break;
+                }
+              }
+              if (!hasGap) isCovered = true;
+            }
+          }
+
+          if (!isCovered) {
+            throw new Error("slot-not-found");
+          }
+
+          // Check if any slot is booked (ignoring those owned by this booking)
+          const isOccupiedByOther = overlapping.some(s => !s.disponivel && s.bookingId !== editingLead.id);
+          if (isOccupiedByOther) {
+            throw new Error("slot-already-booked");
+          }
+
+          newOverlappingRefs = overlapping.map(s => ({ ref: s.ref, id: s.id }));
+        }
+
+        // Release old slots
+        oldSlotsSnap.forEach(d => {
+          transaction.update(d.ref, {
+            disponivel: true,
+            bookingId: null,
+            ocupacaoTipo: null,
+            updatedAt: new Date()
+          });
+        });
+
+        // Reserve new slots if not Cancelled
+        if (!willBeInactive) {
+          newOverlappingRefs.forEach((s, index) => {
+            transaction.update(s.ref, {
+              disponivel: false,
+              bookingId: editingLead.id,
+              ocupacaoTipo: index === 0 ? "principal" : "continuacao",
+              updatedAt: new Date()
+            });
+          });
+        }
+
+        // Update lead payload
+        transaction.update(leadDocRef, {
+          nome: trimmedNome,
+          telefone: formattedPhone,
+          serviceId: editServicoId,
+          servicoEscolhido: service?.nome || "",
+          dataEscolhida: editData,
+          horarioEscolhido: editHorario,
+          origem: editOrigem,
+          status: editStatus,
+          duracaoAgendamento: duration,
+          horarioInicio: editHorario,
+          horarioFim: newHorarioFim,
+          updatedAt: new Date()
+        });
+      });
+
+      setSuccess("Agendamento atualizado com sucesso!");
+      setShowEditModal(false);
+    } catch (err: any) {
+      console.error(err);
+      if (err.message === "slot-not-found") {
+        setEditError("Um ou mais horários necessários não estão disponíveis na agenda.");
+      } else if (err.message === "slot-already-booked") {
+        setEditError("Desculpe, este período já está ocupado por outro cliente.");
+      } else {
+        setEditError("Erro ao salvar alterações: " + err.message);
+      }
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // --- CALENDAR COLOR HANDLERS ---
+  const handleColorEditorChange = (key: string, val: string) => {
+    setColorEditor(prev => ({
+      ...prev,
+      [key]: val
+    }));
+  };
+
+  const handleSaveColors = async () => {
+    if (!user) return;
+    setActionLoading(true);
+    setError("");
+    setSuccess("");
+    try {
+      const profRef = doc(db, "professionals", user.uid);
+      await updateDoc(profRef, {
+        calendarColorConfig: colorEditor,
+        updatedAt: new Date()
+      });
+      await refreshProfile();
+      setSuccess("Cores da agenda salvas com sucesso!");
+    } catch (err: any) {
+      console.error(err);
+      setError("Erro ao salvar cores: " + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRestoreDefaultColors = () => {
+    setColorEditor(defaultCalendarColors);
+  };
+
+  // --- CALENDAR VIEW UTILITIES ---
+  const shiftMonth = (refDateStr: string, months: number): string => {
+    if (!refDateStr) return "";
+    const [year, month] = refDateStr.split("-").map(Number);
+    const date = new Date(Date.UTC(year, month - 1 + months, 15, 12, 0, 0));
+    return dateToSaoPauloKey(date);
+  };
+
+  const getMonthGrid = (refDateStr: string) => {
+    if (!refDateStr) return [];
+    const [year, month] = refDateStr.split("-").map(Number);
+    const firstDayDate = new Date(Date.UTC(year, month - 1, 1, 12, 0, 0));
+    const firstDayOfWeek = firstDayDate.getUTCDay(); // Sunday=0, ..., Saturday=6
+    
+    const startDate = new Date(firstDayDate);
+    startDate.setUTCDate(startDate.getUTCDate() - firstDayOfWeek);
+    
+    const grid: string[] = [];
+    const tempDate = new Date(startDate);
+    for (let i = 0; i < 42; i++) {
+      grid.push(dateToSaoPauloKey(tempDate));
+      tempDate.setUTCDate(tempDate.getUTCDate() + 1);
+    }
+    return grid;
+  };
+
+  // --- CALENDAR VIEWS RENDERERS ---
+  const renderMonthView = () => {
+    if (!calendarRefDate) return null;
+    const grid = getMonthGrid(calendarRefDate);
+    const currentMonthNum = calendarRefDate.split("-")[1];
+    const weekLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+    return (
+      <div className="space-y-4">
+        {/* Weekday headers */}
+        <div className="grid grid-cols-7 gap-2 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">
+          {weekLabels.map(l => <div key={l}>{l}</div>)}
+        </div>
+
+        {/* 42 days grid */}
+        <div className="grid grid-cols-7 gap-2">
+          {grid.map(dateStr => {
+            const isCurrentMonth = dateStr.split("-")[1] === currentMonthNum;
+            const isToday = dateStr === getSaoPauloToday();
+            
+            const daySlots = slotsByDate.get(dateStr) || [];
+            const availableCount = daySlots.filter(s => s.disponivel).length;
+            const reservedCount = daySlots.filter(s => !s.disponivel).length;
+            
+            // Count cancelled leads on this date
+            const cancelledCount = leads.filter(l => l.status === "Cancelado" && l.dataEscolhida === dateStr).length;
+            const dayNum = dateStr.split("-")[2];
+
+            const styleLivre = getCalendarStatusStyle("Disponível", calendarColors);
+            const styleAgendado = getCalendarStatusStyle("Agendado", calendarColors);
+            const styleCancelado = getCalendarStatusStyle("Cancelado", calendarColors);
+
+            return (
+              <div
+                key={dateStr}
+                onClick={() => {
+                  setCalendarRefDate(dateStr);
+                  setCalendarView("day");
+                }}
+                className={`
+                  p-3 rounded-2xl border text-left flex flex-col justify-between h-28 cursor-pointer transition-all duration-200 hover:border-slate-650 hover:border-slate-600
+                  ${isToday 
+                    ? "bg-indigo-950/20 border-indigo-500/50 shadow-md shadow-indigo-500/5" 
+                    : isCurrentMonth 
+                      ? "bg-slate-950/40 border-slate-800/80 border-slate-850" 
+                      : "bg-slate-950/10 border-slate-900/60 opacity-40"
+                  }
+                `}
+              >
+                <div className="flex justify-between items-center">
+                  <span className={`text-sm font-black ${isToday ? "text-indigo-400" : "text-slate-300"}`}>
+                    {parseInt(dayNum, 10)}
+                  </span>
+                  {isToday && (
+                    <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/20">Hoje</span>
+                  )}
+                </div>
+
+                <div className="space-y-1 mt-2 text-[10px] font-bold">
+                  {availableCount > 0 && (
+                    <div className="flex items-center gap-1" style={{ color: styleLivre.bg }}>
+                      <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: styleLivre.bg }} />
+                      <span>{availableCount} {styleLivre.label}</span>
+                    </div>
+                  )}
+                  {reservedCount > 0 && (
+                    <div className="flex items-center gap-1" style={{ color: styleAgendado.bg }}>
+                      <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: styleAgendado.bg }} />
+                      <span>{reservedCount} Ocupados</span>
+                    </div>
+                  )}
+                  {cancelledCount > 0 && (
+                    <div className="flex items-center gap-1" style={{ color: styleCancelado.bg }}>
+                      <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: styleCancelado.bg }} />
+                      <span>{cancelledCount} Cancelados</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  const renderWeekView = () => {
+    if (!calendarRefDate) return null;
+    const startStr = getStartOfWeekSaoPaulo(calendarRefDate);
+    const weekDays: string[] = [];
+    for (let i = 0; i < 7; i++) {
+      weekDays.push(addDaysSaoPaulo(startStr, i));
+    }
+
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
+        {weekDays.map(dateStr => {
+          const isToday = dateStr === getSaoPauloToday();
+          const daySlots = slotsByDate.get(dateStr) || [];
+          const sortedSlots = [...daySlots].sort((a, b) => timeToMinutes(a.horario) - timeToMinutes(b.horario));
+          const cancelledCount = leads.filter(l => l.status === "Cancelado" && l.dataEscolhida === dateStr).length;
+
+          return (
+            <div 
+              key={dateStr}
+              className={`
+                border rounded-2xl p-4 flex flex-col gap-3 min-h-[400px] bg-slate-950/20
+                ${isToday ? "border-indigo-500/30 ring-1 ring-indigo-500/10 shadow-lg shadow-indigo-500/5" : "border-slate-800/80"}
+              `}
+            >
+              <div 
+                className="border-b border-slate-800/60 pb-2 cursor-pointer hover:text-indigo-400 transition-colors"
+                onClick={() => {
+                  setCalendarRefDate(dateStr);
+                  setCalendarView("day");
+                }}
+              >
+                <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-400">
+                  {(() => {
+                    const [y, m, d] = dateStr.split("-").map(Number);
+                    const dayOfWeek = new Date(Date.UTC(y, m - 1, d, 12, 0, 0)).getUTCDay();
+                    return weekdayLabels[weekdayKeys[dayOfWeek]];
+                  })()}
+                </h4>
+                <div className="text-sm font-black text-slate-200 mt-0.5">{formatDateShortSaoPaulo(dateStr)}</div>
+              </div>
+
+              {/* Slots List */}
+              <div className="flex-1 space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                {sortedSlots.length === 0 ? (
+                  <div className="text-center py-8 text-slate-650 text-[10px] font-semibold">Nenhum slot</div>
+                ) : (
+                  sortedSlots.map(slot => {
+                    const lead = leads.find(l => 
+                      l.status !== "Perdido" &&
+                      l.status !== "Cancelado" &&
+                      l.dataEscolhida === slot.data &&
+                      l.horarioEscolhido === slot.horario
+                    );
+
+                    const coveringLead = lead || leads.find(l => {
+                      if (l.status === "Perdido" || l.status === "Cancelado") return false;
+                      if (l.dataEscolhida !== slot.data) return false;
+                      const start = timeToMinutes(l.horarioInicio || l.horarioEscolhido);
+                      const dur = getLeadDurationInMinutes(l, services, slotDuration);
+                      const end = start + dur;
+                      const slotMin = timeToMinutes(slot.horario);
+                      return slotMin >= start && slotMin < end;
+                    });
+
+                    const isContinuation = coveringLead && (!lead);
+
+                    if (slot.disponivel) {
+                      const style = getCalendarStatusStyle("Disponível", calendarColors);
+                      return (
+                        <div
+                          key={slot.id}
+                          className="p-2.5 rounded-xl border bg-slate-900 border-slate-850 flex items-center justify-between text-[11px] font-bold"
+                        >
+                          <span className="font-mono text-slate-300">{slot.horario}</span>
+                          <span className="px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider font-extrabold" style={{ backgroundColor: style.bg + "20", color: style.bg, border: `1px solid ${style.bg}30` }}>
+                            {style.label}
+                          </span>
+                        </div>
+                      );
+                    }
+
+                    if (lead) {
+                      const style = getCalendarStatusStyle(lead.status, calendarColors);
+                      return (
+                        <div
+                          key={slot.id}
+                          onClick={() => handleOpenEditModal(lead)}
+                          className="p-2.5 rounded-xl border cursor-pointer hover:brightness-110 transition-all text-[11px] space-y-1 relative overflow-hidden"
+                          style={{ backgroundColor: style.bg + "15", borderLeft: `4px solid ${style.bg}`, borderColor: style.bg + "30" }}
+                        >
+                          <div className="flex justify-between items-center font-mono font-black" style={{ color: style.bg }}>
+                            <span>{slot.horario}</span>
+                            <span className="text-[9px] font-extrabold uppercase">{lead.status}</span>
+                          </div>
+                          <div className="font-extrabold text-slate-200 truncate">{lead.nome}</div>
+                        </div>
+                      );
+                    }
+
+                    if (isContinuation) {
+                      return (
+                        <div
+                          key={slot.id}
+                          onClick={() => handleOpenEditModal(coveringLead)}
+                          className="p-2.5 rounded-xl border cursor-pointer hover:brightness-110 transition-all text-[11px] bg-slate-950/20 border-slate-900/60 text-slate-550 flex items-center justify-between font-mono"
+                        >
+                          <span>{slot.horario}</span>
+                          <span className="text-[9px] text-slate-550 italic max-w-[80px] truncate">({coveringLead.nome})</span>
+                        </div>
+                      );
+                    }
+
+                    // Blocked
+                    const style = getCalendarStatusStyle("Bloqueado", calendarColors);
+                    return (
+                      <div
+                        key={slot.id}
+                        className="p-2.5 rounded-xl border bg-slate-955/40 border-slate-900/60 flex items-center justify-between text-[11px] font-mono text-slate-600"
+                      >
+                        <span className="line-through">{slot.horario}</span>
+                        <span className="text-[9px] uppercase tracking-wider font-extrabold text-rose-500/80 bg-rose-500/5 px-1.5 py-0.5 rounded border border-rose-500/10">Bloqueado</span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Weekly Cancellation Summary Indicator */}
+              {cancelledCount > 0 && (
+                <div 
+                  onClick={() => {
+                    setCalendarRefDate(dateStr);
+                    setCalendarView("day");
+                  }}
+                  className="bg-red-500/5 border border-red-500/10 p-2 rounded-xl text-center text-[10px] font-extrabold text-red-450 cursor-pointer hover:bg-red-500/10 transition-all"
+                >
+                  {cancelledCount} cancelado(s)
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderDayView = () => {
+    if (!calendarRefDate) return null;
+    const dateStr = calendarRefDate;
+    const daySlots = slotsByDate.get(dateStr) || [];
+    const sortedSlots = [...daySlots].sort((a, b) => timeToMinutes(a.horario) - timeToMinutes(b.horario));
+    const dayCancelledLeads = leads.filter(l => l.status === "Cancelado" && l.dataEscolhida === dateStr);
+
+    return (
+      <div className="space-y-6">
+        <div className="border-b border-slate-800 pb-3 flex justify-between items-center">
+          <div>
+            <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-400">Visão Diária</h4>
+            <h3 className="text-lg font-black text-slate-200 mt-0.5">{formatDateFriendly(dateStr)}</h3>
+          </div>
+          <div className="text-xs text-slate-500 font-bold">
+            {sortedSlots.length} slot(s) cadastrado(s)
+          </div>
+        </div>
+
+        <div className="space-y-2.5 max-h-[600px] overflow-y-auto pr-1">
+          {sortedSlots.length === 0 ? (
+            <div className="text-center py-16 bg-slate-950/20 border border-slate-850 rounded-2xl text-slate-400 text-sm font-semibold">
+              Nenhum slot configurado para este dia.
+            </div>
+          ) : (
+            sortedSlots.map(slot => {
+              const lead = leads.find(l => 
+                l.status !== "Perdido" &&
+                l.status !== "Cancelado" &&
+                l.dataEscolhida === slot.data &&
+                l.horarioEscolhido === slot.horario
+              );
+
+              const coveringLead = lead || leads.find(l => {
+                if (l.status === "Perdido" || l.status === "Cancelado") return false;
+                if (l.dataEscolhida !== slot.data) return false;
+                const start = timeToMinutes(l.horarioInicio || l.horarioEscolhido);
+                const dur = getLeadDurationInMinutes(l, services, slotDuration);
+                const end = start + dur;
+                const slotMin = timeToMinutes(slot.horario);
+                return slotMin >= start && slotMin < end;
+              });
+
+              const isContinuation = coveringLead && (!lead);
+
+              if (slot.disponivel) {
+                const style = getCalendarStatusStyle("Disponível", calendarColors);
+                return (
+                  <div
+                    key={slot.id}
+                    className="p-4 bg-slate-900 border border-slate-850 rounded-2xl flex items-center justify-between text-xs font-bold"
+                  >
+                    <div className="flex items-center gap-4">
+                      <span className="font-mono text-slate-200 text-sm font-bold">{slot.horario}</span>
+                      <span className="text-[10px] text-slate-500 font-medium">Horário Livre</span>
+                    </div>
+                    <span 
+                      className="px-2.5 py-0.5 rounded text-[10px] uppercase tracking-wider font-extrabold" 
+                      style={{ backgroundColor: style.bg + "20", color: style.bg, border: `1px solid ${style.bg}30` }}
+                    >
+                      {style.label}
+                    </span>
+                  </div>
+                );
+              }
+
+              if (lead) {
+                const style = getCalendarStatusStyle(lead.status, calendarColors);
+                return (
+                  <div
+                    key={slot.id}
+                    onClick={() => handleOpenEditModal(lead)}
+                    className="p-4 rounded-2xl border cursor-pointer hover:brightness-110 transition-all text-xs flex flex-col md:flex-row md:items-center justify-between gap-3 relative overflow-hidden"
+                    style={{ backgroundColor: style.bg + "15", borderLeft: `4px solid ${style.bg}`, borderColor: style.bg + "30" }}
+                  >
+                    <div className="flex items-center gap-4">
+                      <span className="text-slate-200 font-mono font-bold text-sm">{slot.horario}</span>
+                      <div>
+                        <div className="font-extrabold text-slate-100 text-sm flex items-center gap-2">
+                          <span>{lead.nome}</span>
+                          <span className="px-1.5 py-0.5 rounded text-[9px] uppercase font-black tracking-wider" style={{ backgroundColor: style.bg + "20", color: style.bg }}>
+                            {lead.status}
+                          </span>
+                          {lead.origem && (
+                            <span className="px-1 py-0.5 rounded text-[9px] bg-slate-850 text-slate-400 font-semibold uppercase tracking-wider">
+                              {lead.origem}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-slate-450 font-semibold mt-0.5">
+                          {lead.servicoEscolhido} ({lead.duracaoAgendamento || 30} min)
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {lead.telefone && <span className="text-xs text-slate-400 font-mono">Tel: {lead.telefone}</span>}
+                    </div>
+                  </div>
+                );
+              }
+
+              if (isContinuation) {
+                return (
+                  <div
+                    key={slot.id}
+                    onClick={() => handleOpenEditModal(coveringLead)}
+                    className="p-3 bg-slate-950/20 border border-slate-900/60 rounded-2xl cursor-pointer hover:border-slate-800 transition-all flex items-center justify-between text-xs font-mono text-slate-500"
+                  >
+                    <div className="flex items-center gap-4">
+                      <span className="text-slate-400 font-bold">{slot.horario}</span>
+                      <span className="text-[10px] text-slate-500 italic">Continuação do atendimento de {coveringLead.nome}</span>
+                    </div>
+                  </div>
+                );
+              }
+
+              // Blocked
+              const style = getCalendarStatusStyle("Bloqueado", calendarColors);
+              return (
+                <div
+                  key={slot.id}
+                  className="p-3 bg-slate-955/20 border border-slate-900/60 rounded-2xl flex items-center justify-between text-xs font-mono text-slate-500"
+                >
+                  <span className="line-through">{slot.horario}</span>
+                  <span className="text-[10px] uppercase font-extrabold text-rose-500/80 bg-rose-500/5 px-2 py-0.5 rounded border border-rose-500/10">Bloqueado</span>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Collapsible cancellation history */}
+        <CollapsibleCancelledHistory leadsList={dayCancelledLeads} />
+      </div>
+    );
+  };
+
   // --- FORMATTERS ---
   const formatDateFriendly = (dateStr: string) => {
     const [year, month, day] = dateStr.split("-").map(Number);
-    const date = new Date(year, month - 1, day);
-    const options: Intl.DateTimeFormatOptions = { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" };
+    const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+    const options: Intl.DateTimeFormatOptions = { 
+      timeZone: "America/Sao_Paulo",
+      weekday: "long", 
+      day: "2-digit", 
+      month: "2-digit", 
+      year: "numeric" 
+    };
     const formatted = date.toLocaleDateString("pt-BR", options);
     return formatted.charAt(0).toUpperCase() + formatted.slice(1);
   };
@@ -1013,6 +2116,112 @@ export default function SlotsPage() {
             </div>
           </div>
 
+          {/* Subsection: Cores da Agenda */}
+          <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 backdrop-blur-sm space-y-4">
+            <button
+              type="button"
+              onClick={() => setShowColorsConfig(!showColorsConfig)}
+              className="w-full flex items-center justify-between font-bold text-white text-lg focus:outline-none cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <span>🎨 Personalizar Cores da Agenda</span>
+              </div>
+              <span className="text-xs text-indigo-400 font-bold font-mono">
+                {showColorsConfig ? "Recolher ▲" : "Expandir ▼"}
+              </span>
+            </button>
+
+            {showColorsConfig && (
+              <div className="pt-4 space-y-6 border-t border-slate-800/60 animate-fade-in">
+                <p className="text-xs text-slate-400">
+                  Ajuste as cores de fundo dos status do calendário. O sistema calculará automaticamente o contraste do texto e avisará se houver baixa legibilidade (WCAG AA).
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                  {[
+                    { key: "disponivel", label: "Disponível (Livre)" },
+                    { key: "agendado", label: "Agendado" },
+                    { key: "atendido", label: "Atendido" },
+                    { key: "cancelado", label: "Cancelado" },
+                    { key: "bloqueado", label: "Bloqueado" },
+                    { key: "perdido", label: "Perdido" },
+                    { key: "novo", label: "Novo" },
+                    { key: "emContato", label: "Em contato" },
+                    { key: "continuacao", label: "Continuação" }
+                  ].map(({ key, label }) => {
+                    const value = colorEditor[key] || defaultCalendarColors[key as keyof typeof defaultCalendarColors];
+                    const style = getCalendarStatusStyle(
+                      key === "disponivel" ? "Disponível" :
+                      key === "bloqueado" ? "Bloqueado" :
+                      key === "continuacao" ? "Continuação" :
+                      key === "novo" ? "Novo" :
+                      key === "emContato" ? "Em contato" :
+                      key === "agendado" ? "Agendado" :
+                      key === "atendido" ? "Atendido" :
+                      key === "cancelado" ? "Cancelado" : "Perdido",
+                      colorEditor
+                    );
+
+                    return (
+                      <div key={key} className="space-y-2 p-4 bg-slate-950 border border-slate-850 rounded-2xl">
+                        <label className="block text-[11px] font-bold text-slate-350 uppercase tracking-wider">{label}</label>
+                        <div className="flex gap-3 items-center">
+                          <input
+                            type="color"
+                            value={value}
+                            onChange={(e) => handleColorEditorChange(key, e.target.value)}
+                            className="h-9 w-9 rounded-xl border border-slate-800 bg-transparent cursor-pointer shrink-0"
+                          />
+                          <input
+                            type="text"
+                            value={value}
+                            onChange={(e) => handleColorEditorChange(key, e.target.value)}
+                            className="flex-1 px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-200 font-mono focus:outline-none"
+                          />
+                        </div>
+
+                        {/* WCAG Preview Card */}
+                        <div 
+                          className="p-2.5 rounded-xl border text-center text-xs font-black font-mono shadow-inner mt-2"
+                          style={{ backgroundColor: style.bg, color: style.text }}
+                        >
+                          Texto de Exemplo
+                        </div>
+
+                        {/* Contrast indicator & warning */}
+                        <div className="flex justify-between items-center text-[10px] text-slate-500 font-semibold pt-1">
+                          <span>Contraste: {style.ratio.toFixed(2)}:1</span>
+                          {style.isWcagCompliant ? (
+                            <span className="text-emerald-400 font-bold">✓ WCAG AA OK</span>
+                          ) : (
+                            <span className="text-rose-450 font-bold">⚠ Contraste Baixo</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="flex gap-3 justify-end pt-4 border-t border-slate-800/60">
+                  <button
+                    type="button"
+                    onClick={handleRestoreDefaultColors}
+                    className="px-4 py-2 bg-slate-950 hover:bg-slate-850 text-slate-400 hover:text-slate-200 border border-slate-800 text-xs font-bold rounded-xl transition-all"
+                  >
+                    Restaurar Padrão
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveColors}
+                    className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-indigo-500/10 cursor-pointer"
+                  >
+                    Salvar Cores
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Action Triggers */}
           <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t border-slate-850 justify-end">
             <button
@@ -1156,27 +2365,24 @@ export default function SlotsPage() {
         </div>
       )}
 
-      {/* TAB 3: AGENDA ATUAL (Full-width details and dashboard) */}
+      {/* TAB 3: AGENDA ATUAL (Calendar Visual View) */}
       {activeTab === "agenda" && (
         <div className="space-y-6 animate-fade-in">
           
           {/* Metrics summary cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Card 1 */}
             <div className="bg-slate-900/40 border border-slate-800 p-6 rounded-3xl backdrop-blur-sm relative overflow-hidden">
               <div className="absolute top-0 right-0 p-3 text-emerald-500/10"><Check className="h-16 w-16" /></div>
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Horários Disponíveis (Livres)</span>
               <h3 className="text-3xl font-black text-emerald-400 mt-2">{totalAvailable}</h3>
               <p className="text-[11px] text-slate-400 mt-1">Livres para pré-agendamentos.</p>
             </div>
-            {/* Card 2 */}
             <div className="bg-slate-900/40 border border-slate-800 p-6 rounded-3xl backdrop-blur-sm relative overflow-hidden">
               <div className="absolute top-0 right-0 p-3 text-amber-500/10"><X className="h-16 w-16" /></div>
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Horários Ocupados / Reservados</span>
               <h3 className="text-3xl font-black text-amber-500 mt-2">{totalReserved}</h3>
               <p className="text-[11px] text-slate-400 mt-1">Slots agendados por clientes.</p>
             </div>
-            {/* Card 3 */}
             <div className="bg-slate-900/40 border border-slate-800 p-6 rounded-3xl backdrop-blur-sm relative overflow-hidden">
               <div className="absolute top-0 right-0 p-3 text-indigo-500/10"><CalendarIcon className="h-16 w-16" /></div>
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total de Slots na Agenda</span>
@@ -1185,139 +2391,95 @@ export default function SlotsPage() {
             </div>
           </div>
 
-          {/* Date Filter bar */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-900/40 border border-slate-800 p-5 rounded-3xl backdrop-blur-sm">
-            <div className="flex items-center gap-3">
-              <label className="text-xs font-bold text-slate-350 uppercase tracking-wider">Filtrar por data:</label>
-              <input
-                type="date"
-                value={agendaDateFilter}
-                onChange={(e) => setAgendaDateFilter(e.target.value)}
-                className="px-4 py-2 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500 text-slate-100 text-sm font-mono shadow-inner"
-              />
-              {agendaDateFilter && (
-                <button
-                  onClick={() => setAgendaDateFilter("")}
-                  className="px-3.5 py-2 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-200 text-xs font-bold rounded-xl transition-all active:scale-95"
-                >
-                  Limpar Filtro
-                </button>
-              )}
+          {/* Calendar Controls & Navigation */}
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-slate-900/40 border border-slate-800 p-5 rounded-3xl backdrop-blur-sm">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCalendarView("month")}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${calendarView === "month" ? "bg-indigo-600 text-white" : "bg-slate-950 text-slate-400 border border-slate-800 hover:text-slate-200"}`}
+              >
+                Mês
+              </button>
+              <button
+                onClick={() => setCalendarView("week")}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${calendarView === "week" ? "bg-indigo-600 text-white" : "bg-slate-950 text-slate-400 border border-slate-800 hover:text-slate-200"}`}
+              >
+                Semana
+              </button>
+              <button
+                onClick={() => setCalendarView("day")}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${calendarView === "day" ? "bg-indigo-600 text-white" : "bg-slate-950 text-slate-400 border border-slate-800 hover:text-slate-200"}`}
+              >
+                Dia
+              </button>
             </div>
-            <span className="text-xs text-slate-400 font-semibold bg-slate-950/65 px-3 py-1.5 rounded-lg border border-slate-850">
-              {agendaDateFilter ? "Mostrando apenas a data selecionada." : "Mostrando todas as datas com horários."}
-            </span>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => {
+                    if (calendarView === "month") {
+                      setCalendarRefDate(prev => shiftMonth(prev, -1));
+                    } else if (calendarView === "week") {
+                      setCalendarRefDate(prev => addDaysSaoPaulo(prev, -7));
+                    } else {
+                      setCalendarRefDate(prev => addDaysSaoPaulo(prev, -1));
+                    }
+                  }}
+                  className="p-2 bg-slate-950 border border-slate-850 hover:border-slate-700 rounded-xl text-slate-400 hover:text-slate-200 transition-all"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setCalendarRefDate(getSaoPauloToday())}
+                  className="px-3.5 py-2 bg-slate-950 border border-slate-850 text-slate-300 text-xs font-bold rounded-xl transition-all hover:bg-slate-900"
+                >
+                  Hoje
+                </button>
+                <button
+                  onClick={() => {
+                    if (calendarView === "month") {
+                      setCalendarRefDate(prev => shiftMonth(prev, 1));
+                    } else if (calendarView === "week") {
+                      setCalendarRefDate(prev => addDaysSaoPaulo(prev, 7));
+                    } else {
+                      setCalendarRefDate(prev => addDaysSaoPaulo(prev, 1));
+                    }
+                  }}
+                  className="p-2 bg-slate-950 border border-slate-850 hover:border-slate-700 rounded-xl text-slate-400 hover:text-slate-200 transition-all"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+
+              <span className="font-extrabold text-sm text-indigo-300 ml-1">
+                {calendarView === "month" && getMonthNameSaoPaulo(calendarRefDate)}
+                {calendarView === "week" && `Semana de ${formatDate(getStartOfWeekSaoPaulo(calendarRefDate))} a ${formatDate(addDaysSaoPaulo(getStartOfWeekSaoPaulo(calendarRefDate), 6))}`}
+                {calendarView === "day" && formatDateFriendly(calendarRefDate)}
+              </span>
+            </div>
+
+            <button
+              onClick={() => setShowBookingModal(true)}
+              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all active:scale-95 flex items-center gap-1.5 shadow-lg shadow-indigo-500/20 w-full md:w-auto justify-center"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Novo Agendamento</span>
+            </button>
           </div>
 
-          {/* Upcoming available slots vision */}
-          {upcomingSlots.length > 0 && !agendaDateFilter && (
-            <div className="bg-indigo-950/15 border border-indigo-900/25 p-5 rounded-3xl backdrop-blur-sm">
-              <h4 className="text-xs font-bold text-indigo-300 uppercase tracking-wider mb-3">Próximos Horários Disponíveis</h4>
-              <div className="flex flex-wrap gap-2.5">
-                {upcomingSlots.map(slot => (
-                  <span 
-                    key={slot.id} 
-                    className="px-3.5 py-2 bg-slate-950 border border-slate-855 rounded-xl text-xs font-semibold text-slate-200 flex items-center gap-1.5 font-mono shadow-inner border-slate-850"
-                  >
-                    <Clock className="h-3.5 w-3.5 text-indigo-400" />
-                    <span>{formatDate(slot.data)} às {slot.horario}</span>
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Slots List container */}
-          <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 backdrop-blur-sm space-y-6">
-            <div>
-              <h2 className="text-xl font-bold text-white mb-1">Visão Detalhada dos Horários</h2>
-              <p className="text-xs text-slate-400">Gerencie a disponibilidade de cada slot individual ou exclua blocos de horários.</p>
-            </div>
-            
+          {/* Calendar Grid Container */}
+          <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 backdrop-blur-sm">
             {loading ? (
               <div className="flex flex-col justify-center items-center py-16">
                 <Loader2 className="h-8 w-8 text-indigo-500 animate-spin" />
                 <p className="mt-4 text-slate-400 font-medium">Buscando agenda...</p>
               </div>
-            ) : filteredGroupedDates.length === 0 ? (
-              <div className="flex flex-col justify-center items-center py-16 text-center">
-                <div className="p-3.5 bg-slate-900 rounded-full text-slate-500 mb-3 border border-slate-800">
-                  <Info className="h-6 w-6" />
-                </div>
-                <h4 className="font-bold text-slate-350">Nenhum horário correspondente encontrado</h4>
-                <p className="text-xs text-slate-500 max-w-sm mt-1">
-                  {agendaDateFilter 
-                    ? "Não há horários cadastrados nesta data específica." 
-                    : "Use o painel de Gerador Automático para preencher sua agenda semanal."
-                  }
-                </p>
-              </div>
             ) : (
-              <div className="space-y-6 max-h-[700px] overflow-y-auto pr-1.5">
-                {filteredGroupedDates.map(dateStr => {
-                  const daySlots = groupedSlots[dateStr];
-                  return (
-                    <div key={dateStr} className="border border-slate-800/80 rounded-2xl p-5 bg-slate-950/20 relative group/date space-y-4">
-                      {/* Date Heading */}
-                      <div className="flex items-center justify-between border-b border-slate-800/50 pb-3">
-                        <h4 className="font-bold text-sm md:text-base text-indigo-300">
-                          {formatDateFriendly(dateStr)}
-                        </h4>
-                        <button
-                          onClick={() => handleDeleteDateSlots(dateStr)}
-                          className="text-xs text-slate-500 hover:text-red-400 font-bold transition-all px-2.5 py-1.5 hover:bg-red-500/10 rounded-lg border border-transparent hover:border-red-500/10 md:opacity-0 group-hover/date:opacity-100"
-                        >
-                          Limpar Horários Livres do Dia
-                        </button>
-                      </div>
-
-                      {/* Slots List Grid (large dynamic width) */}
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
-                        {daySlots.map(slot => (
-                          <div 
-                            key={slot.id}
-                            className={`
-                              flex items-center justify-between px-3 py-2.5 rounded-xl border text-xs font-semibold transition-all shadow-sm
-                              ${slot.disponivel 
-                                ? "bg-slate-900 border-slate-800 text-slate-200" 
-                                : "bg-red-500/5 border-red-500/10 text-slate-500"
-                              }
-                            `}
-                          >
-                            <div className="flex items-center gap-1.5 font-mono">
-                              <Clock className={`h-3.5 w-3.5 ${slot.disponivel ? "text-indigo-400" : "text-slate-650"}`} />
-                              <span className={slot.disponivel ? "" : "line-through"}>{slot.horario}</span>
-                            </div>
-
-                            <div className="flex items-center gap-1.5">
-                              {/* Toggle availability */}
-                              <button
-                                onClick={() => handleToggleSlot(slot)}
-                                className="text-slate-500 hover:text-white transition-colors"
-                                title={slot.disponivel ? "Marcar Ocupado" : "Marcar Livre"}
-                              >
-                                {slot.disponivel ? (
-                                  <Check className="h-4 w-4 text-emerald-500" />
-                                ) : (
-                                  <X className="h-4 w-4 text-rose-500" />
-                                )}
-                              </button>
-
-                              {/* Delete slot */}
-                              <button
-                                onClick={() => handleDeleteSlot(slot.id)}
-                                className="text-slate-500 hover:text-red-400 transition-colors p-0.5 rounded hover:bg-slate-800"
-                                title="Excluir Horário"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="animate-fade-in">
+                {calendarView === "month" && renderMonthView()}
+                {calendarView === "week" && renderWeekView()}
+                {calendarView === "day" && renderDayView()}
               </div>
             )}
           </div>
@@ -1435,7 +2597,474 @@ export default function SlotsPage() {
           </div>
         </div>
       )}
+      {/* MODAL 3: MANUAL BOOKING */}
+      {showBookingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={() => setShowBookingModal(false)}
+              className="absolute top-4 right-4 p-1.5 rounded-lg hover:bg-slate-850 text-slate-400 hover:text-slate-200 transition-all"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
+              <CalendarIcon className="h-5.5 w-5.5 text-indigo-400" />
+              <span>Novo Agendamento Manual</span>
+            </h2>
+            <p className="text-xs text-slate-400 mb-6 font-medium">Cadastre um agendamento feito por canais externos.</p>
+
+            {bookingError && (
+              <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex gap-2.5 items-center">
+                <AlertCircle className="h-4.5 w-4.5 shrink-0" />
+                <p className="font-semibold">{bookingError}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleCreateManualBooking} className="space-y-4">
+              {/* Cliente Nome & Telefone */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider">Nome do Cliente *</label>
+                  <input
+                    type="text"
+                    required
+                    value={bookingNome}
+                    onChange={(e) => setBookingNome(e.target.value)}
+                    placeholder="Ex: João Silva"
+                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider">Telefone *</label>
+                  <input
+                    type="text"
+                    required
+                    value={bookingTelefone}
+                    onChange={(e) => setBookingTelefone(e.target.value)}
+                    placeholder="Ex: (11) 99999-9999"
+                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              {/* Serviço */}
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider">Serviço *</label>
+                <select
+                  required
+                  value={bookingServicoId}
+                  onChange={(e) => handleServiceSelect(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm focus:outline-none focus:border-indigo-500 text-slate-305 font-semibold"
+                >
+                  <option value="" disabled>Selecione o serviço...</option>
+                  {services.map(srv => (
+                    <option key={srv.id} value={srv.id} className="bg-slate-950 text-slate-350">{srv.nome} ({srv.duracaoEstimada})</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Data & Horário */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider">Data *</label>
+                  <input
+                    type="date"
+                    required
+                    value={bookingData}
+                    onChange={(e) => {
+                      setBookingData(e.target.value);
+                      setBookingHorario(""); // reset selected hour when date changes
+                    }}
+                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500 font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider">Horário de Início *</label>
+                  <select
+                    required
+                    value={bookingHorario}
+                    onChange={(e) => setBookingHorario(e.target.value)}
+                    disabled={!bookingData}
+                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500 font-mono disabled:opacity-50 disabled:cursor-not-allowed text-slate-300"
+                  >
+                    <option value="" disabled>Selecione o horário...</option>
+                    {slots
+                      .filter(s => s.data === bookingData && s.disponivel)
+                      .map(s => s.horario)
+                      .sort()
+                      .map(time => (
+                        <option key={time} value={time} className="bg-slate-950 text-slate-350">{time}</option>
+                      ))
+                    }
+                  </select>
+                  {bookingData && slots.filter(s => s.data === bookingData && s.disponivel).length === 0 && (
+                    <span className="text-[10px] text-amber-400 block mt-1 font-semibold">⚠️ Nenhum horário livre para esta data.</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Duração & Origem */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider">Duração do Atendimento *</label>
+                  <div className="flex gap-2">
+                    <select
+                      value={bookingDuracaoOption}
+                      onChange={(e) => {
+                        setBookingDuracaoOption(e.target.value);
+                        if (e.target.value !== "custom") {
+                          setBookingDuracaoCustom("");
+                        }
+                      }}
+                      className="flex-1 px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm focus:outline-none focus:border-indigo-500 text-slate-305 font-semibold"
+                    >
+                      <option value="15">15 minutos</option>
+                      <option value="30">30 minutos</option>
+                      <option value="45">45 minutos</option>
+                      <option value="60">60 minutos</option>
+                      <option value="90">90 minutos</option>
+                      <option value="120">120 minutos</option>
+                      <option value="custom">Personalizado</option>
+                    </select>
+                    {bookingDuracaoOption === "custom" && (
+                      <input
+                        type="number"
+                        required
+                        min="1"
+                        placeholder="Minutos"
+                        value={bookingDuracaoCustom}
+                        onChange={(e) => setBookingDuracaoCustom(e.target.value)}
+                        className="w-24 px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500 font-mono text-center"
+                      />
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider">Origem *</label>
+                  <select
+                    value={bookingOrigem}
+                    onChange={(e) => setBookingOrigem(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm focus:outline-none focus:border-indigo-500 text-slate-305 font-semibold"
+                  >
+                    <option value="whatsapp">WhatsApp</option>
+                    <option value="instagram">Instagram</option>
+                    <option value="ligacao">Ligação</option>
+                    <option value="indicacao">Indicação</option>
+                    <option value="presencial">Atendimento Presencial</option>
+                    <option value="outro">Outro</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Observação (Opcional) */}
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-355 uppercase tracking-wider">Observações (Opcional)</label>
+                <textarea
+                  value={bookingObservacao}
+                  onChange={(e) => setBookingObservacao(e.target.value)}
+                  placeholder="Informações adicionais sobre o agendamento (opcional)"
+                  rows={2}
+                  className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500 text-slate-100 text-sm transition-all resize-none"
+                />
+              </div>
+
+              {/* Live Preview of End Time */}
+              {bookingHorario && (
+                <div className="p-3 bg-indigo-950/20 border border-indigo-900/30 rounded-2xl text-xs flex justify-between items-center text-slate-300">
+                  <span className="font-semibold">Período Previsto:</span>
+                  <span className="font-bold text-indigo-400 font-mono">
+                    {bookingHorario} às {addMinutesToTime(bookingHorario, bookingDuracaoOption === "custom" ? Number(bookingDuracaoCustom || 0) : Number(bookingDuracaoOption))}
+                    {" "}
+                    ({bookingDuracaoOption === "custom" ? `${bookingDuracaoCustom || 0} min` : `${bookingDuracaoOption} min`})
+                  </span>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-4 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowBookingModal(false)}
+                  className="flex-1 py-3 bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 font-semibold rounded-xl text-sm transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-sm transition-all shadow-lg shadow-indigo-500/20 active:scale-[0.98] flex items-center justify-center gap-2"
+                >
+                  {actionLoading ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <span>Confirmar Agendamento</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 4: EDIT BOOKING */}
+      {showEditModal && editingLead && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={() => setShowEditModal(false)}
+              className="absolute top-4 right-4 p-1.5 rounded-lg hover:bg-slate-850 text-slate-400 hover:text-slate-200 transition-all"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
+              <CalendarIcon className="h-5.5 w-5.5 text-indigo-400" />
+              <span>Editar Agendamento</span>
+            </h2>
+            <p className="text-xs text-slate-400 mb-6 font-medium">Modifique os dados, altere o horário ou cancele o agendamento.</p>
+
+            {editError && (
+              <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex gap-2.5 items-center">
+                <AlertCircle className="h-4.5 w-4.5 shrink-0" />
+                <p className="font-semibold">{editError}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveEditBooking} className="space-y-4">
+              {/* Cliente Nome & Telefone */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider">Nome do Cliente *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editNome}
+                    onChange={(e) => setEditNome(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider">Telefone *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editTelefone}
+                    onChange={(e) => setEditTelefone(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              {/* Serviço & Status */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider">Serviço *</label>
+                  <select
+                    required
+                    value={editServicoId}
+                    onChange={(e) => handleEditServiceSelect(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-955 border border-slate-800 rounded-xl text-sm focus:outline-none focus:border-indigo-500 text-slate-300 font-semibold"
+                  >
+                    {services.map(srv => (
+                      <option key={srv.id} value={srv.id} className="bg-slate-955 text-slate-350">{srv.nome}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider">Status do Agendamento *</label>
+                  <select
+                    required
+                    value={editStatus}
+                    onChange={(e) => setEditStatus(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-955 border border-slate-800 rounded-xl text-sm focus:outline-none focus:border-indigo-500 text-slate-300 font-semibold"
+                  >
+                    <option value="Novo">Novo</option>
+                    <option value="Em contato">Em contato</option>
+                    <option value="Agendado">Agendado (Bloqueia slots)</option>
+                    <option value="Atendido">Atendido (Mantém ocupado)</option>
+                    <option value="Cancelado">Cancelado (Libera slots)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Data & Horário */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider">Data *</label>
+                  <input
+                    type="date"
+                    required
+                    value={editData}
+                    onChange={(e) => setEditData(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-955 border border-slate-800 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500 font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider">Horário de Início *</label>
+                  <select
+                    required
+                    value={editHorario}
+                    onChange={(e) => setEditHorario(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500 font-mono text-slate-300"
+                  >
+                    <option value={editingLead.horarioEscolhido}>{editingLead.horarioEscolhido} (Atual)</option>
+                    {slots
+                      .filter(s => s.data === editData && (s.disponivel || s.bookingId === editingLead.id))
+                      .map(s => s.horario)
+                      .filter(t => t !== editingLead.horarioEscolhido)
+                      .sort()
+                      .map(time => (
+                        <option key={time} value={time} className="bg-slate-955 text-slate-350">{time}</option>
+                      ))
+                    }
+                  </select>
+                </div>
+              </div>
+
+              {/* Duração & Origem */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider">Duração do Atendimento *</label>
+                  <div className="flex gap-2">
+                    <select
+                      value={editDuracaoOption}
+                      onChange={(e) => {
+                        setEditDuracaoOption(e.target.value);
+                        if (e.target.value !== "custom") {
+                          setEditDuracaoCustom("");
+                        }
+                      }}
+                      className="flex-1 px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm focus:outline-none focus:border-indigo-500 text-slate-305 font-semibold"
+                    >
+                      <option value="15">15 minutos</option>
+                      <option value="30">30 minutos</option>
+                      <option value="45">45 minutos</option>
+                      <option value="60">60 minutos</option>
+                      <option value="90">90 minutos</option>
+                      <option value="120">120 minutos</option>
+                      <option value="custom">Personalizado</option>
+                    </select>
+                    {editDuracaoOption === "custom" && (
+                      <input
+                        type="number"
+                        required
+                        min="1"
+                        placeholder="Minutos"
+                        value={editDuracaoCustom}
+                        onChange={(e) => setEditDuracaoCustom(e.target.value)}
+                        className="w-24 px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500 font-mono text-center"
+                      />
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider">Origem *</label>
+                  <select
+                    value={editOrigem}
+                    onChange={(e) => setEditOrigem(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm focus:outline-none focus:border-indigo-500 text-slate-305 font-semibold"
+                  >
+                    <option value="whatsapp">WhatsApp</option>
+                    <option value="instagram">Instagram</option>
+                    <option value="ligacao">Ligação</option>
+                    <option value="indicacao">Indicação</option>
+                    <option value="presencial">Atendimento Presencial</option>
+                    <option value="outro">Outro</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Observação (Opcional) */}
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-355 uppercase tracking-wider">Observações (Opcional)</label>
+                <textarea
+                  value={editObservacao}
+                  onChange={(e) => setEditObservacao(e.target.value)}
+                  placeholder="Informações adicionais (opcional)"
+                  rows={2}
+                  className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500 text-slate-100 text-sm transition-all resize-none"
+                />
+              </div>
+
+              {/* Live Preview of End Time */}
+              {editHorario && editStatus !== "Cancelado" && (
+                <div className="p-3 bg-indigo-950/20 border border-indigo-900/30 rounded-2xl text-xs flex justify-between items-center text-slate-300">
+                  <span className="font-semibold">Novo Período Previsto:</span>
+                  <span className="font-bold text-indigo-400 font-mono">
+                    {editHorario} às {addMinutesToTime(editHorario, editDuracaoOption === "custom" ? Number(editDuracaoCustom || 0) : Number(editDuracaoOption))}
+                    {" "}
+                    ({editDuracaoOption === "custom" ? `${editDuracaoCustom || 0} min` : `${editDuracaoOption} min`})
+                  </span>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-4 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="flex-1 py-3 bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 font-semibold rounded-xl text-sm transition-all"
+                >
+                  Fechar
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-sm transition-all shadow-lg shadow-indigo-500/20 active:scale-[0.98] flex items-center justify-center gap-2"
+                >
+                  {actionLoading ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <span>Salvar Alterações</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );
 }
+
+const CollapsibleCancelledHistory = ({ leadsList }: { leadsList: any[] }) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className="bg-red-950/5 border border-red-500/15 rounded-3xl p-5 mt-4">
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between font-extrabold text-sm text-red-400 uppercase tracking-wider cursor-pointer focus:outline-none"
+      >
+        <span>Histórico de Cancelamentos ({leadsList.length})</span>
+        <span className="text-xs">{isOpen ? "Recolher ▲" : "Expandir ▼"}</span>
+      </button>
+
+      {isOpen && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4 animate-fade-in">
+          {leadsList.map(lead => (
+            <div 
+              key={lead.id}
+              className="bg-slate-900/60 border border-slate-800/80 p-4 rounded-2xl flex flex-col justify-between gap-3 text-xs"
+            >
+              <div className="flex items-center justify-between font-bold text-slate-400">
+                <span>{lead.horarioEscolhido}</span>
+                <span className="text-[10px] text-red-400 font-black uppercase tracking-wider">Cancelado</span>
+              </div>
+              <div className="space-y-0.5">
+                <div className="font-extrabold text-slate-200 text-sm">{lead.nome}</div>
+                <div className="text-slate-450 font-semibold">{lead.servicoEscolhido}</div>
+                {lead.observacao && <p className="text-[10px] text-slate-500 italic truncate">{lead.observacao}</p>}
+              </div>
+              <div className="text-[10px] text-slate-550 font-semibold">Tel: {lead.telefone}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};

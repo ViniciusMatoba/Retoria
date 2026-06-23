@@ -4,17 +4,19 @@ import React, { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../providers";
-import { 
-  Calendar, 
-  Users, 
-  Settings, 
-  Briefcase, 
-  LogOut, 
-  Menu, 
-  X, 
+import {
+  Calendar,
+  Users,
+  Settings,
+  Briefcase,
+  LogOut,
+  Menu,
+  X,
   ExternalLink,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Palette,
+  LayoutGrid,
 } from "lucide-react";
 
 export default function DashboardLayout({
@@ -27,12 +29,15 @@ export default function DashboardLayout({
   const { user, profile, loading, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Auth Guard
+  // Auth Guard — must be logged in AND have a valid professional document
   useEffect(() => {
-    if (!loading && !user) {
-      router.push("/login");
+    if (loading) return;
+    if (!user) { router.push("/login"); return; }
+    if (!profile) { router.push("/portal"); return; }
+    if (profile.professionalStatus === "suspended" || profile.professionalStatus === "cancelled") {
+      router.push("/portal");
     }
-  }, [user, loading, router]);
+  }, [user, profile, loading, router]);
 
   const handleLogout = async () => {
     try {
@@ -43,7 +48,7 @@ export default function DashboardLayout({
     }
   };
 
-  if (loading || !user) {
+  if (loading || !user || !profile) {
     return (
       <div className="flex-1 flex flex-col justify-center items-center bg-slate-950 min-h-screen">
         <Loader2 className="h-8 w-8 text-indigo-500 animate-spin" />
@@ -64,6 +69,7 @@ export default function DashboardLayout({
     { name: "Leads / Contatos", href: "/dashboard", icon: Users },
     { name: "Serviços", href: "/dashboard/services", icon: Briefcase },
     { name: "Horários Disponíveis", href: "/dashboard/slots", icon: Calendar },
+    { name: "Personalização da Página", href: "/dashboard/personalization", icon: Palette },
     { name: "Perfil e Página", href: "/dashboard/profile", icon: Settings },
   ];
 
@@ -151,8 +157,16 @@ export default function DashboardLayout({
           })}
         </nav>
 
-        {/* Sidebar Footer (Logout) */}
-        <div className="p-4 border-t border-slate-800/50">
+        {/* Sidebar Footer */}
+        <div className="p-4 border-t border-slate-800/50 space-y-1">
+          <Link
+            href="/portal"
+            onClick={() => setMobileMenuOpen(false)}
+            className="flex items-center gap-3 w-full px-4 py-3 text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 rounded-xl text-sm font-semibold transition-all duration-200"
+          >
+            <LayoutGrid className="h-5 w-5" />
+            <span>Trocar de área</span>
+          </Link>
           <button
             onClick={handleLogout}
             className="flex items-center gap-3 w-full px-4 py-3 text-slate-400 hover:bg-red-500/10 hover:text-red-400 rounded-xl text-sm font-semibold transition-all duration-200"

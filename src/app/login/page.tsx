@@ -1,17 +1,31 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth, isConfigured } from "@/lib/firebase";
 import { useAuth } from "../providers";
+import { isSafeReturnUrl } from "@/lib/accountUtils";
 import { Calendar, Mail, Lock, Loader2, AlertCircle } from "lucide-react";
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex-1 flex flex-col justify-center items-center bg-slate-950">
+        <Loader2 className="h-8 w-8 text-indigo-500 animate-spin" />
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, loading } = useAuth();
-  
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   
@@ -22,9 +36,10 @@ export default function LoginPage() {
   // Redirect if already logged in
   useEffect(() => {
     if (!loading && user) {
-      router.push("/dashboard");
+      const returnUrl = searchParams.get("returnUrl");
+      router.push(isSafeReturnUrl(returnUrl) ? returnUrl! : "/portal");
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,8 +61,9 @@ export default function LoginPage() {
     try {
       await signInWithEmailAndPassword(auth, email, password);
       setSuccess(true);
+      const returnUrl = searchParams.get("returnUrl");
       setTimeout(() => {
-        router.push("/dashboard");
+        router.push(isSafeReturnUrl(returnUrl) ? returnUrl! : "/portal");
       }, 1000);
     } catch (err: any) {
       console.error(err);
@@ -88,10 +104,10 @@ export default function LoginPage() {
             <Calendar className="h-6 w-6 text-white" />
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
-            Acessar Painel
+            Entrar no Retoria
           </h1>
           <p className="mt-2 text-slate-400 text-center max-w-sm text-sm">
-            Faça login para gerenciar sua agenda e leads recebidos.
+            Acesse sua área de cliente ou painel profissional.
           </p>
         </div>
 
@@ -132,7 +148,7 @@ export default function LoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="E-mail profissional"
+                placeholder="Seu e-mail"
                 className="w-full pl-10 pr-4 py-3 bg-slate-950/80 border border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-100 placeholder-slate-500 text-sm transition-all"
               />
             </div>
@@ -147,7 +163,7 @@ export default function LoginPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Senha de acesso"
+                placeholder="Sua senha"
                 className="w-full pl-10 pr-4 py-3 bg-slate-950/80 border border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-100 placeholder-slate-500 text-sm transition-all"
               />
             </div>
@@ -160,7 +176,7 @@ export default function LoginPage() {
               {formLoading ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
               ) : (
-                "Entrar no Painel"
+                "Entrar"
               )}
             </button>
           </form>
@@ -176,3 +192,4 @@ export default function LoginPage() {
     </div>
   );
 }
+

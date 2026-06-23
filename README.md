@@ -108,7 +108,7 @@ service cloud.firestore {
       
       // Contatos/Leads recebidos
       match /leads/{leadId} {
-        allow read, update, delete: if isProfessional(profId); // Apenas o profissional acessa/muda status
+        allow read, update, delete, create: if isProfessional(profId); // Apenas o profissional acessa/muda/cria
         
         // Validação estrita para criação de lead por cliente público
         allow create: if (
@@ -152,12 +152,42 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     
-    // Regra para foto de logo do profissional
+    function isOwner(profId) {
+      return request.auth != null && request.auth.uid == profId;
+    }
+    
+    function isAllowedImageType() {
+      return request.resource.contentType.matches('image/(jpeg|png|webp)');
+    }
+
+    // Regra para foto de logo do profissional (2MB)
     match /logos/{profId}/logo {
-      allow read: if true; // Qualquer cliente pode ver a logo
-      allow write: if request.auth != null && request.auth.uid == profId // Apenas o próprio profissional faz upload
-                   && request.resource.size < 2 * 1024 * 1024 // Limite de 2MB
-                   && request.resource.contentType.matches('image/.*'); // Permite apenas imagens
+      allow read: if true;
+      allow write: if isOwner(profId)
+                   && (
+                     request.resource == null
+                     || (isAllowedImageType() && request.resource.size < 2 * 1024 * 1024)
+                   );
+    }
+    
+    // Regra para imagens de serviços do profissional (2MB)
+    match /services/{profId}/{serviceId}/cover {
+      allow read: if true;
+      allow write: if isOwner(profId)
+                   && (
+                     request.resource == null
+                     || (isAllowedImageType() && request.resource.size < 2 * 1024 * 1024)
+                   );
+    }
+    
+    // Regra para imagens de fundo do profissional (3MB)
+    match /backgrounds/{profId}/main {
+      allow read: if true;
+      allow write: if isOwner(profId)
+                   && (
+                     request.resource == null
+                     || (isAllowedImageType() && request.resource.size < 3 * 1024 * 1024)
+                   );
     }
   }
 }

@@ -1,26 +1,53 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, setDoc, collection, query, where, getDocs, serverTimestamp } from "firebase/firestore";
+import {
+  doc, setDoc, collection, query, where, getDocs, serverTimestamp,
+} from "firebase/firestore";
 import { auth, db, isConfigured } from "@/lib/firebase";
 import { useAuth } from "../providers";
 import { formatPhoneForWhatsApp } from "@/lib/whatsapp";
-import { Calendar, User, Briefcase, Link as LinkIcon, Phone, Mail, Lock, Loader2, AlertCircle } from "lucide-react";
+import {
+  Calendar, User, Briefcase, Link as LinkIcon, Phone, Mail, Lock,
+  Loader2, AlertCircle, CalendarCheck, ChevronRight,
+} from "lucide-react";
+
+type Mode = "professional" | "customer";
 
 export default function RegisterPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex-1 flex flex-col justify-center items-center bg-slate-950">
+        <Loader2 className="h-8 w-8 text-indigo-500 animate-spin" />
+      </div>
+    }>
+      <RegisterForm />
+    </Suspense>
+  );
+}
+
+function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, loading } = useAuth();
-  
+
+  const [mode, setMode] = useState<Mode>(
+    searchParams.get("mode") === "customer" ? "customer" : "professional"
+  );
+
+  // Shared fields
   const [nome, setNome] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  // Professional-only fields
   const [nomeNegocio, setNomeNegocio] = useState("");
   const [slugPublico, setSlugPublico] = useState("");
   const [telefoneWhatsapp, setTelefoneWhatsapp] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  
+
   const [formLoading, setFormLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
@@ -28,38 +55,84 @@ export default function RegisterPage() {
   // Auto-slugify business name
   useEffect(() => {
     if (nomeNegocio) {
-      const cleanSlug = nomeNegocio
+      const clean = nomeNegocio
         .toLowerCase()
         .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "") // remove accents
-        .replace(/[^a-z0-9\s-]/g, "") // remove special chars
-        .replace(/\s+/g, "-") // spaces to hyphens
-        .replace(/-+/g, "-") // remove double hyphens
+        .replace(/[̀-ͯ]/g, "")
+        .replace(/[^a-z0-9\s-]/g, "")
+        .replace(/\s+/g, "-")
+        .replace(/-+/g, "-")
         .trim();
-      setSlugPublico(cleanSlug);
+      setSlugPublico(clean);
     }
   }, [nomeNegocio]);
 
-  // Redirect if already logged in
+  // Redirect already-logged-in users
   useEffect(() => {
-    if (!loading && user) {
-      router.push("/dashboard");
-    }
+    if (!loading && user) router.push("/portal");
   }, [user, loading, router]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmitCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setFormLoading(true);
 
     if (!isConfigured) {
-      setError("O Firebase não foi configurado. Configure as credenciais no arquivo .env.local.");
+      setError("Firebase não configurado. Configure as credenciais no arquivo .env.local.");
+      setFormLoading(false);
+      return;
+    }
+    if (!nome || !email || !password) {
+      setError("Preencha todos os campos.");
+      setFormLoading(false);
+      return;
+    }
+    if (password.length < 6) {
+      setError("A senha deve ter pelo menos 6 caracteres.");
       setFormLoading(false);
       return;
     }
 
+    try {
+      const { user: newUser } = await createUserWithEmailAndPassword(auth, email, password);
+      const uid = newUser.uid;
+      const ts = serverTimestamp();
+
+      await Promise.all([
+        setDoc(doc(db, "accounts", uid), {
+          uid, email, displayName: nome.trim(),
+          accountTypes: ["customer"],
+          createdAt: ts, updatedAt: ts,
+        }),
+        setDoc(doc(db, "customerAccounts", uid), {
+          uid, name: nome.trim(), email,
+          createdAt: ts, updatedAt: ts,
+        }),
+      ]);
+
+      setSuccess(true);
+      setTimeout(() => router.push("/customer/appointments"), 1500);
+    } catch (err: any) {
+      if (err.code === "auth/email-already-in-use") setError("E-mail já cadastrado.");
+      else if (err.code === "auth/weak-password") setError("A senha deve ter pelo menos 6 caracteres.");
+      else if (err.code === "auth/invalid-email") setError("E-mail inválido.");
+      else setError("Erro ao criar conta: " + err.message);
+      setFormLoading(false);
+    }
+  };
+
+  const handleSubmitProfessional = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setFormLoading(true);
+
+    if (!isConfigured) {
+      setError("Firebase não configurado.");
+      setFormLoading(false);
+      return;
+    }
     if (!nome || !nomeNegocio || !slugPublico || !telefoneWhatsapp || !email || !password) {
-      setError("Por favor, preencha todos os campos obrigatórios.");
+      setError("Preencha todos os campos obrigatórios.");
       setFormLoading(false);
       return;
     }
@@ -79,54 +152,48 @@ export default function RegisterPage() {
     }
 
     try {
-      // 1. Check if slug exists
-      const professionalsRef = collection(db, "professionals");
-      const q = query(professionalsRef, where("slugPublico", "==", cleanSlug));
-      const querySnapshot = await getDocs(q);
-
-      if (!querySnapshot.empty) {
-        setError("Este slug público já está em uso por outro profissional.");
+      // Check slug uniqueness
+      const q = query(collection(db, "professionals"), where("slugPublico", "==", cleanSlug));
+      if (!(await getDocs(q)).empty) {
+        setError("Este slug público já está em uso.");
         setFormLoading(false);
         return;
       }
 
-      // 2. Create Auth User
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const newUser = userCredential.user;
+      const { user: newUser } = await createUserWithEmailAndPassword(auth, email, password);
+      const uid = newUser.uid;
+      const ts = serverTimestamp();
 
-      // 3. Create professional profile document
-      const profDoc = {
-        id: newUser.uid,
-        userId: newUser.uid,
-        nome: nome.trim(),
-        nomeNegocio: nomeNegocio.trim(),
-        slugPublico: cleanSlug,
-        telefoneWhatsapp: cleanPhone,
-        descricaoCurta: "Seja bem-vindo ao meu canal de pré-agendamentos!",
-        fotoLogoUrl: "",
-        corPrincipal: "#6366f1", // default Indigo
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      };
-
-      await setDoc(doc(db, "professionals", newUser.uid), profDoc);
+      await Promise.all([
+        setDoc(doc(db, "accounts", uid), {
+          uid, email, displayName: nome.trim(),
+          accountTypes: ["professional"],
+          createdAt: ts, updatedAt: ts,
+        }),
+        setDoc(doc(db, "professionals", uid), {
+          id: uid, userId: uid,
+          nome: nome.trim(),
+          nomeNegocio: nomeNegocio.trim(),
+          slugPublico: cleanSlug,
+          telefoneWhatsapp: cleanPhone,
+          descricaoCurta: "Seja bem-vindo ao meu canal de pré-agendamentos!",
+          fotoLogoUrl: "",
+          corPrincipal: "#6366f1",
+          professionalStatus: "trial",
+          plan: "trial",
+          trialStartedAt: ts,
+          trialEndsAt: null,
+          createdAt: ts, updatedAt: ts,
+        }),
+      ]);
 
       setSuccess(true);
-      setTimeout(() => {
-        router.push("/dashboard");
-      }, 1500);
-
+      setTimeout(() => router.push("/portal"), 1500);
     } catch (err: any) {
-      console.error(err);
-      if (err.code === "auth/email-already-in-use") {
-        setError("Este e-mail já está cadastrado.");
-      } else if (err.code === "auth/weak-password") {
-        setError("A senha deve ter pelo menos 6 caracteres.");
-      } else if (err.code === "auth/invalid-email") {
-        setError("Formato de e-mail inválido.");
-      } else {
-        setError("Ocorreu um erro ao criar a conta: " + err.message);
-      }
+      if (err.code === "auth/email-already-in-use") setError("E-mail já cadastrado.");
+      else if (err.code === "auth/weak-password") setError("Senha fraca. Mínimo 6 caracteres.");
+      else if (err.code === "auth/invalid-email") setError("E-mail inválido.");
+      else setError("Erro ao criar conta: " + err.message);
       setFormLoading(false);
     }
   };
@@ -142,12 +209,11 @@ export default function RegisterPage() {
 
   return (
     <div className="flex-1 flex flex-col justify-center items-center px-4 py-12 md:py-20 bg-slate-950 relative overflow-hidden">
-      {/* Background Orbs */}
       <div className="absolute top-1/4 left-1/4 -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-indigo-600/10 rounded-full blur-[100px] pointer-events-none" />
       <div className="absolute bottom-1/4 right-1/4 translate-x-1/2 translate-y-1/2 w-80 h-80 bg-purple-600/10 rounded-full blur-[120px] pointer-events-none" />
 
       <div className="w-full max-w-lg z-10">
-        {/* Logo / Header */}
+        {/* Logo */}
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center justify-center h-12 w-12 rounded-2xl bg-indigo-600 shadow-lg shadow-indigo-500/30 mb-4 ring-1 ring-indigo-400/30">
             <Calendar className="h-6 w-6 text-white" />
@@ -155,162 +221,120 @@ export default function RegisterPage() {
           <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
             Criar conta no Retoria
           </h1>
-          <p className="mt-2 text-slate-400 text-center max-w-sm text-sm">
-            Evite perder clientes. Configure sua página de pré-agendamento em minutos.
-          </p>
         </div>
 
-        {/* Card Container */}
+        {/* Mode selector */}
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <button
+            type="button"
+            onClick={() => setMode("customer")}
+            className={`flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all text-sm font-semibold ${
+              mode === "customer"
+                ? "bg-emerald-600/20 border-emerald-500/50 text-emerald-300"
+                : "bg-slate-900/40 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+            }`}
+          >
+            <CalendarCheck className="h-5 w-5" />
+            <span>Sou cliente</span>
+            <span className="text-[11px] font-normal opacity-70 text-center leading-tight">
+              Quero agendar com profissionais
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("professional")}
+            className={`flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all text-sm font-semibold ${
+              mode === "professional"
+                ? "bg-indigo-600/20 border-indigo-500/50 text-indigo-300"
+                : "bg-slate-900/40 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+            }`}
+          >
+            <Briefcase className="h-5 w-5" />
+            <span>Sou profissional</span>
+            <span className="text-[11px] font-normal opacity-70 text-center leading-tight">
+              Quero receber agendamentos
+            </span>
+          </button>
+        </div>
+
+        {/* Card */}
         <div className="bg-slate-900/60 backdrop-blur-xl border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl ring-1 ring-white/5">
           {!isConfigured && (
             <div className="mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex gap-3">
               <AlertCircle className="h-5 w-5 shrink-0" />
-              <div>
-                <p className="font-semibold mb-1">Atenção: Firebase não configurado</p>
-                <p>Crie o arquivo `.env.local` na raiz e insira as credenciais do seu app Firebase para testar o cadastro.</p>
-              </div>
+              <p>Configure as credenciais Firebase no arquivo <code>.env.local</code>.</p>
             </div>
           )}
-
           {error && (
-            <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex gap-3 items-center">
+            <div className="mb-5 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex gap-3 items-center">
               <AlertCircle className="h-5 w-5 shrink-0" />
               <p className="font-medium">{error}</p>
             </div>
           )}
-
           {success && (
-            <div className="mb-6 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm flex gap-3 items-center">
+            <div className="mb-5 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm flex gap-3 items-center">
               <Loader2 className="h-5 w-5 shrink-0 animate-spin" />
-              <p className="font-medium">Cadastro realizado! Redirecionando para o painel...</p>
+              <p className="font-medium">Cadastro realizado! Redirecionando...</p>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Seção 1: Perfil Profissional */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Dados Profissionais</label>
-              <div className="space-y-4">
-                {/* Nome Completo */}
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
-                    <User className="h-5 w-5" />
-                  </div>
-                  <input
-                    type="text"
-                    required
-                    value={nome}
-                    onChange={(e) => setNome(e.target.value)}
-                    placeholder="Seu nome completo"
-                    className="w-full pl-10 pr-4 py-3 bg-slate-950/80 border border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-100 placeholder-slate-500 text-sm transition-all"
-                  />
-                </div>
+          {/* ── CUSTOMER FORM ── */}
+          {mode === "customer" && (
+            <form onSubmit={handleSubmitCustomer} className="space-y-4">
+              <InputField icon={<User />} type="text" placeholder="Seu nome completo" value={nome} onChange={setNome} />
+              <InputField icon={<Mail />} type="email" placeholder="E-mail" value={email} onChange={setEmail} />
+              <InputField icon={<Lock />} type="password" placeholder="Senha (mínimo 6 caracteres)" value={password} onChange={setPassword} />
+              <SubmitButton loading={formLoading} success={success} label="Criar conta de cliente" />
+            </form>
+          )}
 
-                {/* Nome do Negócio */}
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
-                    <Briefcase className="h-5 w-5" />
-                  </div>
-                  <input
-                    type="text"
-                    required
-                    value={nomeNegocio}
-                    onChange={(e) => setNomeNegocio(e.target.value)}
-                    placeholder="Nome do seu negócio (Ex: João Barbearia)"
-                    className="w-full pl-10 pr-4 py-3 bg-slate-950/80 border border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-100 placeholder-slate-500 text-sm transition-all"
-                  />
-                </div>
-
-                {/* Slug Público */}
-                <div className="space-y-1.5">
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
-                      <LinkIcon className="h-5 w-5" />
+          {/* ── PROFESSIONAL FORM ── */}
+          {mode === "professional" && (
+            <form onSubmit={handleSubmitProfessional} className="space-y-5">
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                  Dados do Negócio
+                </label>
+                <div className="space-y-4">
+                  <InputField icon={<User />} type="text" placeholder="Seu nome completo" value={nome} onChange={setNome} />
+                  <InputField icon={<Briefcase />} type="text" placeholder="Nome do negócio (Ex: João Barbearia)" value={nomeNegocio} onChange={setNomeNegocio} />
+                  <div className="space-y-1.5">
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                        <LinkIcon className="h-5 w-5" />
+                      </div>
+                      <input
+                        type="text"
+                        required
+                        value={slugPublico}
+                        onChange={(e) => setSlugPublico(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                        placeholder="slug-do-seu-link"
+                        className="w-full pl-10 pr-4 py-3 bg-slate-950/80 border border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-100 placeholder-slate-500 text-sm transition-all"
+                      />
                     </div>
-                    <input
-                      type="text"
-                      required
-                      value={slugPublico}
-                      onChange={(e) => setSlugPublico(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
-                      placeholder="slug-do-seu-link"
-                      className="w-full pl-10 pr-4 py-3 bg-slate-950/80 border border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-100 placeholder-slate-500 text-sm transition-all"
-                    />
+                    <p className="text-[11px] text-slate-500 px-1">
+                      Seu link: <span className="text-indigo-400 font-mono">/p/{slugPublico || "seu-link"}</span>
+                    </p>
                   </div>
-                  <p className="text-[11px] text-slate-500 px-1">
-                    Seu link público será: <span className="text-indigo-400 font-mono">/p/{slugPublico || "seu-link"}</span>
-                  </p>
-                </div>
-
-                {/* WhatsApp */}
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
-                    <Phone className="h-5 w-5" />
-                  </div>
-                  <input
-                    type="text"
-                    required
-                    value={telefoneWhatsapp}
-                    onChange={(e) => setTelefoneWhatsapp(e.target.value)}
-                    placeholder="WhatsApp (Ex: 11 99999-9999)"
-                    className="w-full pl-10 pr-4 py-3 bg-slate-950/80 border border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-100 placeholder-slate-500 text-sm transition-all"
-                  />
+                  <InputField icon={<Phone />} type="text" placeholder="WhatsApp com DDD (Ex: 11 99999-9999)" value={telefoneWhatsapp} onChange={setTelefoneWhatsapp} />
                 </div>
               </div>
-            </div>
-
-            <hr className="border-slate-800 my-4" />
-
-            {/* Seção 2: Credenciais de Acesso */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Credenciais de Acesso</label>
-              <div className="space-y-4">
-                {/* Email */}
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
-                    <Mail className="h-5 w-5" />
-                  </div>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="E-mail de acesso"
-                    className="w-full pl-10 pr-4 py-3 bg-slate-950/80 border border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-100 placeholder-slate-500 text-sm transition-all"
-                  />
-                </div>
-
-                {/* Password */}
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
-                    <Lock className="h-5 w-5" />
-                  </div>
-                  <input
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Senha (mínimo 6 caracteres)"
-                    className="w-full pl-10 pr-4 py-3 bg-slate-950/80 border border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-100 placeholder-slate-500 text-sm transition-all"
-                  />
+              <hr className="border-slate-800" />
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                  Acesso
+                </label>
+                <div className="space-y-4">
+                  <InputField icon={<Mail />} type="email" placeholder="E-mail de acesso" value={email} onChange={setEmail} />
+                  <InputField icon={<Lock />} type="password" placeholder="Senha (mínimo 6 caracteres)" value={password} onChange={setPassword} />
                 </div>
               </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={formLoading || success}
-              className="w-full flex items-center justify-center gap-2 py-3.5 px-4 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-700/50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 active:scale-[0.98] mt-6"
-            >
-              {formLoading ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                "Criar Minha Conta"
-              )}
-            </button>
-          </form>
+              <SubmitButton loading={formLoading} success={success} label="Criar conta profissional" />
+            </form>
+          )}
 
           <p className="mt-6 text-center text-sm text-slate-400">
-            Já tem uma conta?{" "}
+            Já tem conta?{" "}
             <Link href="/login" className="text-indigo-400 hover:text-indigo-300 font-semibold transition-all">
               Entrar agora
             </Link>
@@ -318,5 +342,51 @@ export default function RegisterPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Internal helpers ────────────────────────────────────────────────────────
+
+function InputField({
+  icon, type, placeholder, value, onChange,
+}: {
+  icon: React.ReactNode;
+  type: string;
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="relative">
+      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+        {React.cloneElement(icon as React.ReactElement<{ className?: string }>, { className: "h-5 w-5" })}
+      </div>
+      <input
+        type={type}
+        required
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full pl-10 pr-4 py-3 bg-slate-950/80 border border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-100 placeholder-slate-500 text-sm transition-all"
+      />
+    </div>
+  );
+}
+
+function SubmitButton({
+  loading, success, label,
+}: {
+  loading: boolean;
+  success: boolean;
+  label: string;
+}) {
+  return (
+    <button
+      type="submit"
+      disabled={loading || success}
+      className="w-full flex items-center justify-center gap-2 py-3.5 px-4 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-700/50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all shadow-lg shadow-indigo-500/20 active:scale-[0.98] mt-2"
+    >
+      {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <><span>{label}</span><ChevronRight className="h-4 w-4" /></>}
+    </button>
   );
 }

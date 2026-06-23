@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from "react";
 import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, query, orderBy } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, storage } from "@/lib/firebase";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { useAuth } from "../../providers";
 import { 
   Plus, 
@@ -15,8 +16,11 @@ import {
   AlertCircle,
   Sparkles,
   ToggleLeft,
-  ToggleRight
+  ToggleRight,
+  Upload,
+  Briefcase
 } from "lucide-react";
+import { validateImageFile, buildVersionedImageUrl } from "../../../lib/themeUtils";
 
 interface Service {
   id: string;
@@ -27,6 +31,10 @@ interface Service {
   ativo: boolean;
   createdAt: any;
   updatedAt: any;
+  imagemUrl?: string | null;
+  imagemStoragePath?: string | null;
+  imagemAlt?: string | null;
+  imagemUpdatedAt?: number | null;
 }
 
 export default function ServicesPage() {
@@ -44,6 +52,13 @@ export default function ServicesPage() {
   const [descricaoCurta, setDescricaoCurta] = useState("");
   const [duracaoEstimada, setDuracaoEstimada] = useState("30 min");
   const [ativo, setAtivo] = useState(true);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState("");
+  const [imageAlt, setImageAlt] = useState("");
+  const [existingImageUrl, setExistingImageUrl] = useState("");
+  const [existingImageStoragePath, setExistingImageStoragePath] = useState("");
+  const [removeImageMarked, setRemoveImageMarked] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
   
   const [formLoading, setFormLoading] = useState(false);
   const [error, setError] = useState("");
@@ -77,6 +92,12 @@ export default function ServicesPage() {
     setDescricaoCurta("");
     setDuracaoEstimada("30 min");
     setAtivo(true);
+    setImageFile(null);
+    setImagePreview("");
+    setImageAlt("");
+    setExistingImageUrl("");
+    setExistingImageStoragePath("");
+    setRemoveImageMarked(false);
     setError("");
     setIsModalOpen(true);
   };
@@ -88,6 +109,12 @@ export default function ServicesPage() {
     setDescricaoCurta(service.descricaoCurta);
     setDuracaoEstimada(service.duracaoEstimada);
     setAtivo(service.ativo);
+    setImageFile(null);
+    setImagePreview(service.imagemUrl ? buildVersionedImageUrl(service.imagemUrl, service.imagemUpdatedAt) : "");
+    setImageAlt(service.imagemAlt || "");
+    setExistingImageUrl(service.imagemUrl || "");
+    setExistingImageStoragePath(service.imagemStoragePath || "");
+    setRemoveImageMarked(false);
     setError("");
     setIsModalOpen(true);
   };
@@ -106,27 +133,78 @@ export default function ServicesPage() {
 
     try {
       const servicesRef = collection(db, "professionals", user.uid, "services");
+      let serviceId = editingId;
       
       if (modalMode === "add") {
         const newDocRef = doc(servicesRef);
-        const servicePayload = {
-          id: newDocRef.id,
+        serviceId = newDocRef.id;
+        const servicePayload: Service = {
+          id: serviceId,
           professionalId: user.uid,
           nome: nome.trim(),
           descricaoCurta: descricaoCurta.trim(),
           duracaoEstimada: duracaoEstimada.trim(),
           ativo,
           createdAt: new Date(),
-          updatedAt: new Date()
+          updatedAt: new Date(),
+          imagemUrl: null,
+          imagemStoragePath: null,
+          imagemAlt: null,
+          imagemUpdatedAt: null
         };
         await setDoc(newDocRef, servicePayload);
       } else {
-        const docRef = doc(db, "professionals", user.uid, "services", editingId);
+        const docRef = doc(db, "professionals", user.uid, "services", serviceId);
         await updateDoc(docRef, {
           nome: nome.trim(),
           descricaoCurta: descricaoCurta.trim(),
           duracaoEstimada: duracaoEstimada.trim(),
           ativo,
+          updatedAt: new Date()
+        });
+      }
+
+      // Handle image upload / removal
+      const docRef = doc(db, "professionals", user.uid, "services", serviceId);
+      
+      if (removeImageMarked && existingImageStoragePath) {
+        try {
+          const fileRef = ref(storage, existingImageStoragePath);
+          await deleteObject(fileRef);
+        } catch (storageErr: any) {
+          if (storageErr.code !== "storage/object-not-found") {
+            console.error("Storage delete error:", storageErr);
+          }
+        }
+        await updateDoc(docRef, {
+          imagemUrl: null,
+          imagemStoragePath: null,
+          imagemAlt: null,
+          imagemUpdatedAt: Date.now()
+        });
+      }
+
+      if (imageFile) {
+        try {
+          const storagePath = `services/${user.uid}/${serviceId}/cover`;
+          const fileRef = ref(storage, storagePath);
+          await uploadBytes(fileRef, imageFile);
+          const downloadUrl = await getDownloadURL(fileRef);
+          await updateDoc(docRef, {
+            imagemUrl: downloadUrl,
+            imagemStoragePath: storagePath,
+            imagemAlt: imageAlt.trim() || nome.trim(),
+            imagemUpdatedAt: Date.now()
+          });
+        } catch (uploadErr: any) {
+          console.error("Storage upload error:", uploadErr);
+          setError("Serviço salvo, mas houve erro no upload da imagem: " + uploadErr.message);
+          setFormLoading(false);
+          return;
+        }
+      } else if (!removeImageMarked && modalMode === "edit" && existingImageUrl) {
+        await updateDoc(docRef, {
+          imagemAlt: imageAlt.trim() || nome.trim(),
           updatedAt: new Date()
         });
       }
@@ -153,14 +231,37 @@ export default function ServicesPage() {
     }
   };
 
-  const handleDelete = async (serviceId: string) => {
+  const handleDelete = async (service: Service) => {
     if (!user) return;
-    if (!window.confirm("Tem certeza que deseja excluir este serviço?")) return;
+    if (!window.confirm(`Tem certeza que deseja excluir o serviço "${service.nome}"?`)) return;
+    
+    setDeleteLoading(service.id);
+    let successMessage = "";
+    
     try {
-      const docRef = doc(db, "professionals", user.uid, "services", serviceId);
+      if (service.imagemStoragePath) {
+        try {
+          const fileRef = ref(storage, service.imagemStoragePath);
+          await deleteObject(fileRef);
+        } catch (storageErr: any) {
+          if (storageErr.code !== "storage/object-not-found") {
+            console.error("Storage deletion partial error:", storageErr);
+            successMessage = "Serviço excluído, mas houve um erro parcial ao remover o arquivo do Storage.";
+          }
+        }
+      }
+      
+      const docRef = doc(db, "professionals", user.uid, "services", service.id);
       await deleteDoc(docRef);
-    } catch (err) {
+      
+      if (successMessage) {
+        alert(successMessage);
+      }
+    } catch (err: any) {
       console.error("Error deleting service:", err);
+      alert("Erro ao excluir serviço: " + err.message);
+    } finally {
+      setDeleteLoading(null);
     }
   };
 
@@ -207,6 +308,23 @@ export default function ServicesPage() {
                 ${service.ativo ? "border-slate-800 hover:border-slate-700/80 shadow-md" : "border-slate-900/80 opacity-60"}
               `}
             >
+              {/* Cover Image */}
+              <div className="relative aspect-[16/9] w-full rounded-xl overflow-hidden bg-slate-950 border border-slate-850 mb-4 shrink-0">
+                {service.imagemUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={buildVersionedImageUrl(service.imagemUrl, service.imagemUpdatedAt)}
+                    alt={service.imagemAlt || service.nome}
+                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  />
+                ) : (
+                  <div className="h-full w-full flex flex-col items-center justify-center text-slate-650 bg-slate-900/40">
+                    <Briefcase className="h-8 w-8 text-slate-600 opacity-40 mb-1" />
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">Sem imagem</span>
+                  </div>
+                )}
+              </div>
+
               {/* Card top info */}
               <div>
                 <div className="flex items-start justify-between gap-3 mb-2">
@@ -242,7 +360,7 @@ export default function ServicesPage() {
                   {/* Edit button */}
                   <button
                     onClick={() => openEditModal(service)}
-                    className="p-2 bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-indigo-400 rounded-lg border border-slate-850 hover:border-indigo-500/20 transition-all"
+                    className="p-2 bg-slate-955 hover:bg-slate-800 text-slate-400 hover:text-indigo-400 rounded-lg border border-slate-850 hover:border-indigo-500/20 transition-all"
                     title="Editar"
                   >
                     <Edit2 className="h-3.5 w-3.5" />
@@ -250,11 +368,16 @@ export default function ServicesPage() {
 
                   {/* Delete button */}
                   <button
-                    onClick={() => handleDelete(service.id)}
-                    className="p-2 bg-slate-950 hover:bg-red-500/10 text-slate-400 hover:text-red-400 rounded-lg border border-slate-850 hover:border-red-500/20 transition-all"
+                    onClick={() => handleDelete(service)}
+                    disabled={deleteLoading === service.id}
+                    className="p-2 bg-slate-955 hover:bg-red-500/10 text-slate-400 hover:text-red-400 rounded-lg border border-slate-850 hover:border-red-500/20 transition-all disabled:opacity-50"
                     title="Excluir"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    {deleteLoading === service.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-3.5 w-3.5" />
+                    )}
                   </button>
                 </div>
               </div>
@@ -336,6 +459,95 @@ export default function ServicesPage() {
                 <label htmlFor="ativo" className="text-sm font-semibold text-slate-350 cursor-pointer">
                   Disponível para agendamento (Ativo)
                 </label>
+              </div>
+
+              {/* Imagem do Serviço */}
+              <div className="space-y-2 border-t border-slate-800/60 pt-4">
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Imagem do Serviço (Opcional)</label>
+                
+                {imagePreview ? (
+                  <div className="relative aspect-[16/9] w-full rounded-xl overflow-hidden bg-slate-955 border border-slate-800 group">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={imagePreview} alt="Preview" className="h-full w-full object-cover" />
+                    
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition-all duration-200">
+                      <label className="cursor-pointer px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold rounded-lg text-slate-200 transition-all flex items-center gap-1">
+                        Alterar
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const res = validateImageFile(file, 2);
+                              if (!res.valid) {
+                                alert(res.error);
+                                return;
+                              }
+                              setImageFile(file);
+                              setImagePreview(URL.createObjectURL(file));
+                              setRemoveImageMarked(false);
+                            }
+                          }}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm("Deseja remover a imagem? A remoção será confirmada ao salvar.")) {
+                            setImageFile(null);
+                            setImagePreview("");
+                            setRemoveImageMarked(true);
+                          }
+                        }}
+                        className="px-3 py-1.5 bg-red-600 hover:bg-red-500 border border-red-500/30 text-xs font-bold rounded-lg text-white transition-all"
+                      >
+                        Remover
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center aspect-[16/9] w-full border-2 border-dashed border-slate-800 rounded-xl bg-slate-950/20 cursor-pointer hover:border-slate-700 transition-all">
+                    <div className="flex flex-col items-center text-center p-4">
+                      <Upload className="h-7 w-7 text-slate-500 mb-1.5" />
+                      <span className="text-xs font-bold text-slate-400">Selecionar Imagem</span>
+                      <span className="text-[10px] text-slate-550 mt-1">JPEG, PNG ou WEBP de até 2MB</span>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const res = validateImageFile(file, 2);
+                          if (!res.valid) {
+                            alert(res.error);
+                            return;
+                          }
+                          setImageFile(file);
+                          setImagePreview(URL.createObjectURL(file));
+                          setRemoveImageMarked(false);
+                        }
+                      }}
+                    />
+                  </label>
+                )}
+
+                {/* Alt Description */}
+                {(imagePreview || imageFile) && (
+                  <div className="mt-2">
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Descrição alternativa (Acessibilidade)</label>
+                    <input
+                      type="text"
+                      value={imageAlt}
+                      onChange={(e) => setImageAlt(e.target.value)}
+                      placeholder="Descreva o procedimento (ex: Limpeza facial profunda)"
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800/80 rounded-lg focus:outline-none focus:border-indigo-500 text-slate-100 text-xs transition-all"
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-3 mt-6">
