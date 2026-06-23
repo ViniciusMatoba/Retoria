@@ -148,15 +148,31 @@ export default function PersonalizationPage() {
         }
       });
       await refreshProfile();
+      
+      const hasSlug = !!profile.slugPublico;
       showSuccessModal({
         title: "Tema salvo",
-        description: "A personalização da sua página foi atualizada com sucesso.",
+        description: "A personalização da sua página foi atualizada e já está disponível na página pública.",
+        ...(hasSlug ? {
+          confirmLabel: "Ver página pública",
+          cancelLabel: "Entendi",
+          onConfirm: () => {
+            window.open(`/p/${profile.slugPublico}`, "_blank", "noopener,noreferrer");
+          }
+        } : {
+          confirmLabel: "Entendi"
+        })
       });
     } catch (err: any) {
       console.error("Save theme error:", err);
       showErrorModal({
         title: "Não foi possível salvar o tema",
-        description: "A personalização anterior foi mantida. Revise as informações e tente novamente.",
+        description: "A configuração pública anterior foi mantida. Revise as informações e tente novamente.",
+        confirmLabel: "Fechar",
+        cancelLabel: "Tentar novamente",
+        onCancel: () => {
+          handleSave();
+        }
       });
     } finally {
       setIsSaving(false);
@@ -199,8 +215,8 @@ export default function PersonalizationPage() {
 
     showConfirmationModal({
       title: "Restaurar tema padrão?",
-      description: "A personalização atual será substituída pelo tema padrão no rascunho. Você precisará clicar em Salvar para confirmar.",
-      confirmLabel: "Restaurar",
+      description: "A personalização no editor será substituída pelo tema padrão. Para publicar, ainda será necessário clicar em “Salvar Tema”.",
+      confirmLabel: "Restaurar no editor",
       cancelLabel: "Cancelar",
       variant: "warning",
       onConfirm: () => {
