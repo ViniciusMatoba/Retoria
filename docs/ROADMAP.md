@@ -7,11 +7,13 @@ Este documento descreve o cronograma oficial de desenvolvimento do projeto Retor
 ```text
 [CONCLUÍDO] Fase 0A — Infraestrutura mínima de modais
       ↓
-[CONCLUÍDO] Fase 0B — Correção completa dos temas
+[ENCERRADA] Fase 0B — Correção completa dos temas (com restrições)
+      ↓
+[PENDENTE]  Homologação pós-deploy controlada do MVP Individual
       ↓
 [A SEGUIR]  Fase 1  — Aplicação global dos modais
       ↓
-            Fase 2  — Tipos e abstrações
+            Fase 2  — Tipos e abstrações de organizações
       ↓
             Fase 3  — Schema e compatibilidade
       ↓
@@ -36,16 +38,39 @@ Este documento descreve o cronograma oficial de desenvolvimento do projeto Retor
 
 ---
 
+## Trilha Comercial
+
+```text
+Estabilização do MVP Individual
+            ↓
+      Piloto interno
+            ↓
+    Piloto acompanhado
+            ↓
+Beta comercial Individual
+            ↓
+      Piloto Equipe
+            ↓
+      Venda ampliada
+```
+
+A trilha de organizações não deve impedir o piloto do MVP Individual quando os gates individuais (Gate A e Gate B) forem devidamente aprovados.
+
+---
+
 ## Descrição das Fases
 
 ### Fase 0A — Infraestrutura mínima de modais (Concluída)
 Criação do `ModalProvider` acessível, gerando um sistema robusto e unificado de caixas de diálogo para toda a aplicação.
 
-### Fase 0B — Correção completa dos temas (Concluída)
-Correção no fluxo de seleção, preview, salvamento e renderização pública de temas personalizados sem hosts externos proibidos.
+### Fase 0B — Correção completa dos temas (Encerrada com Restrições)
+Correção no fluxo de seleção, preview, salvamento e renderização pública de temas personalizados sem hosts externos proibidos. O deploy automático foi realizado, mas a homologação em produção está pendente.
+
+### Homologação pós-deploy controlada
+Validação manual de todas as jornadas de agendamento e personalização de temas no ambiente publicado real do Vercel e Firestore de produção antes de prosseguir com novas funcionalidades.
 
 ### Fase 1 — Aplicação global dos modais
 Varredura do projeto para substituição de alertas nativos (`window.alert`, `window.confirm`) pelo `useAppModal` e tratamento de erros de formulários com o sistema padronizado.
 
 ### Fases de Organizações (Planejamento Futuro)
-As fases de 4 a 12 introduzirão suporte a múltiplos profissionais sob a mesma organização (clinicas, salões), controle de membros e convites, e migração gradual dos dados legados. Esta implementação está suspensa até a validação do piloto com o escopo atual (profissional individual).
+As fases de 4 a 12 introduzirão suporte a múltiplos profissionais sob a mesma organização (clínicas, salões), controle de membros e convites, e migração gradual dos dados legados. Esta implementação está suspensa até a validação do piloto com o escopo atual (profissional individual).

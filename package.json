@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test:rules": "firebase emulators:exec --only firestore,storage --project agendazap-test \"node scripts/test-rules.mjs\"",
-    "test:themes": "npx tsx scripts/test-themes.ts"
+    "test:themes": "npx tsx scripts/test-themes.ts",
+    "check:governance": "node scripts/check-project-governance.mjs"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.1",
