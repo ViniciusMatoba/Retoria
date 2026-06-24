@@ -484,7 +484,8 @@ export default function PublicBookingExperience({
                             }
                             
                             const dateKey = `${currentYear}-${(currentMonth + 1).toString().padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
-                            const hasSlots = !!groupedSlots[dateKey];
+                            const daySlots = groupedSlots[dateKey] || [];
+                            const hasSlots = daySlots.some(slot => !isPastDateTimeSaoPaulo(slot.data, slot.horario));
                             const isSelected = selectedDate === dateKey;
                             const isToday = todaySP === dateKey;
                             
@@ -519,7 +520,9 @@ export default function PublicBookingExperience({
                       <div className="space-y-2">
                         <label className="block text-xs font-semibold text-[var(--theme-muted-text)] uppercase tracking-wider mb-1">2. Escolha o horário</label>
                         <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                          {groupedSlots[selectedDate].map((slot) => {
+                          {groupedSlots[selectedDate]
+                            .filter((slot) => !isPastDateTimeSaoPaulo(slot.data, slot.horario))
+                            .map((slot) => {
                             const isSelected = selectedSlot?.id === slot.id;
                             return (
                               <button
