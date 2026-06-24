@@ -106,7 +106,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Este horário já passou. Por favor, escolha um horário futuro." }, { status: 400 });
     }
 
-    // 2. Transaction safe booking
+    // 2. Tenta vincular o agendamento a uma conta de cliente existente via número de telefone
+    if (!customerUid) {
+      try {
+        const customersRef = dbAdmin.collection("customerAccounts");
+        let querySnap = await customersRef.where("phone", "==", formattedPhone).limit(1).get();
+        if (!querySnap.empty) {
+          customerUid = querySnap.docs[0].id;
+        } else {
+          const formattedFriendly = `(${formattedPhone.slice(0, 2)}) ${formattedPhone.slice(2, 7)}-${formattedPhone.slice(7)}`;
+          querySnap = await customersRef.where("phone", "==", formattedFriendly).limit(1).get();
+          if (!querySnap.empty) {
+            customerUid = querySnap.docs[0].id;
+          }
+        }
+      } catch (err) {
+        console.error("Error looking up customer by phone:", err);
+      }
+    }
+
+    // 3. Transaction safe booking
     const result = await dbAdmin.runTransaction(async (transaction) => {
       // Read professional
       const profRef = dbAdmin.collection("professionals").doc(professionalId);
@@ -209,8 +228,16 @@ export async function POST(req: NextRequest) {
 
       transaction.set(newLeadRef, leadPayload);
 
-      // Se autenticado: grava índice do cliente via Admin SDK
+      // Se autenticado: atualiza perfil do cliente e grava índice do agendamento para ele
       if (customerUid) {
+        // Sincroniza dados de contato no perfil de cliente (customerAccounts)
+        const customerRef = dbAdmin.collection("customerAccounts").doc(customerUid);
+        transaction.set(customerRef, {
+          name: trimmedNome,
+          phone: formattedPhone,
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+
         const bookingIndexRef = dbAdmin
           .collection("customerAccounts").doc(customerUid)
           .collection("bookings").doc(newLeadRef.id);
@@ -228,18 +255,21 @@ export async function POST(req: NextRequest) {
           createdAt: now,
           updatedAt: now,
         }));
-
-        // Write customer relationship to professional's subcollection
-        const customerRelRef = dbAdmin
-          .collection("professionals").doc(professionalId)
-          .collection("customers").doc(customerUid);
-        transaction.set(customerRelRef, {
-          customerUid,
-          lastBookingId: newLeadRef.id,
-          lastBookingDate: dataEscolhida,
-          updatedAt: FieldValue.serverTimestamp(),
-        }, { merge: true });
       }
+
+      // Grava relacionamento do cliente na subcoleção do profissional (para gestão e futuros contatos)
+      const customerId = customerUid || `phone_${formattedPhone}`;
+      const customerRelRef = dbAdmin
+        .collection("professionals").doc(professionalId)
+        .collection("customers").doc(customerId);
+      transaction.set(customerRelRef, {
+        nome: trimmedNome,
+        telefone: formattedPhone,
+        customerUid: customerUid || null,
+        lastBookingId: newLeadRef.id,
+        lastBookingDate: dataEscolhida,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
 
       // Mark slots as unavailable
       overlappingSlots.forEach((slot, index) => {
