@@ -274,7 +274,13 @@ export default function PublicBookingExperience({
       } catch (parseErr) {
         console.error("Server returned non-JSON response:", resText);
         // Expose a clean message with the raw HTML or status text
-        const snippet = resText.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
+        const cleanText = resText
+          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+          .replace(/<[^>]*>/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+        const snippet = cleanText.slice(0, 250);
         throw new Error(`Erro do servidor (HTTP ${response.status}): ${snippet || response.statusText}`);
       }
 
