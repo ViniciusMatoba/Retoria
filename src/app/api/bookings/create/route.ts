@@ -289,13 +289,14 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error("Booking api transaction error:", err);
     let friendlyMessage = "Erro ao criar agendamento. Tente novamente.";
-    if (err.message === "professional-not-found") {
+    const errMsg = err?.message;
+    if (errMsg === "professional-not-found") {
       friendlyMessage = "Profissional não encontrado.";
-    } else if (err.message === "service-not-found-or-inactive") {
+    } else if (errMsg === "service-not-found-or-inactive") {
       friendlyMessage = "Serviço não está mais ativo ou não foi encontrado.";
-    } else if (err.message === "slot-not-found") {
+    } else if (errMsg === "slot-not-found") {
       friendlyMessage = "Um ou mais horários no intervalo selecionado não estão disponíveis na agenda.";
-    } else if (err.message === "slot-already-booked") {
+    } else if (errMsg === "slot-already-booked") {
       friendlyMessage = "Desculpe, este período já foi reservado por outro cliente.";
     }
     return NextResponse.json({ error: friendlyMessage }, { status: 400 });
