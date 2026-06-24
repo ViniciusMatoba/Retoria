@@ -3,6 +3,13 @@ import { authAdmin, dbAdmin } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 
 export async function POST(req: NextRequest) {
+  if (!dbAdmin || !authAdmin) {
+    return NextResponse.json(
+      { error: "Erro de configuração no servidor: As credenciais do Firebase Admin não puderam ser carregadas." },
+      { status: 500 }
+    );
+  }
+
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {

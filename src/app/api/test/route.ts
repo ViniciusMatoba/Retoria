@@ -10,6 +10,13 @@ const TEST_SERVICE_30 = "test_service_30";
 const TEST_SERVICE_45 = "test_service_45";
 
 export async function GET(req: NextRequest) {
+  if (!dbAdmin) {
+    return NextResponse.json(
+      { success: false, error: "Erro de configuração no servidor: As credenciais do Firebase Admin não puderam ser carregadas." },
+      { status: 500 }
+    );
+  }
+
   const results: Array<{ name: string; passed: boolean; error?: string }> = [];
 
   try {

@@ -27,15 +27,22 @@ if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
   }
 }
 
-const app = getApps().length === 0
-  ? initializeApp(
-      serviceAccount
-        ? { credential: cert(serviceAccount) }
-        : { projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "retoria-app" }
-    )
-  : getApp();
+let dbAdmin: any = null;
+let authAdmin: any = null;
 
-const dbAdmin = getFirestore(app);
-const authAdmin = getAuth(app);
+try {
+  const app = getApps().length === 0
+    ? initializeApp(
+        serviceAccount
+          ? { credential: cert(serviceAccount) }
+          : { projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "retoria-app" }
+      )
+    : getApp();
+
+  dbAdmin = getFirestore(app);
+  authAdmin = getAuth(app);
+} catch (err) {
+  console.error("Firebase Admin SDK initialization failed:", err);
+}
 
 export { dbAdmin, authAdmin };

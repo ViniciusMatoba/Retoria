@@ -6,6 +6,13 @@ import { isValidLeadStatus, type LeadStatus } from "@/lib/leadTypes";
 type Params = { params: Promise<{ professionalId: string; leadId: string }> };
 
 export async function PATCH(req: NextRequest, { params }: Params) {
+  if (!dbAdmin || !authAdmin) {
+    return NextResponse.json(
+      { error: "Erro de configuração no servidor: As credenciais do Firebase Admin não puderam ser carregadas." },
+      { status: 500 }
+    );
+  }
+
   // ── 1. Autenticação ────────────────────────────────────────────────────────
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
@@ -64,7 +71,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   // ── 5. Transação atômica ───────────────────────────────────────────────────
   try {
-    await dbAdmin.runTransaction(async (tx) => {
+    await dbAdmin.runTransaction(async (tx: any) => {
       // a) Ler o lead principal
       const leadRef = dbAdmin
         .collection("professionals")

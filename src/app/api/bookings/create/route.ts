@@ -35,6 +35,13 @@ const parseServiceDurationMinutes = (duracaoStr: string): number => {
 };
 
 export async function POST(req: NextRequest) {
+  if (!dbAdmin || !authAdmin) {
+    return NextResponse.json(
+      { error: "Erro de configuração no servidor: As credenciais do Firebase Admin não puderam ser carregadas." },
+      { status: 500 }
+    );
+  }
+
   try {
     // Resolve customerUid do token Bearer (server-side only, nunca do body)
     let customerUid: string | null = null;
@@ -126,7 +133,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Transaction safe booking
-    const result = await dbAdmin.runTransaction(async (transaction) => {
+    const result = await dbAdmin.runTransaction(async (transaction: any) => {
       // Read professional
       const profRef = dbAdmin.collection("professionals").doc(professionalId);
       const profSnap = await transaction.get(profRef);
@@ -155,7 +162,7 @@ export async function POST(req: NextRequest) {
       const slotsRef = profRef.collection("availableSlots");
       const slotsSnap = await transaction.get(slotsRef.where("data", "==", dataEscolhida));
       
-      const allSlots = slotsSnap.docs.map(doc => ({
+      const allSlots = slotsSnap.docs.map((doc: any) => ({
         ref: doc.ref,
         id: doc.id,
         ...doc.data()
