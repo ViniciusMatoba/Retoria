@@ -32,10 +32,15 @@ export default function PublicBookingPage({ params }: PageProps) {
   const fetchServices = async (profId: string) => {
     try {
       const servicesRef = collection(db, "professionals", profId, "services");
-      const q = query(servicesRef, where("ativo", "==", true), orderBy("nome", "asc"));
+      const q = query(servicesRef, orderBy("nome", "asc"));
       const querySnapshot = await getDocs(q);
       const data: Service[] = [];
-      querySnapshot.forEach((doc) => { data.push({ id: doc.id, ...doc.data() } as Service); });
+      querySnapshot.forEach((doc) => {
+        const d = doc.data();
+        if (d.ativo === true) {
+          data.push({ id: doc.id, ...d } as Service);
+        }
+      });
       setServices(data);
     } catch (e) {
       console.error("Error loading services:", e);
@@ -49,9 +54,6 @@ export default function PublicBookingPage({ params }: PageProps) {
       const maxDateStr = addDaysSaoPaulo(todayStr, windowDays);
       const q = query(
         slotsRef,
-        where("disponivel", "==", true),
-        where("data", ">=", todayStr),
-        where("data", "<=", maxDateStr),
         orderBy("data", "asc"),
         orderBy("horario", "asc")
       );
@@ -59,7 +61,14 @@ export default function PublicBookingPage({ params }: PageProps) {
       const data: AvailableSlot[] = [];
       querySnapshot.forEach((doc) => {
         const d = doc.data();
-        if (d.data && d.data <= maxDateStr) data.push({ id: doc.id, ...d } as AvailableSlot);
+        if (
+          d.disponivel === true &&
+          d.data &&
+          d.data >= todayStr &&
+          d.data <= maxDateStr
+        ) {
+          data.push({ id: doc.id, ...d } as AvailableSlot);
+        }
       });
       setSlots(data);
     } catch (e) {
