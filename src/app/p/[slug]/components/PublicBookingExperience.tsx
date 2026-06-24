@@ -176,6 +176,26 @@ export default function PublicBookingExperience({
     calendarCells.push(d);
   }
 
+  const handlePhoneInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value;
+    const cleaned = rawValue.replace(/\D/g, "");
+    
+    let formatted = "";
+    if (cleaned.length === 0) {
+      formatted = "";
+    } else if (cleaned.length <= 2) {
+      formatted = `(${cleaned}`;
+    } else if (cleaned.length <= 6) {
+      formatted = `(${cleaned.slice(0, 2)}) ${cleaned.slice(2)}`;
+    } else if (cleaned.length <= 10) {
+      formatted = `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 6)}-${cleaned.slice(6)}`;
+    } else {
+      formatted = `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 7)}-${cleaned.slice(7, 11)}`;
+    }
+    
+    setClientTelefone(formatted);
+  };
+
   const handleNextStep = () => {
     if (step === 1 && !selectedService) { setError("Por favor, selecione um serviço para prosseguir."); return; }
     if (step === 2 && (!selectedDate || !selectedSlot)) { setError("Por favor, escolha uma data e horário."); return; }
@@ -544,7 +564,7 @@ export default function PublicBookingExperience({
                     <label className="block text-xs font-semibold text-[var(--theme-muted-text)] uppercase tracking-wider mb-2">Telefone com WhatsApp *</label>
                     <div className="relative">
                       <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-[var(--theme-muted-text)]/60"><Phone className="h-4 w-4" /></span>
-                      <input type="text" required value={clientTelefone} onChange={(e) => setClientTelefone(e.target.value)} placeholder="Ex: (11) 99999-9999" style={cardRadiusStyle} className="w-full pl-9 pr-4 py-2.5 bg-[var(--theme-surface)] border border-[rgba(255,255,255,0.08)] focus:outline-none focus:border-[var(--theme-primary)] text-[var(--theme-text)] text-sm transition-all" />
+                      <input type="text" required value={clientTelefone} onChange={handlePhoneInputChange} placeholder="Ex: (11) 99999-9999" style={cardRadiusStyle} className="w-full pl-9 pr-4 py-2.5 bg-[var(--theme-surface)] border border-[rgba(255,255,255,0.08)] focus:outline-none focus:border-[var(--theme-primary)] text-[var(--theme-text)] text-sm transition-all" />
                     </div>
                   </div>
                   <div>
