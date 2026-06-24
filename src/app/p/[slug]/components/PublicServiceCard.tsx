@@ -107,9 +107,6 @@ export default function PublicServiceCard({
         <div>
           <div className="flex items-start justify-between gap-3">
             <h4 className="font-bold text-[var(--theme-text)] truncate text-sm sm:text-base">{service.nome}</h4>
-            <span className="text-[10px] font-semibold text-[var(--theme-muted-text)] bg-[rgba(255,255,255,0.05)] px-2 py-0.5 rounded border border-[rgba(255,255,255,0.05)] shrink-0 font-mono">
-              {service.duracaoEstimada}
-            </span>
           </div>
           {service.descricaoCurta && (
             <p className="text-xs text-[var(--theme-muted-text)] mt-1.5 line-clamp-2 leading-relaxed">
@@ -122,7 +119,10 @@ export default function PublicServiceCard({
         <div className="flex items-center justify-between mt-3 pt-2 border-t border-[rgba(255,255,255,0.05)] text-xs">
           <div className="flex items-center gap-1.5 text-[var(--theme-muted-text)]">
             <Clock className="h-3.5 w-3.5 opacity-60" />
-            <span>Duração aproximada</span>
+            <span>
+              Duração aproximada:{" "}
+              <strong className="text-[var(--theme-text)] font-semibold ml-1">{service.duracaoEstimada}</strong>
+            </span>
           </div>
           
           <div 

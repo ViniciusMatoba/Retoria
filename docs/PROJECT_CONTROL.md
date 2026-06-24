@@ -3,7 +3,7 @@
 Este documento é a fonte única de verdade para governança, acompanhamento e atualização do roadmap do projeto Retoria.
 
 ## Status Resumido do Projeto
-* **Fase Atual**: Fase 0B encerrada com restrições (aplicação publicada, mas não homologada funcionalmente; URL de produção não confirmada neste ambiente; teste real com conta autorizada não executado; comportamento deslogado não validado; logs de produção não revisados).
+* **Fase Atual**: Fase 0B encerrada com restrições (aplicação publicada, mas não homologada funcionalmente; teste real com conta autorizada não executado; comportamento deslogado não validado; logs de produção não revisados).
 * **Marco Ativo**: **M0 — Estabilização da base** (Estado: Testado. Observação: Deploy concluído, teste pós-deploy ainda pendente).
 * **Próxima Tarefa**: Executar homologação pós-deploy controlada do MVP Individual e registrar evidências no PROJECT_CONTROL.md.
 
@@ -93,7 +93,7 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **Ambiente**: Desenvolvimento local e Vercel Produção
 * **Plataforma de deploy**: Vercel (Git Integration)
 * **Deploy**: Aprovado
-* **URL**: URL de produção: não confirmada neste ambiente
+* **URL**: [https://retoria.vercel.app/](https://retoria.vercel.app/)
 * **Resultado**: Estabilização da base (M0) testada (deploy concluído, teste pós-deploy ainda pendente).
 * **Gate**: Gate A: GO, Gate B: NO-GO
 * **Bloqueadores**: Homologação pós-deploy das jornadas críticas ainda não executada.
