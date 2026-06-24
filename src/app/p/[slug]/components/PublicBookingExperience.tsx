@@ -19,7 +19,7 @@ import PublicServiceCard from "./PublicServiceCard";
 import PublicProfessionalHeader from "./PublicProfessionalHeader";
 import { getDefaultThemeConfig, ThemeConfig, getBestTextColor } from "@/lib/themeUtils";
 import { getWhatsAppLink } from "@/lib/whatsapp";
-import { isPastDateTimeSaoPaulo } from "@/lib/timezone";
+import { isPastDateTimeSaoPaulo, getSaoPauloToday } from "@/lib/timezone";
 import type { PublicAddress, ServiceLocationType } from "@/lib/contactUtils";
 import { auth } from "@/lib/firebase";
 
@@ -111,11 +111,70 @@ export default function PublicBookingExperience({
 
   const corBrand = theme.primaryColor;
 
+  const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+  const MONTHS_PT = [
+    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+  ];
+
+  const todaySP = getSaoPauloToday();
+  const todayYear = parseInt(todaySP.split("-")[0]);
+  const todayMonth = parseInt(todaySP.split("-")[1]) - 1;
+
   const groupedSlots = slots.reduce((acc: Record<string, AvailableSlot[]>, slot) => {
     if (!acc[slot.data]) acc[slot.data] = [];
     acc[slot.data].push(slot);
     return acc;
   }, {});
+
+  const [currentYear, setCurrentYear] = useState(() => {
+    if (selectedDate) return parseInt(selectedDate.split("-")[0]);
+    const firstDate = Object.keys(groupedSlots).sort()[0];
+    return firstDate ? parseInt(firstDate.split("-")[0]) : todayYear;
+  });
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    if (selectedDate) return parseInt(selectedDate.split("-")[1]) - 1;
+    const firstDate = Object.keys(groupedSlots).sort()[0];
+    return firstDate ? parseInt(firstDate.split("-")[1]) - 1 : todayMonth;
+  });
+
+  const handlePrevMonth = () => {
+    if (currentMonth === 0) {
+      setCurrentMonth(11);
+      setCurrentYear(prev => prev - 1);
+    } else {
+      setCurrentMonth(prev => prev - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (currentMonth === 11) {
+      setCurrentMonth(0);
+      setCurrentYear(prev => prev + 1);
+    } else {
+      setCurrentMonth(prev => prev + 1);
+    }
+  };
+
+  const isPrevDisabled = currentYear < todayYear || (currentYear === todayYear && currentMonth <= todayMonth);
+
+  const slotsDates = Object.keys(groupedSlots).sort();
+  const lastSlotDate = slotsDates[slotsDates.length - 1];
+  const maxYear = lastSlotDate ? parseInt(lastSlotDate.split("-")[0]) : todayYear;
+  const maxMonth = lastSlotDate ? parseInt(lastSlotDate.split("-")[1]) - 1 : todayMonth + 2;
+
+  const isNextDisabled = currentYear > maxYear || (currentYear === maxYear && currentMonth >= maxMonth);
+
+  const daysInMonth = new Date(Date.UTC(currentYear, currentMonth + 1, 0, 12, 0, 0)).getUTCDate();
+  const firstDayIndex = new Date(Date.UTC(currentYear, currentMonth, 1, 12, 0, 0)).getUTCDay();
+
+  const calendarCells: (number | null)[] = [];
+  for (let i = 0; i < firstDayIndex; i++) {
+    calendarCells.push(null);
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    calendarCells.push(d);
+  }
 
   const handleNextStep = () => {
     if (step === 1 && !selectedService) { setError("Por favor, selecione um serviço para prosseguir."); return; }
@@ -344,21 +403,81 @@ export default function PublicBookingExperience({
                 ) : (
                   <div className="space-y-5 pt-1">
                     <div>
-                      <label className="block text-xs font-semibold text-[var(--theme-muted-text)] uppercase tracking-wider mb-2">1. Escolha a data</label>
-                      <div className="flex gap-2 overflow-x-auto pb-2 pr-1">
-                        {Object.keys(groupedSlots).map((dateStr) => {
-                          const isSelected = selectedDate === dateStr;
-                          return (
-                            <button
-                              key={dateStr}
-                              onClick={() => { setSelectedDate(dateStr); setSelectedSlot(null); }}
-                              style={isSelected ? { backgroundColor: theme.primaryColor, borderColor: theme.primaryColor, color: getBestTextColor(theme.primaryColor) } : {}}
-                              className={`py-2 px-3.5 border text-xs font-semibold whitespace-nowrap transition-all shrink-0 ${btnRadiusClass} ${isSelected ? "shadow-md" : "bg-[var(--theme-surface)] border-[rgba(255,255,255,0.08)] text-[var(--theme-muted-text)] hover:border-[rgba(255,255,255,0.2)]"}`}
-                            >
-                              {formatDateTitle(dateStr)}
-                            </button>
-                          );
-                        })}
+                      <label className="block text-xs font-semibold text-[var(--theme-muted-text)] uppercase tracking-wider mb-3">1. Escolha a data</label>
+                      
+                      {/* Calendar Container */}
+                      <div className="border border-[rgba(255,255,255,0.08)] bg-[var(--theme-surface)]/20 p-4 rounded-2xl">
+                        {/* Month Selector */}
+                        <div className="flex items-center justify-between mb-4 px-1">
+                          <button
+                            type="button"
+                            onClick={handlePrevMonth}
+                            disabled={isPrevDisabled}
+                            className={`p-1.5 rounded-lg border border-[rgba(255,255,255,0.08)] text-[var(--theme-text)] transition-all ${isPrevDisabled ? "opacity-30 cursor-not-allowed" : "hover:bg-[rgba(255,255,255,0.05)] cursor-pointer"}`}
+                          >
+                            <ChevronLeft className="h-4 w-4" />
+                          </button>
+                          
+                          <span className="text-sm font-bold text-[var(--theme-text)] capitalize">
+                            {MONTHS_PT[currentMonth]} {currentYear}
+                          </span>
+                          
+                          <button
+                            type="button"
+                            onClick={handleNextMonth}
+                            disabled={isNextDisabled}
+                            className={`p-1.5 rounded-lg border border-[rgba(255,255,255,0.08)] text-[var(--theme-text)] transition-all ${isNextDisabled ? "opacity-30 cursor-not-allowed" : "hover:bg-[rgba(255,255,255,0.05)] cursor-pointer"}`}
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </button>
+                        </div>
+                        
+                        {/* Weekdays */}
+                        <div className="grid grid-cols-7 gap-1 text-center mb-2">
+                          {WEEKDAYS.map((day) => (
+                            <span key={day} className="text-[10px] font-black text-[var(--theme-muted-text)] uppercase tracking-wider">
+                              {day}
+                            </span>
+                          ))}
+                        </div>
+                        
+                        {/* Days Grid */}
+                        <div className="grid grid-cols-7 gap-1.5 text-center">
+                          {calendarCells.map((day, index) => {
+                            if (day === null) {
+                              return <div key={`empty-${index}`} className="aspect-square" />;
+                            }
+                            
+                            const dateKey = `${currentYear}-${(currentMonth + 1).toString().padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
+                            const hasSlots = !!groupedSlots[dateKey];
+                            const isSelected = selectedDate === dateKey;
+                            const isToday = todaySP === dateKey;
+                            
+                            return (
+                              <button
+                                key={dateKey}
+                                type="button"
+                                disabled={!hasSlots}
+                                onClick={() => { setSelectedDate(dateKey); setSelectedSlot(null); }}
+                                style={isSelected ? { backgroundColor: theme.primaryColor, borderColor: theme.primaryColor, color: getBestTextColor(theme.primaryColor) } : {}}
+                                className={`
+                                  aspect-square w-full rounded-xl flex flex-col items-center justify-center text-xs transition-all relative
+                                  ${hasSlots 
+                                    ? isSelected
+                                      ? "font-bold shadow-md shadow-black/20"
+                                      : "bg-[var(--theme-surface)]/60 border border-[rgba(255,255,255,0.05)] text-[var(--theme-text)] hover:border-[var(--theme-primary)]/40 hover:bg-[rgba(255,255,255,0.03)] cursor-pointer"
+                                    : "text-[var(--theme-text)]/15 cursor-not-allowed border border-transparent"
+                                  }
+                                `}
+                              >
+                                <span>{day}</span>
+                                {isToday && !isSelected && (
+                                  <span className="absolute bottom-1.5 w-1 h-1 rounded-full bg-[var(--theme-primary)] animate-pulse" />
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
                     {selectedDate && (
