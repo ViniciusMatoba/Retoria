@@ -267,7 +267,16 @@ export default function PublicBookingExperience({
           observacao: trimmedObservacao,
         }),
       });
-      const resData = await response.json();
+      const resText = await response.text();
+      let resData: any = {};
+      try {
+        resData = JSON.parse(resText);
+      } catch (parseErr) {
+        console.error("Server returned non-JSON response:", resText);
+        // Expose a clean message with the raw HTML or status text
+        const snippet = resText.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
+        throw new Error(`Erro do servidor (HTTP ${response.status}): ${snippet || response.statusText}`);
+      }
 
       // 401 → sessão expirada: redireciona para login preservando página atual
       if (response.status === 401) {
