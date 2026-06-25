@@ -33,7 +33,9 @@ export default function PublicBookingPage({ params }: PageProps) {
   // Team support
   const [teamMembers, setTeamMembers] = useState<TeamMemberPublic[]>([]);
   const [activeProfessionalId, setActiveProfessionalId] = useState<string | undefined>(undefined);
+  const [activeWhatsapp, setActiveWhatsapp] = useState<string | undefined>(undefined);
   const [loadingMemberData, setLoadingMemberData] = useState(false);
+  const [whatsappMode, setWhatsappMode] = useState<"single" | "per_member">("single");
 
   const fetchServices = async (profId: string) => {
     try {
@@ -53,7 +55,7 @@ export default function PublicBookingPage({ params }: PageProps) {
     }
   };
 
-  const fetchTeamMembers = async (ownerId: string): Promise<TeamMemberPublic[]> => {
+  const fetchTeamMembers = async (ownerId: string, ownerData: any): Promise<{ members: TeamMemberPublic[]; wMode: "single" | "per_member" }> => {
     try {
       const q = query(
         collection(db, "professionals"),
@@ -62,14 +64,17 @@ export default function PublicBookingPage({ params }: PageProps) {
         where("professionalStatus", "==", "active"),
       );
       const snap = await getDocs(q);
-      return snap.docs.map((d) => ({
+      const members = snap.docs.map((d) => ({
         id: d.id,
         nome: d.data().nome ?? "",
-        especialidade: d.data().especialidade ?? "",
+        especialidade: d.data().teamConfig?.especialidade ?? d.data().especialidade ?? "",
         fotoLogoUrl: d.data().fotoLogoUrl ?? null,
+        whatsapp: d.data().teamConfig?.whatsapp ?? null,
       }));
+      const wMode: "single" | "per_member" = ownerData?.teamSettings?.whatsappMode ?? "single";
+      return { members, wMode };
     } catch {
-      return [];
+      return { members: [], wMode: "single" };
     }
   };
 
@@ -78,6 +83,15 @@ export default function PublicBookingPage({ params }: PageProps) {
     setLoadingMemberData(true);
     const prof = professional;
     const windowDays = prof?.agendaConfig?.janelaAgendamentoDias ?? 30;
+
+    // Resolve WhatsApp: per_member mode uses member's own whatsapp if set
+    if (whatsappMode === "per_member") {
+      const member = teamMembers.find((m) => m.id === memberId) as any;
+      setActiveWhatsapp(member?.whatsapp || prof?.telefoneWhatsapp);
+    } else {
+      setActiveWhatsapp(prof?.telefoneWhatsapp);
+    }
+
     await Promise.all([fetchServices(memberId), fetchAvailableSlots(memberId, windowDays)]);
     setLoadingMemberData(false);
   };
@@ -139,12 +153,15 @@ export default function PublicBookingPage({ params }: PageProps) {
         const windowDays = profData.agendaConfig?.janelaAgendamentoDias || 30;
 
         // Fetch team members; if owner has team don't pre-load services (user picks member first)
-        const members = await fetchTeamMembers(docSnap.id);
+        const rawData = querySnapshot.docs[0].data();
+        const { members, wMode } = await fetchTeamMembers(docSnap.id, rawData);
         setTeamMembers(members);
+        setWhatsappMode(wMode);
 
         if (members.length === 0) {
           // No team — load owner's services/slots immediately (existing flow)
           setActiveProfessionalId(docSnap.id);
+          setActiveWhatsapp(profData.telefoneWhatsapp);
           await Promise.all([fetchServices(docSnap.id), fetchAvailableSlots(docSnap.id, windowDays)]);
         }
         // If team exists, activeProfessionalId stays undefined until user picks
@@ -188,6 +205,7 @@ export default function PublicBookingPage({ params }: PageProps) {
       slots={slots}
       teamMembers={teamMembers}
       activeProfessionalId={activeProfessionalId}
+      activeWhatsapp={activeWhatsapp}
       onSelectMember={handleSelectMember}
       loadingMemberData={loadingMemberData}
     />

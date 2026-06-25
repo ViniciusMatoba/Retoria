@@ -37,6 +37,7 @@ export async function GET(req: NextRequest, { params }: Params) {
     fotoLogoUrl: d.data().fotoLogoUrl ?? null,
     professionalStatus: d.data().professionalStatus,
     email: d.data().email ?? null,
+    teamConfig: d.data().teamConfig ?? null,
   }));
 
   // Convites pendentes
@@ -53,7 +54,10 @@ export async function GET(req: NextRequest, { params }: Params) {
     createdAt: d.data().createdAt,
   }));
 
-  return NextResponse.json({ members, invites });
+  const ownerSnap = await dbAdmin.collection("professionals").doc(professionalId).get();
+  const teamSettings = ownerSnap.data()?.teamSettings ?? { whatsappMode: "single" };
+
+  return NextResponse.json({ members, invites, teamSettings });
 }
 
 // ── POST: criar convite ────────────────────────────────────────────────────
@@ -146,6 +150,40 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
   await dbAdmin.collection("professionals").doc(memberId).update({
     professionalStatus: "suspended",
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  return NextResponse.json({ ok: true });
+}
+
+// ── PATCH: salvar teamSettings do owner (modo WhatsApp) ───────────────────
+export async function PATCH(req: NextRequest, { params }: Params) {
+  if (!dbAdmin || !authAdmin) return NextResponse.json({ error: "Config error." }, { status: 500 });
+
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  let callerUid: string;
+  try {
+    const decoded = await authAdmin.verifyIdToken(authHeader.slice(7));
+    callerUid = decoded.uid;
+  } catch {
+    return NextResponse.json({ error: "Token inválido." }, { status: 401 });
+  }
+
+  const { professionalId } = await params;
+  if (callerUid !== professionalId) return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
+
+  let body: any;
+  try { body = await req.json(); } catch { return NextResponse.json({ error: "JSON inválido." }, { status: 400 }); }
+
+  const { whatsappMode } = body ?? {};
+  if (whatsappMode !== "single" && whatsappMode !== "per_member") {
+    return NextResponse.json({ error: "whatsappMode inválido." }, { status: 400 });
+  }
+
+  await dbAdmin.collection("professionals").doc(professionalId).update({
+    "teamSettings.whatsappMode": whatsappMode,
     updatedAt: FieldValue.serverTimestamp(),
   });
 

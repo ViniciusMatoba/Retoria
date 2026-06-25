@@ -42,8 +42,26 @@ export interface ProfessionalProfile {
 
   // Team (multi-professional)
   role?: "owner" | "team_member";
-  parentProfessionalId?: string; // set when role === "team_member"
-  especialidade?: string;        // member specialty/title shown publicly
+  parentProfessionalId?: string;
+  especialidade?: string;
+
+  // Owner-level team settings
+  teamSettings?: {
+    whatsappMode: "single" | "per_member";
+  };
+
+  // Member-level config (set by owner, stored on member's doc)
+  teamConfig?: {
+    especialidade: string;
+    cargo: string;
+    whatsapp?: string; // optional individual WhatsApp
+    permissions: {
+      canEditProfile: boolean;
+      canEditServices: boolean;
+      canManageSlots: boolean;
+      canViewAllLeads: boolean;
+    };
+  };
 }
 
 interface AuthContextType {

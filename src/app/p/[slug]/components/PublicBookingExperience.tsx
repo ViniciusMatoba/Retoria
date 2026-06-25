@@ -98,6 +98,7 @@ interface PublicBookingExperienceProps {
   previewMode?: boolean;
   teamMembers?: TeamMemberPublic[];
   activeProfessionalId?: string;
+  activeWhatsapp?: string;
   onSelectMember?: (id: string) => void;
   loadingMemberData?: boolean;
 }
@@ -110,6 +111,7 @@ export default function PublicBookingExperience({
   previewMode = false,
   teamMembers = [],
   activeProfessionalId,
+  activeWhatsapp,
   onSelectMember,
   loadingMemberData = false,
 }: PublicBookingExperienceProps) {
@@ -318,7 +320,7 @@ export default function PublicBookingExperience({
       const [year, month, day] = selectedSlot.data.split("-");
       const friendlyDate = `${day}/${month}/${year}`;
       const message = `Olá, meu nome é ${trimmedNome}. Tenho interesse em ${selectedService.nome} e gostaria de verificar a disponibilidade para ${friendlyDate} às ${selectedSlot.horario}.`;
-      const redirectUrl = getWhatsAppLink(professional.telefoneWhatsapp, message);
+      const redirectUrl = getWhatsAppLink(activeWhatsapp ?? professional.telefoneWhatsapp, message);
       setStep(4);
       window.location.href = redirectUrl;
     } catch (err: any) {
@@ -758,7 +760,7 @@ export default function PublicBookingExperience({
                         const [year, month, day] = selectedSlot.data.split("-");
                         const friendlyDate = `${day}/${month}/${year}`;
                         const message = `Olá, meu nome é ${clientNome.trim()}. Tenho interesse em ${selectedService!.nome} e gostaria de verificar a disponibilidade para ${friendlyDate} às ${selectedSlot.horario}.`;
-                        window.location.href = getWhatsAppLink(professional.telefoneWhatsapp, message);
+                        window.location.href = getWhatsAppLink(activeWhatsapp ?? professional.telefoneWhatsapp, message);
                       }}
                       className={`w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm transition-all shadow-lg flex items-center justify-center gap-2 active:scale-[0.98] ${btnRadiusClass}`}
                     >
