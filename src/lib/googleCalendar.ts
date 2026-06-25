@@ -1,17 +1,23 @@
-import { google } from "googleapis";
 import { dbAdmin } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
+
+// Import dinâmico para evitar crash de ESM/CJS no bundle do Vercel
+async function getGoogleApis() {
+  const { google } = await import("googleapis");
+  return google;
+}
 
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID!;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET!;
 const REDIRECT_URI = `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/google/callback`;
 
-export function createOAuthClient() {
+export async function createOAuthClient() {
+  const google = await getGoogleApis();
   return new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
 }
 
-export function getAuthUrl(professionalUid: string) {
-  const oauth2Client = createOAuthClient();
+export async function getAuthUrl(professionalUid: string) {
+  const oauth2Client = await createOAuthClient();
   return oauth2Client.generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
@@ -66,9 +72,9 @@ export async function disconnectGoogle(professionalUid: string) {
 export interface CalendarEventParams {
   summary: string;
   description: string;
-  date: string;       // YYYY-MM-DD
-  startTime: string;  // HH:MM
-  endTime: string;    // HH:MM
+  date: string;
+  startTime: string;
+  endTime: string;
   attendeeEmail?: string;
   timezone?: string;
 }
@@ -80,7 +86,8 @@ export async function deleteCalendarEvent(
   const tokens = await getTokens(professionalUid);
   if (!tokens?.refresh_token) return;
 
-  const oauth2Client = createOAuthClient();
+  const google = await getGoogleApis();
+  const oauth2Client = await createOAuthClient();
   oauth2Client.setCredentials({
     access_token: tokens.access_token,
     refresh_token: tokens.refresh_token,
@@ -91,7 +98,6 @@ export async function deleteCalendarEvent(
   try {
     await calendar.events.delete({ calendarId: "primary", eventId: calendarEventId });
   } catch (err: any) {
-    // 410 Gone = já foi deletado, ignora
     if (err?.code !== 410) throw err;
   }
 }
@@ -103,28 +109,20 @@ export async function createCalendarEvent(
   const tokens = await getTokens(professionalUid);
   if (!tokens?.refresh_token) return null;
 
-  const oauth2Client = createOAuthClient();
+  const google = await getGoogleApis();
+  const oauth2Client = await createOAuthClient();
   oauth2Client.setCredentials({
     access_token: tokens.access_token,
     refresh_token: tokens.refresh_token,
     expiry_date: tokens.expiry_date,
   });
 
-  // Atualiza access_token se renovado automaticamente
   oauth2Client.on("tokens", async (newTokens) => {
     if (newTokens.access_token) {
       await dbAdmin
-        .collection("professionals")
-        .doc(professionalUid)
-        .collection("integrations")
-        .doc("google")
-        .set(
-          {
-            access_token: newTokens.access_token,
-            expiry_date: newTokens.expiry_date ?? null,
-          },
-          { merge: true }
-        );
+        .collection("professionals").doc(professionalUid)
+        .collection("integrations").doc("google")
+        .set({ access_token: newTokens.access_token, expiry_date: newTokens.expiry_date ?? null }, { merge: true });
     }
   });
 
@@ -136,11 +134,11 @@ export async function createCalendarEvent(
     description: params.description,
     start: { dateTime: `${params.date}T${params.startTime}:00`, timeZone: tz },
     end:   { dateTime: `${params.date}T${params.endTime}:00`,   timeZone: tz },
-    status: "tentative",
+    status: "confirmed",
     reminders: {
       useDefault: false,
       overrides: [
-        { method: "popup",  minutes: 60 },
+        { method: "email",  minutes: 60 },
         { method: "popup",  minutes: 15 },
       ],
     },

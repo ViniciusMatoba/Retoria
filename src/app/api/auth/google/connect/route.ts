@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   }
   try {
     const decoded = await authAdmin.verifyIdToken(authHeader.slice(7));
-    const url = getAuthUrl(decoded.uid);
+    const url = await getAuthUrl(decoded.uid);
     return NextResponse.json({ url });
   } catch {
     return NextResponse.json({ error: "Token inválido" }, { status: 401 });

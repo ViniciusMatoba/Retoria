@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const oauth2Client = createOAuthClient();
+    const oauth2Client = await createOAuthClient();
     const { tokens } = await oauth2Client.getToken(code);
     await saveTokens(state, tokens);
     return NextResponse.redirect(`${APP_URL}/dashboard?google_connected=1`);
