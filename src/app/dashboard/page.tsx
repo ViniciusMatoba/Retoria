@@ -16,7 +16,9 @@ import {
   TrendingUp,
   Inbox,
   AlertCircle,
-  Loader2
+  Loader2,
+  CalendarClock,
+  X,
 } from "lucide-react";
 
 interface Lead {
@@ -54,6 +56,13 @@ export default function DashboardHome() {
   // Per-lead loading state and inline error for status changes
   const [updatingLeadId, setUpdatingLeadId] = useState<string | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
+
+  // Modal de reagendamento
+  const [rescheduleModal, setRescheduleModal] = useState<{
+    leadId: string; nome: string; data: string; inicio: string; fim: string;
+  } | null>(null);
+  const [rescheduleLoading, setRescheduleLoading] = useState(false);
+  const [rescheduleError, setRescheduleError] = useState<string | null>(null);
 
   // Real-time subscription to Leads
   useEffect(() => {
@@ -108,6 +117,38 @@ export default function DashboardHome() {
     }
   };
 
+  // Reagendar
+  const handleReschedule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !rescheduleModal) return;
+    setRescheduleError(null);
+    setRescheduleLoading(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(
+        `/api/professionals/${user.uid}/leads/${rescheduleModal.leadId}/reschedule`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            dataEscolhida: rescheduleModal.data,
+            horarioEscolhido: rescheduleModal.inicio,
+            horarioFim: rescheduleModal.fim,
+          }),
+        }
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? `Erro HTTP ${res.status}`);
+      }
+      setRescheduleModal(null);
+    } catch (e: any) {
+      setRescheduleError(e.message ?? "Erro ao reagendar.");
+    } finally {
+      setRescheduleLoading(false);
+    }
+  };
+
   // Delete Lead
   const handleDeleteLead = async (leadId: string) => {
     if (!user) return;
@@ -147,6 +188,7 @@ export default function DashboardHome() {
   };
 
   return (
+    <>
     <div className="space-y-6">
       {/* Welcome Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -358,6 +400,21 @@ export default function DashboardHome() {
                             <span>Conversar</span>
                           </a>
 
+                          {/* Reagendar */}
+                          <button
+                            onClick={() => setRescheduleModal({
+                              leadId: lead.id,
+                              nome: lead.nome,
+                              data: lead.dataEscolhida,
+                              inicio: lead.horarioEscolhido,
+                              fim: (lead as any).horarioFim ?? lead.horarioEscolhido,
+                            })}
+                            className="p-2 bg-slate-900 hover:bg-indigo-500/10 text-slate-500 hover:text-indigo-400 rounded-lg border border-slate-800/80 hover:border-indigo-500/20 transition-all opacity-40 group-hover:opacity-100"
+                            title="Reagendar"
+                          >
+                            <CalendarClock className="h-4 w-4" />
+                          </button>
+
                           {/* Delete Lead */}
                           <button
                             onClick={() => handleDeleteLead(lead.id)}
@@ -377,5 +434,86 @@ export default function DashboardHome() {
         )}
       </div>
     </div>
+
+    {/* Modal Reagendar ─────────────────────────────────────────── */}
+    {rescheduleModal && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+            <div>
+              <h2 className="text-base font-semibold text-slate-100">Reagendar</h2>
+              <p className="text-xs text-slate-400 mt-0.5 truncate max-w-[220px]">{rescheduleModal.nome}</p>
+            </div>
+            <button
+              onClick={() => { setRescheduleModal(null); setRescheduleError(null); }}
+              className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <form onSubmit={handleReschedule} className="px-6 py-5 space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1.5">Nova Data</label>
+              <input
+                type="date"
+                required
+                value={rescheduleModal.data}
+                onChange={(e) => setRescheduleModal(m => m ? { ...m, data: e.target.value } : m)}
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">Início</label>
+                <input
+                  type="time"
+                  required
+                  value={rescheduleModal.inicio}
+                  onChange={(e) => setRescheduleModal(m => m ? { ...m, inicio: e.target.value } : m)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">Fim</label>
+                <input
+                  type="time"
+                  required
+                  value={rescheduleModal.fim}
+                  onChange={(e) => setRescheduleModal(m => m ? { ...m, fim: e.target.value } : m)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            {rescheduleError && (
+              <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                {rescheduleError}
+              </p>
+            )}
+
+            <div className="flex gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => { setRescheduleModal(null); setRescheduleError(null); }}
+                className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded-lg border border-slate-700 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={rescheduleLoading}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-wait text-white text-sm font-semibold rounded-lg transition-colors"
+              >
+                {rescheduleLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />}
+                Salvar
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
