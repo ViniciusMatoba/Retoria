@@ -101,7 +101,7 @@ export default function ProfilePage() {
     getDocs(query(
       collection(db, "professionals", user.uid, "services"),
       where("ativo", "==", true),
-      orderBy("ordem", "asc")
+      orderBy("nome", "asc")
     )).then(snap => {
       setRealServices(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     }).catch(() => {});
