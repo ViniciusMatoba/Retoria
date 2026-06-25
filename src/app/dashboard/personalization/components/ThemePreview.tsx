@@ -39,6 +39,7 @@ interface ThemePreviewProps {
   showPublicWhatsApp?: boolean;
   showPublicAddress?: boolean;
   showMiniMap?: boolean;
+  showPublicInstagram?: boolean;
   publicPhone?: string;
   telefoneWhatsapp?: string;
   instagram?: string;
@@ -81,6 +82,7 @@ export default function ThemePreview({
   showPublicWhatsApp = false,
   showPublicAddress = false,
   showMiniMap = false,
+  showPublicInstagram = false,
   publicPhone = "",
   telefoneWhatsapp = "",
   instagram = "",
@@ -200,7 +202,7 @@ export default function ThemePreview({
                 )}
 
                 {/* Contact row */}
-                {(showPublicPhone || showPublicWhatsApp || instagram) && (
+                {(showPublicPhone || showPublicWhatsApp || (showPublicInstagram && instagram)) && (
                   <div className="mt-3 pt-2.5 border-t border-[rgba(255,255,255,0.07)] w-full flex flex-wrap items-center justify-center gap-1.5">
                     {showPublicPhone && publicPhone && (
                       <span
@@ -219,7 +221,7 @@ export default function ThemePreview({
                         <span>WhatsApp</span>
                       </span>
                     )}
-                    {instagram && (
+                    {showPublicInstagram && instagram && (
                       <span
                         className={`flex items-center gap-1 px-2.5 py-1.5 text-[9px] font-semibold border border-[rgba(255,255,255,0.1)] bg-[var(--theme-surface)] text-[var(--theme-text)] ${btnRadiusClass}`}
                       >

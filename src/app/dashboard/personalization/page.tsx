@@ -437,8 +437,10 @@ export default function PersonalizationPage() {
             showPublicWhatsApp={profile.showPublicWhatsApp ?? false}
             showPublicAddress={profile.showPublicAddress ?? false}
             showMiniMap={profile.showMiniMap ?? false}
+            showPublicInstagram={profile.showPublicInstagram ?? false}
             publicPhone={profile.publicPhone || ""}
             telefoneWhatsapp={profile.telefoneWhatsapp || ""}
+            instagram={profile.instagram || ""}
             addressText={[
               profile.publicAddress?.street && `${profile.publicAddress.street}${profile.publicAddress.number ? ", " + profile.publicAddress.number : ""}`,
               profile.publicAddress?.city,

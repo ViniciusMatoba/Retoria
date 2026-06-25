@@ -62,6 +62,7 @@ export interface PublicProfileInfo {
   showPublicWhatsApp?: boolean;
   showPublicAddress?: boolean;
   showMiniMap?: boolean;
+  showPublicInstagram?: boolean;
 }
 
 interface PublicProfessionalHeaderProps {
@@ -92,6 +93,7 @@ export default function PublicProfessionalHeader({
   const showWhatsApp = !!(profile.showPublicWhatsApp && profile.telefoneWhatsapp && isValidPhone(profile.telefoneWhatsapp));
   const showAddress = !!(profile.showPublicAddress && hasMinimalAddress(profile.publicAddress));
   const showMap = !!(profile.showMiniMap && showAddress);
+  const showInstagram = !!(profile.showPublicInstagram && profile.instagram);
 
   const welcomeMessage = getWelcomeMessage(profile.descricaoCurta);
 
@@ -205,7 +207,7 @@ export default function PublicProfessionalHeader({
         )}
 
         {/* Contact row */}
-        {(showPhone || showWhatsApp || profile.instagram) && (
+        {(showPhone || showWhatsApp || showInstagram) && (
           <div className="mt-4 pt-3 border-t border-[rgba(255,255,255,0.07)] w-full flex flex-wrap items-center justify-center gap-2">
             {showPhone && profile.publicPhone && (
               <a
@@ -238,7 +240,7 @@ export default function PublicProfessionalHeader({
               </a>
             )}
 
-            {profile.instagram && (
+            {showInstagram && profile.instagram && (
               <a
                 href={isPreview ? undefined : `https://instagram.com/${profile.instagram}`}
                 target={isPreview ? undefined : "_blank"}

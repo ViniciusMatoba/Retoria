@@ -107,6 +107,7 @@ export default function ProfilePage() {
   const [showPublicWhatsApp, setShowPublicWhatsApp] = useState(false);
   const [showPublicAddress, setShowPublicAddress] = useState(false);
   const [showMiniMap, setShowMiniMap] = useState(false);
+  const [showPublicInstagram, setShowPublicInstagram] = useState(false);
 
   // ── UI state ──────────────────────────────────────────────────────────────
   const [formLoading, setFormLoading] = useState(false);
@@ -155,6 +156,7 @@ export default function ProfilePage() {
     setShowPublicWhatsApp(profile.showPublicWhatsApp ?? false);
     setShowPublicAddress(profile.showPublicAddress ?? false);
     setShowMiniMap(profile.showMiniMap ?? false);
+    setShowPublicInstagram(profile.showPublicInstagram ?? false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile]);
 
@@ -194,6 +196,7 @@ export default function ProfilePage() {
         break;
       }
       case "showMiniMap": setShowMiniMap(value); break;
+      case "showPublicInstagram": setShowPublicInstagram(value); break;
     }
     setSavingToggle(field);
     setToggleSaved(null);
@@ -292,6 +295,7 @@ export default function ProfilePage() {
         showPublicWhatsApp,
         showPublicAddress,
         showMiniMap,
+        showPublicInstagram,
         updatedAt: new Date(),
       });
 
@@ -341,11 +345,6 @@ export default function ProfilePage() {
       {success && (
         <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm flex gap-3 items-center">
           <Check className="h-5 w-5 shrink-0" /><p className="font-medium">{success}</p>
-        </div>
-      )}
-      {privacyWarning && (
-        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm flex gap-3 items-start">
-          <Info className="h-5 w-5 shrink-0 mt-0.5" /><p className="font-medium">{privacyWarning}</p>
         </div>
       )}
 
@@ -517,7 +516,22 @@ export default function ProfilePage() {
                   saving={savingToggle === "showMiniMap"}
                   saved={toggleSaved === "showMiniMap"}
                 />
+                <ToggleRow
+                  label="Exibir Instagram na página pública"
+                  checked={showPublicInstagram}
+                  onChange={(v) => handleToggle("showPublicInstagram", v)}
+                  disabled={!instagram}
+                  hint={!instagram ? "Preencha seu Instagram acima para ativar" : undefined}
+                  saving={savingToggle === "showPublicInstagram"}
+                  saved={toggleSaved === "showPublicInstagram"}
+                />
               </div>
+
+              {privacyWarning && (
+                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm flex gap-3 items-start">
+                  <Info className="h-5 w-5 shrink-0 mt-0.5" /><p className="font-medium">{privacyWarning}</p>
+                </div>
+              )}
             </div>
 
             {/* ── Section: Local de atendimento ────────────────────────── */}
@@ -655,6 +669,7 @@ export default function ProfilePage() {
             showPublicWhatsApp={showPublicWhatsApp}
             showPublicAddress={showPublicAddress}
             showMiniMap={showMiniMap}
+            showPublicInstagram={showPublicInstagram}
             publicPhone={formatPhoneForWhatsApp(publicPhone)}
             telefoneWhatsapp={formatPhoneForWhatsApp(telefoneWhatsapp)}
             instagram={cleanInstagramUsername(instagram)}
