@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import GoogleCalendarIntegration from "../components/GoogleCalendarIntegration";
 import { 
   collection, 
   query, 
@@ -1880,6 +1881,9 @@ export default function SlotsPage() {
         <h1 className="text-3xl font-extrabold tracking-tight text-white md:text-4xl">Horários Disponíveis</h1>
         <p className="text-sm text-slate-400 mt-1">Configure seus períodos de funcionamento semanal, crie horários avulsos ou gerencie sua agenda atual.</p>
       </div>
+
+      {/* Integração Google Calendar */}
+      <GoogleCalendarIntegration />
 
       {error && (
         <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex gap-3 items-center">

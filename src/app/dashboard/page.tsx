@@ -18,7 +18,6 @@ import {
   AlertCircle,
   Loader2
 } from "lucide-react";
-import GoogleCalendarIntegration from "./components/GoogleCalendarIntegration";
 
 interface Lead {
   id: string;
@@ -157,8 +156,6 @@ export default function DashboardHome() {
         </div>
       </div>
 
-      {/* Integrações */}
-      <GoogleCalendarIntegration />
 
       {/* Metrics Dashboard */}
       {loading ? (
