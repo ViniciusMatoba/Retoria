@@ -5,6 +5,13 @@ service firebase.storage {
     function isOwner(profId) {
       return request.auth != null && request.auth.uid == profId;
     }
+
+    // Permite que o dono do estabelecimento escreva em caminhos de membros da equipe
+    function isTeamOwner(profId) {
+      return request.auth != null
+        && firestore.get(/databases/(default)/documents/professionals/$(request.auth.uid)).data.get('role', '') != 'team_member'
+        && firestore.get(/databases/(default)/documents/professionals/$(profId)).data.get('parentProfessionalId', '') == request.auth.uid;
+    }
     
     function isAllowedImageType() {
       return request.resource.contentType.matches('image/(jpeg|png|webp)');
@@ -20,10 +27,10 @@ service firebase.storage {
                    );
     }
     
-    // Service Images (2MB)
+    // Service Images (2MB) — owner ou dono do estabelecimento gerenciando membro
     match /services/{profId}/{serviceId}/cover {
       allow read: if true;
-      allow write: if isOwner(profId)
+      allow write: if (isOwner(profId) || isTeamOwner(profId))
                    && (
                      request.resource == null
                      || (isAllowedImageType() && request.resource.size < 2 * 1024 * 1024)

@@ -7,6 +7,7 @@ import {
   Mail, Briefcase, User, Link as LinkIcon, Clock, ChevronDown,
   Settings, MessageCircle, Phone,
 } from "lucide-react";
+import { maskPhone } from "@/lib/whatsapp";
 
 interface TeamMember {
   id: string;
@@ -501,7 +502,7 @@ export default function TeamPage() {
                   </label>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500"><Phone className="h-4 w-4" /></span>
-                    <input type="text" value={editWhatsapp} onChange={(e) => setEditWhatsapp(e.target.value)}
+                    <input type="tel" value={editWhatsapp} onChange={(e) => setEditWhatsapp(maskPhone(e.target.value))}
                       placeholder="(11) 99999-9999 — deixe vazio para usar o do negócio"
                       className="w-full pl-9 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500 transition-all" />
                   </div>

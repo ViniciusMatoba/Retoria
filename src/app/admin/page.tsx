@@ -67,19 +67,22 @@ const statusColors: Record<string, string> = {
   onboarding: "text-violet-400 bg-violet-500/10 border-violet-500/20",
 };
 
+// ts é número (ms Unix) vindo da API — formato único, sem ambiguidade
 const formatTs = (ts: any): string => {
-  if (!ts) return "—";
+  if (ts == null) return "—";
   try {
-    const d = ts.seconds ? new Date(ts.seconds * 1000) : new Date(ts);
+    const d = new Date(typeof ts === "number" ? ts : Number(ts));
+    if (isNaN(d.getTime())) return "—";
     return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
   } catch { return "—"; }
 };
 
 const daysFrom = (ts: any): number | null => {
-  if (!ts) return null;
+  if (ts == null) return null;
   try {
-    const d = ts.seconds ? new Date(ts.seconds * 1000) : new Date(ts);
-    return Math.ceil((d.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    const ms = typeof ts === "number" ? ts : Number(ts);
+    if (isNaN(ms)) return null;
+    return Math.ceil((ms - Date.now()) / (1000 * 60 * 60 * 24));
   } catch { return null; }
 };
 

@@ -8,7 +8,7 @@ import {
 import { db } from "@/lib/firebase";
 import { useAuth } from "../../providers";
 import { addAccountType } from "@/lib/accountUtils";
-import { formatPhoneForWhatsApp } from "@/lib/whatsapp";
+import { formatPhoneForWhatsApp, maskPhone } from "@/lib/whatsapp";
 import {
   Calendar, Briefcase, Link as LinkIcon, Phone, ChevronRight,
   ChevronLeft, Loader2, AlertCircle, CheckCircle2,
@@ -320,9 +320,9 @@ export default function OnboardingPage() {
                   <Phone className="h-5 w-5" />
                 </div>
                 <input
-                  type="text" value={telefone}
-                  onChange={(e) => setTelefone(e.target.value)}
-                  placeholder="WhatsApp com DDD (Ex: 11 99999-9999)"
+                  type="tel" value={telefone}
+                  onChange={(e) => setTelefone(maskPhone(e.target.value))}
+                  placeholder="(11) 99999-9999"
                   className={inputClass}
                 />
               </div>

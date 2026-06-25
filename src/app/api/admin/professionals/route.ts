@@ -15,6 +15,20 @@ async function verifyAdmin(req: NextRequest): Promise<string | null> {
   }
 }
 
+// Converte qualquer formato de timestamp para milissegundos Unix — mais confiável que ISO string
+function toMs(ts: any): number | null {
+  if (!ts) return null;
+  try {
+    if (typeof ts === "number") return ts;
+    if (typeof ts === "string") { const d = new Date(ts); return isNaN(d.getTime()) ? null : d.getTime(); }
+    if (ts instanceof Date) return isNaN(ts.getTime()) ? null : ts.getTime();
+    if (typeof ts.toDate === "function") { const d = ts.toDate(); return isNaN(d.getTime()) ? null : d.getTime(); }
+    if (ts._seconds != null) return ts._seconds * 1000 + Math.floor((ts._nanoseconds ?? 0) / 1e6);
+    if (ts.seconds != null) return ts.seconds * 1000 + Math.floor((ts.nanoseconds ?? 0) / 1e6);
+  } catch {}
+  return null;
+}
+
 async function deleteSubcollection(parentPath: string, subcollection: string) {
   const snap = await dbAdmin!.collection(`${parentPath}/${subcollection}`).limit(500).get();
   if (snap.empty) return;
@@ -69,11 +83,11 @@ export async function GET(req: NextRequest) {
       contractDays: license?.contractDays ?? 30,
       trialDays: license?.trialDays ?? 7,
       sourceToken: license?.sourceToken ?? null,
-      activatedAt: license?.activatedAt ?? data.createdAt ?? null,
-      trialEndsAt: license?.trialEndsAt ?? data.trialEndsAt ?? null,
-      currentPeriodEnd: license?.currentPeriodEnd ?? null,
-      suspendedAt: license?.suspendedAt ?? null,
-      createdAt: data.createdAt ?? null,
+      activatedAt: toMs(license?.activatedAt ?? data.createdAt),
+      trialEndsAt: toMs(license?.trialEndsAt ?? data.trialEndsAt),
+      currentPeriodEnd: toMs(license?.currentPeriodEnd),
+      suspendedAt: toMs(license?.suspendedAt),
+      createdAt: toMs(data.createdAt),
       memberCount: membersSnap.size,
       pendingInvites: invitesSnap.size,
       members,
@@ -102,11 +116,11 @@ export async function GET(req: NextRequest) {
       professionalStatus: data.professionalStatus ?? "unknown",
       plan: license?.plan ?? data.plan ?? "individual",
       licenseStatus: license?.status ?? "trial",
-      currentPeriodEnd: license?.currentPeriodEnd ?? data.trialEndsAt ?? null,
-      trialEndsAt: license?.trialEndsAt ?? data.trialEndsAt ?? null,
+      currentPeriodEnd: toMs(license?.currentPeriodEnd ?? data.trialEndsAt),
+      trialEndsAt: toMs(license?.trialEndsAt ?? data.trialEndsAt),
       memberCount: membersSnap.size,
       maxMembers: license?.maxMembers ?? 0,
-      createdAt: data.createdAt ?? null,
+      createdAt: toMs(data.createdAt),
     };
   }));
 

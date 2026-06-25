@@ -5,7 +5,7 @@ import { doc, updateDoc, collection, query, where, getDocs, orderBy } from "fire
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 import { useAuth } from "../../providers";
-import { formatPhoneFriendly, formatPhoneForWhatsApp } from "@/lib/whatsapp";
+import { formatPhoneFriendly, formatPhoneForWhatsApp, maskPhone } from "@/lib/whatsapp";
 import {
   PublicAddress,
   ServiceLocationType,
@@ -486,7 +486,7 @@ export default function ProfilePage() {
                   <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">WhatsApp de Agendamento *</label>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500"><Phone className="h-4 w-4" /></span>
-                    <input type="text" required value={telefoneWhatsapp} onChange={(e) => setTelefoneWhatsapp(e.target.value)} placeholder="Ex: (11) 99999-9999" className="w-full pl-9 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500 text-slate-100 text-sm transition-all" />
+                    <input type="tel" required value={telefoneWhatsapp} onChange={(e) => setTelefoneWhatsapp(maskPhone(e.target.value))} placeholder="(11) 99999-9999" className="w-full pl-9 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500 text-slate-100 text-sm transition-all" />
                   </div>
                   <p className="text-[10px] text-slate-500 mt-1 pl-1">Usado para receber agendamentos. Pode ser exibido publicamente abaixo.</p>
                 </div>
