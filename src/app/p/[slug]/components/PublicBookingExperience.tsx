@@ -53,6 +53,8 @@ export interface Service {
   descricaoCurta: string;
   duracaoEstimada: string;
   ativo: boolean;
+  preco?: number | null;
+  exibirPreco?: boolean;
   imagemUrl?: string | null;
   imagemStoragePath?: string | null;
   imagemAlt?: string | null;

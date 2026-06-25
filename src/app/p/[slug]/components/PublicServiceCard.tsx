@@ -8,6 +8,8 @@ interface Service {
   nome: string;
   descricaoCurta: string;
   duracaoEstimada: string;
+  preco?: number | null;
+  exibirPreco?: boolean;
   imagemUrl?: string | null;
   imagemStoragePath?: string | null;
   imagemAlt?: string | null;
@@ -117,12 +119,19 @@ export default function PublicServiceCard({
 
         {/* Selection Indicator */}
         <div className="flex items-center justify-between mt-3 pt-2 border-t border-[rgba(255,255,255,0.05)] text-xs">
-          <div className="flex items-center gap-1.5 text-[var(--theme-muted-text)]">
-            <Clock className="h-3.5 w-3.5 opacity-60" />
-            <span>
-              Duração aproximada:{" "}
-              <strong className="text-[var(--theme-text)] font-semibold ml-1">{service.duracaoEstimada}</strong>
-            </span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 text-[var(--theme-muted-text)]">
+              <Clock className="h-3.5 w-3.5 opacity-60" />
+              <span>
+                Duração:{" "}
+                <strong className="text-[var(--theme-text)] font-semibold">{service.duracaoEstimada}</strong>
+              </span>
+            </div>
+            {service.preco != null && (service.exibirPreco ?? true) && (
+              <span className="font-bold text-sm" style={{ color: primaryColor }}>
+                {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(service.preco)}
+              </span>
+            )}
           </div>
           
           <div 

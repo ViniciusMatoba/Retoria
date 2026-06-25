@@ -29,6 +29,8 @@ interface Service {
   descricaoCurta: string;
   duracaoEstimada: string;
   ativo: boolean;
+  preco?: number | null;
+  exibirPreco?: boolean;
   createdAt: any;
   updatedAt: any;
   imagemUrl?: string | null;
@@ -52,6 +54,8 @@ export default function ServicesPage() {
   const [descricaoCurta, setDescricaoCurta] = useState("");
   const [duracaoEstimada, setDuracaoEstimada] = useState("30 min");
   const [ativo, setAtivo] = useState(true);
+  const [preco, setPreco] = useState<string>("");
+  const [exibirPreco, setExibirPreco] = useState(true);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState("");
   const [imageAlt, setImageAlt] = useState("");
@@ -92,6 +96,8 @@ export default function ServicesPage() {
     setDescricaoCurta("");
     setDuracaoEstimada("30 min");
     setAtivo(true);
+    setPreco("");
+    setExibirPreco(true);
     setImageFile(null);
     setImagePreview("");
     setImageAlt("");
@@ -109,6 +115,8 @@ export default function ServicesPage() {
     setDescricaoCurta(service.descricaoCurta);
     setDuracaoEstimada(service.duracaoEstimada);
     setAtivo(service.ativo);
+    setPreco(service.preco != null ? String(service.preco) : "");
+    setExibirPreco(service.exibirPreco ?? true);
     setImageFile(null);
     setImagePreview(service.imagemUrl ? buildVersionedImageUrl(service.imagemUrl, service.imagemUpdatedAt) : "");
     setImageAlt(service.imagemAlt || "");
@@ -138,6 +146,7 @@ export default function ServicesPage() {
       if (modalMode === "add") {
         const newDocRef = doc(servicesRef);
         serviceId = newDocRef.id;
+        const precoNum = preco.trim() !== "" ? parseFloat(preco.replace(",", ".")) : null;
         const servicePayload: Service = {
           id: serviceId,
           professionalId: user.uid,
@@ -145,6 +154,8 @@ export default function ServicesPage() {
           descricaoCurta: descricaoCurta.trim(),
           duracaoEstimada: duracaoEstimada.trim(),
           ativo,
+          preco: precoNum,
+          exibirPreco,
           createdAt: new Date(),
           updatedAt: new Date(),
           imagemUrl: null,
@@ -154,12 +165,15 @@ export default function ServicesPage() {
         };
         await setDoc(newDocRef, servicePayload);
       } else {
+        const precoNum = preco.trim() !== "" ? parseFloat(preco.replace(",", ".")) : null;
         const docRef = doc(db, "professionals", user.uid, "services", serviceId);
         await updateDoc(docRef, {
           nome: nome.trim(),
           descricaoCurta: descricaoCurta.trim(),
           duracaoEstimada: duracaoEstimada.trim(),
           ativo,
+          preco: precoNum,
+          exibirPreco,
           updatedAt: new Date()
         });
       }
@@ -351,9 +365,17 @@ export default function ServicesPage() {
 
               {/* Card bottom info / Actions */}
               <div className="flex items-center justify-between border-t border-slate-800/80 pt-4 mt-2">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-850">
-                  <Clock className="h-3.5 w-3.5 text-indigo-400" />
-                  <span>{service.duracaoEstimada}</span>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-850">
+                    <Clock className="h-3.5 w-3.5 text-indigo-400" />
+                    <span>{service.duracaoEstimada}</span>
+                  </div>
+                  {service.preco != null && (
+                    <div className="flex items-center gap-1 text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1.5 rounded-lg border border-emerald-500/20">
+                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(service.preco)}
+                      {!service.exibirPreco && <span className="text-slate-500 font-normal">(oculto)</span>}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex gap-1">
@@ -446,6 +468,39 @@ export default function ServicesPage() {
                   className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800/80 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-100 text-sm transition-all"
                 />
               </div>
+
+              {/* Preço */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Preço (Opcional)</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 text-sm font-semibold pointer-events-none">R$</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={preco}
+                    onChange={(e) => setPreco(e.target.value.replace(/[^0-9,.]/g, ""))}
+                    placeholder="0,00"
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800/80 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-100 text-sm transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* Exibir preço */}
+              {preco.trim() !== "" && (
+                <div className="flex items-center justify-between px-4 py-3 bg-slate-950/60 border border-slate-800/60 rounded-xl">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-300">Exibir preço na página pública</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Mostra o valor para o cliente durante o agendamento</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setExibirPreco(!exibirPreco)}
+                    className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${exibirPreco ? "bg-indigo-600" : "bg-slate-600"}`}
+                  >
+                    <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${exibirPreco ? "translate-x-5" : "translate-x-0"}`} />
+                  </button>
+                </div>
+              )}
 
               {/* Ativo */}
               <div className="flex items-center gap-3 pt-2">
