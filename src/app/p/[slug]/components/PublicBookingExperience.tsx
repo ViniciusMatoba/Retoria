@@ -365,12 +365,34 @@ export default function PublicBookingExperience({
 
           {/* Step indicator */}
           {step < 4 && (
-            <div className="bg-[rgba(15,23,42,0.4)] backdrop-blur-sm border border-[rgba(255,255,255,0.05)] rounded-2xl px-5 py-3.5 flex justify-between items-center text-xs font-semibold text-[var(--theme-muted-text)]">
-              <span className={step === 1 ? "text-[var(--theme-primary)] font-black" : "opacity-60"}>1. Serviço</span>
-              <ChevronRight className="h-3 w-3 text-slate-700" />
-              <span className={step === 2 ? "text-[var(--theme-primary)] font-black" : "opacity-60"}>2. Horário</span>
-              <ChevronRight className="h-3 w-3 text-slate-700" />
-              <span className={step === 3 ? "text-[var(--theme-primary)] font-black" : "opacity-60"}>3. Seus Dados</span>
+            <div
+              className="backdrop-blur-sm rounded-2xl px-5 py-3.5 flex justify-between items-center text-xs font-semibold"
+              style={{
+                backgroundColor: "var(--theme-surface)",
+                border: "1px solid rgba(var(--theme-text-rgb, 0,0,0), 0.08)",
+                color: "var(--theme-muted-text)",
+              }}
+            >
+              <span
+                className="font-black"
+                style={step === 1 ? { color: "var(--theme-primary)" } : { color: "var(--theme-muted-text)", opacity: 0.5 }}
+              >
+                1. Serviço
+              </span>
+              <ChevronRight className="h-3 w-3 opacity-30" style={{ color: "var(--theme-muted-text)" }} />
+              <span
+                className="font-black"
+                style={step === 2 ? { color: "var(--theme-primary)" } : { color: "var(--theme-muted-text)", opacity: 0.5 }}
+              >
+                2. Horário
+              </span>
+              <ChevronRight className="h-3 w-3 opacity-30" style={{ color: "var(--theme-muted-text)" }} />
+              <span
+                className="font-black"
+                style={step === 3 ? { color: "var(--theme-primary)" } : { color: "var(--theme-muted-text)", opacity: 0.5 }}
+              >
+                3. Seus Dados
+              </span>
             </div>
           )}
 
