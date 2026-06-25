@@ -141,3 +141,51 @@ export function getWelcomeMessage(descricaoCurta?: string | null): string {
   const clean = sanitizeWelcomeMessage(descricaoCurta);
   return clean || DEFAULT_WELCOME_MESSAGE;
 }
+
+// ─── Instagram utils ──────────────────────────────────────────────────────────
+
+export function cleanInstagramUsername(input: string | null | undefined): string {
+  if (!input) return "";
+  let clean = input.trim();
+  if (!clean) return "";
+
+  // Remove leading @ if present
+  if (clean.startsWith("@")) {
+    clean = clean.substring(1);
+  }
+
+  // Handle full URL extraction
+  try {
+    if (clean.includes("/")) {
+      let urlString = clean;
+      if (!/^https?:\/\//i.test(clean)) {
+        urlString = "https://" + clean;
+      }
+      const url = new URL(urlString);
+      if (url.hostname.includes("instagram.com")) {
+        const segments = url.pathname.split("/").filter(Boolean);
+        if (segments.length > 0) {
+          clean = segments[0];
+        }
+      }
+    }
+  } catch (e) {
+    // Ignore URL parse error and fall back
+  }
+
+  // Remove query params or trailing slash
+  clean = clean.split(/[?#]/)[0];
+  clean = clean.replace(/\/$/, "");
+
+  // Instagram username rules: letters, numbers, periods, underscores
+  clean = clean.replace(/[^a-zA-Z0-9._]/g, "");
+
+  return clean;
+}
+
+export function buildInstagramUrl(username: string | null | undefined): string {
+  const clean = cleanInstagramUsername(username);
+  if (!clean) return "";
+  return `https://instagram.com/${clean}`;
+}
+

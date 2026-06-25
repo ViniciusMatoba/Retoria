@@ -17,6 +17,26 @@ import {
 import { ThemeConfig, getBestTextColor } from "@/lib/themeUtils";
 import DirectionsModal from "./DirectionsModal";
 
+const Instagram = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    {...props}
+  >
+    <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+    <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+  </svg>
+);
+
 export interface PublicProfileInfo {
   // Core (always present)
   nomeNegocio: string;
@@ -29,6 +49,7 @@ export interface PublicProfileInfo {
   // Contact
   telefoneWhatsapp?: string; // booking WhatsApp — reused for public display
   publicPhone?: string;      // optional separate voice phone
+  instagram?: string;        // optional instagram handle
 
   // Address
   serviceLocationType?: ServiceLocationType;
@@ -184,7 +205,7 @@ export default function PublicProfessionalHeader({
         )}
 
         {/* Contact row */}
-        {(showPhone || showWhatsApp) && (
+        {(showPhone || showWhatsApp || profile.instagram) && (
           <div className="mt-4 pt-3 border-t border-[rgba(255,255,255,0.07)] w-full flex flex-wrap items-center justify-center gap-2">
             {showPhone && profile.publicPhone && (
               <a
@@ -214,6 +235,21 @@ export default function PublicProfessionalHeader({
               >
                 <MessageCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 <span>WhatsApp</span>
+              </a>
+            )}
+
+            {profile.instagram && (
+              <a
+                href={isPreview ? undefined : `https://instagram.com/${profile.instagram}`}
+                target={isPreview ? undefined : "_blank"}
+                rel="noopener noreferrer"
+                onClick={isPreview ? (e) => e.preventDefault() : undefined}
+                aria-label={`Instagram de ${profile.nomeNegocio}`}
+                className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)] transition-opacity hover:opacity-80 ${btnRadiusClass} border border-[rgba(255,255,255,0.1)] bg-[var(--theme-surface)]`}
+                style={{ color: "var(--theme-text)" }}
+              >
+                <Instagram className="h-3.5 w-3.5 shrink-0" style={{ color: corBrand }} aria-hidden="true" />
+                <span>@{profile.instagram}</span>
               </a>
             )}
           </div>

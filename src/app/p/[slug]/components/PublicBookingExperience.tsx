@@ -45,6 +45,7 @@ export interface Professional {
   showPublicWhatsApp?: boolean;
   showPublicAddress?: boolean;
   showMiniMap?: boolean;
+  instagram?: string;
 }
 
 export interface Service {

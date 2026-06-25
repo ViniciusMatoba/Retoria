@@ -37,6 +37,7 @@ export interface ProfessionalProfile {
   showPublicWhatsApp?: boolean;
   showPublicAddress?: boolean;
   showMiniMap?: boolean;
+  instagram?: string;
 }
 
 interface AuthContextType {

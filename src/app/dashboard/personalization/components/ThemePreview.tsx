@@ -6,6 +6,26 @@ import type { Service } from "../../../p/[slug]/components/PublicBookingExperien
 import { formatPhoneFriendly } from "../../../../lib/contactUtils";
 import { Smartphone, Phone, MessageCircle, MapPin, ChevronRight } from "lucide-react";
 
+const Instagram = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    {...props}
+  >
+    <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+    <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+  </svg>
+);
+
 interface ThemePreviewProps {
   themeConfig: ThemeConfig;
   businessName: string;
@@ -21,6 +41,7 @@ interface ThemePreviewProps {
   showMiniMap?: boolean;
   publicPhone?: string;
   telefoneWhatsapp?: string;
+  instagram?: string;
   addressText?: string;
 }
 
@@ -62,6 +83,7 @@ export default function ThemePreview({
   showMiniMap = false,
   publicPhone = "",
   telefoneWhatsapp = "",
+  instagram = "",
   addressText = "",
 }: ThemePreviewProps) {
   const displayServices = (services && services.length > 0) ? services : MOCK_SERVICES;
@@ -178,7 +200,7 @@ export default function ThemePreview({
                 )}
 
                 {/* Contact row */}
-                {(showPublicPhone || showPublicWhatsApp) && (
+                {(showPublicPhone || showPublicWhatsApp || instagram) && (
                   <div className="mt-3 pt-2.5 border-t border-[rgba(255,255,255,0.07)] w-full flex flex-wrap items-center justify-center gap-1.5">
                     {showPublicPhone && publicPhone && (
                       <span
@@ -195,6 +217,14 @@ export default function ThemePreview({
                       >
                         <MessageCircle className="h-2.5 w-2.5 shrink-0" />
                         <span>WhatsApp</span>
+                      </span>
+                    )}
+                    {instagram && (
+                      <span
+                        className={`flex items-center gap-1 px-2.5 py-1.5 text-[9px] font-semibold border border-[rgba(255,255,255,0.1)] bg-[var(--theme-surface)] text-[var(--theme-text)] ${btnRadiusClass}`}
+                      >
+                        <Instagram className="h-2.5 w-2.5 shrink-0" style={{ color: themeConfig.primaryColor }} />
+                        <span>@{instagram}</span>
                       </span>
                     )}
                   </div>

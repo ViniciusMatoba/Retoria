@@ -12,6 +12,7 @@ import {
   SERVICE_LOCATION_LABELS,
   isValidPhone,
   validateCoordinates,
+  cleanInstagramUsername,
 } from "@/lib/contactUtils";
 import ThemePreview from "@/app/dashboard/personalization/components/ThemePreview";
 import { getDefaultThemeConfig } from "@/lib/themeUtils";
@@ -34,6 +35,26 @@ import {
   Info,
 } from "lucide-react";
 import Link from "next/link";
+
+const Instagram = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    {...props}
+  >
+    <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+    <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+  </svg>
+);
 
 const prebuiltColors = [
   { value: "#6366f1", label: "Indigo" },
@@ -66,6 +87,7 @@ export default function ProfilePage() {
   const [descricaoCurta, setDescricaoCurta] = useState("");
   const [fotoLogoUrl, setFotoLogoUrl] = useState("");
   const [corPrincipal, setCorPrincipal] = useState("#6366f1");
+  const [instagram, setInstagram] = useState("");
 
   // ── Public info fields ────────────────────────────────────────────────────
   const [publicPhone, setPublicPhone] = useState("");
@@ -117,6 +139,7 @@ export default function ProfilePage() {
     setDescricaoCurta(profile.descricaoCurta || "");
     setFotoLogoUrl(profile.fotoLogoUrl || "");
     setCorPrincipal(profile.corPrincipal || "#6366f1");
+    setInstagram(profile.instagram || "");
 
     setPublicPhone(formatPhoneFriendly(profile.publicPhone || ""));
     setServiceLocationType((profile.serviceLocationType as ServiceLocationType) || "physical");
@@ -226,6 +249,8 @@ export default function ProfilePage() {
       return;
     }
 
+    const cleanInsta = cleanInstagramUsername(instagram);
+
     try {
       if (cleanSlug !== profile.slugPublico) {
         const q = query(collection(db, "professionals"), where("slugPublico", "==", cleanSlug));
@@ -242,6 +267,7 @@ export default function ProfilePage() {
         descricaoCurta: cleanMsg,
         fotoLogoUrl,
         corPrincipal,
+        instagram: cleanInsta || null,
         // Public info
         publicPhone: cleanPublicPhone || null,
         serviceLocationType,
@@ -268,6 +294,7 @@ export default function ProfilePage() {
       });
 
       await refreshProfile();
+      setInstagram(cleanInsta);
       setPrivacyWarning(null);
       setSuccess("Perfil atualizado com sucesso!");
     } catch (err: any) {
@@ -385,6 +412,14 @@ export default function ProfilePage() {
                     <input type="text" required value={telefoneWhatsapp} onChange={(e) => setTelefoneWhatsapp(e.target.value)} placeholder="Ex: (11) 99999-9999" className="w-full pl-9 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500 text-slate-100 text-sm transition-all" />
                   </div>
                   <p className="text-[10px] text-slate-500 mt-1 pl-1">Usado para receber agendamentos. Pode ser exibido publicamente abaixo.</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Instagram Profissional</label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500"><Instagram className="h-4 w-4" /></span>
+                    <input type="text" value={instagram} onChange={(e) => setInstagram(e.target.value)} placeholder="Ex: @seu.perfil" className="w-full pl-9 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500 text-slate-100 text-sm transition-all" />
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1 pl-1">Opcional. Exibe um botão com link para o seu Instagram na página pública.</p>
                 </div>
               </div>
 
@@ -617,6 +652,7 @@ export default function ProfilePage() {
             showMiniMap={showMiniMap}
             publicPhone={formatPhoneForWhatsApp(publicPhone)}
             telefoneWhatsapp={formatPhoneForWhatsApp(telefoneWhatsapp)}
+            instagram={cleanInstagramUsername(instagram)}
             addressText={[
               publicAddress.street && `${publicAddress.street}${publicAddress.number ? ", " + publicAddress.number : ""}`,
               publicAddress.city,
