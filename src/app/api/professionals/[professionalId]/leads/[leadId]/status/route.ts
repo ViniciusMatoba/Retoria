@@ -87,17 +87,25 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         throw Object.assign(new Error("lead-wrong-owner"), { httpStatus: 403 });
       }
 
-      const now = FieldValue.serverTimestamp();
-      tx.update(leadRef, { status: newStatus, updatedAt: now });
-
-      // Sincroniza índice do cliente
+      // ── Todos os READs antes de qualquer WRITE ──────────────────────────────
       const customerUid: string | undefined = leadData.customerUid;
+      let indexSnap: any = null;
       if (customerUid) {
         const indexRef = dbAdmin
           .collection("customerAccounts").doc(customerUid)
           .collection("bookings").doc(leadId);
-        const indexSnap = await tx.get(indexRef);
-        if (indexSnap.exists) {
+        indexSnap = await tx.get(indexRef);
+      }
+
+      // ── WRITEs ─────────────────────────────────────────────────────────────
+      const now = FieldValue.serverTimestamp();
+      tx.update(leadRef, { status: newStatus, updatedAt: now });
+
+      if (customerUid) {
+        if (indexSnap?.exists) {
+          const indexRef = dbAdmin
+            .collection("customerAccounts").doc(customerUid)
+            .collection("bookings").doc(leadId);
           tx.update(indexRef, { status: newStatus, updatedAt: now });
         } else {
           console.warn(`[lead-status] índice ausente para customerUid=${customerUid} lead=${leadId}`);
