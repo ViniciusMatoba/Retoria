@@ -7,6 +7,7 @@ import {
   isPastDateTimeSaoPaulo,
 } from "@/lib/timezone";
 import { buildCustomerBookingIndex } from "@/lib/leadTypes";
+import { createCalendarEvent } from "@/lib/googleCalendar";
 
 // Parser helper to extract duration in minutes from service description
 const parseServiceDurationMinutes = (duracaoStr: string): number => {
@@ -288,8 +289,23 @@ export async function POST(req: NextRequest) {
         });
       });
 
-      return { leadId: newLeadRef.id, horarioFim };
+      return { leadId: newLeadRef.id, horarioFim, profData, serviceNome: serviceData.nome };
     });
+
+    // Cria evento no Google Calendar do profissional (fora da transação — falha silenciosa)
+    try {
+      const [year, month, day] = result.profData ? [dataEscolhida.slice(0,4), dataEscolhida.slice(5,7), dataEscolhida.slice(8,10)] : [];
+      await createCalendarEvent(professionalId, {
+        summary: `Agendamento: ${trimmedNome} — ${result.serviceNome}`,
+        description: `Cliente: ${trimmedNome}\nTelefone: ${formattedPhone}${trimmedObservacao ? `\nObservações: ${trimmedObservacao}` : ""}`,
+        date: dataEscolhida,
+        startTime: horarioEscolhido,
+        endTime: result.horarioFim,
+      });
+    } catch (calErr) {
+      // Não bloqueia o agendamento se o Calendar falhar
+      console.warn("[google-calendar] Falha ao criar evento:", calErr);
+    }
 
     return NextResponse.json({ success: true, leadId: result.leadId, horarioFim: result.horarioFim });
 

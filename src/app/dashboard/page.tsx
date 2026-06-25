@@ -18,6 +18,7 @@ import {
   AlertCircle,
   Loader2
 } from "lucide-react";
+import GoogleCalendarIntegration from "./components/GoogleCalendarIntegration";
 
 interface Lead {
   id: string;
@@ -155,6 +156,9 @@ export default function DashboardHome() {
           <p className="text-sm text-slate-400">Gerencie contatos e atualize os status de pré-atendimento.</p>
         </div>
       </div>
+
+      {/* Integrações */}
+      <GoogleCalendarIntegration />
 
       {/* Metrics Dashboard */}
       {loading ? (
