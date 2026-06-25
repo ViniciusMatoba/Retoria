@@ -1,6 +1,6 @@
 import React from "react";
 import { ThemeConfig } from "../../../../lib/themeUtils";
-import { ToggleLeft, ToggleRight, Layout, Sliders } from "lucide-react";
+import { Layout } from "lucide-react";
 
 interface ComponentStyleEditorProps {
   currentConfig: ThemeConfig;
@@ -115,80 +115,6 @@ export default function ComponentStyleEditor({
         </div>
       </div>
 
-      {/* 4. Visibilidade de Imagens */}
-      <div className="p-4 bg-slate-950/40 border border-slate-850 rounded-2xl space-y-4">
-        <div className="flex items-center gap-2 border-b border-slate-850 pb-2 text-slate-350">
-          <Sliders className="h-4.5 w-4.5 text-indigo-450" />
-          <span className="text-[10px] font-bold uppercase tracking-wider">Imagens e Elementos Visuais</span>
-        </div>
-
-        <div className="space-y-4">
-          {/* showProfileImage */}
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="block text-xs font-bold text-slate-200">Exibir Imagem de Logo no Perfil</span>
-              <span className="text-[10px] text-slate-500 mt-0.5 block leading-normal">
-                Mostra ou oculta a sua foto circular no topo da página de agendamento.
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => onChangeField("showProfileImage", !currentConfig.showProfileImage)}
-              className="text-slate-400 hover:text-white transition-colors"
-            >
-              {currentConfig.showProfileImage ? (
-                <ToggleRight className="h-7 w-7 text-emerald-500" />
-              ) : (
-                <ToggleLeft className="h-7 w-7 text-slate-655" />
-              )}
-            </button>
-          </div>
-
-          {/* profileImageSize */}
-          {currentConfig.showProfileImage && (
-            <div>
-              <span className="block text-xs font-bold text-slate-200 mb-2">Tamanho da Foto / Logo</span>
-              <div className="grid grid-cols-4 gap-1.5">
-                {(["sm", "md", "lg", "xl"] as const).map((size) => {
-                  const labels: Record<string, string> = { sm: "Pequeno", md: "Médio", lg: "Grande", xl: "Extra" };
-                  const active = (currentConfig.profileImageSize ?? "md") === size;
-                  return (
-                    <button
-                      key={size}
-                      type="button"
-                      onClick={() => onChangeField("profileImageSize", size)}
-                      className={`py-1.5 rounded-lg text-[10px] font-bold transition-all border ${active ? "bg-indigo-600 border-indigo-500 text-white" : "bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500"}`}
-                    >
-                      {labels[size]}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* showServiceImages */}
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="block text-xs font-bold text-slate-200">Exibir Imagens dos Serviços</span>
-              <span className="text-[10px] text-slate-500 mt-0.5 block leading-normal">
-                Mostra a foto de capa do procedimento nos cards de agendamento público.
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => onChangeField("showServiceImages", !currentConfig.showServiceImages)}
-              className="text-slate-400 hover:text-white transition-colors"
-            >
-              {currentConfig.showServiceImages ? (
-                <ToggleRight className="h-7 w-7 text-emerald-500" />
-              ) : (
-                <ToggleLeft className="h-7 w-7 text-slate-655" />
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

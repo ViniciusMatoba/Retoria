@@ -15,7 +15,7 @@ import {
   cleanInstagramUsername,
 } from "@/lib/contactUtils";
 import ThemePreview from "@/app/dashboard/personalization/components/ThemePreview";
-import { getDefaultThemeConfig } from "@/lib/themeUtils";
+import { getDefaultThemeConfig, type ThemeConfig } from "@/lib/themeUtils";
 import { useAppModal } from "@/components/ModalProvider";
 import {
   User,
@@ -109,6 +109,11 @@ export default function ProfilePage() {
   const [showMiniMap, setShowMiniMap] = useState(false);
   const [showPublicInstagram, setShowPublicInstagram] = useState(false);
 
+  // ── Theme image settings ──────────────────────────────────────────────────
+  const [showProfileImage, setShowProfileImage] = useState(true);
+  const [profileImageSize, setProfileImageSize] = useState<"sm" | "md" | "lg" | "xl">("md");
+  const [showServiceImages, setShowServiceImages] = useState(true);
+
   // ── UI state ──────────────────────────────────────────────────────────────
   const [formLoading, setFormLoading] = useState(false);
   const [uploadLoading, setUploadLoading] = useState(false);
@@ -157,6 +162,11 @@ export default function ProfilePage() {
     setShowPublicAddress(profile.showPublicAddress ?? false);
     setShowMiniMap(profile.showMiniMap ?? false);
     setShowPublicInstagram(profile.showPublicInstagram ?? false);
+
+    const tc = profile.themeConfig ?? getDefaultThemeConfig();
+    setShowProfileImage(tc.showProfileImage ?? true);
+    setProfileImageSize(tc.profileImageSize ?? "md");
+    setShowServiceImages(tc.showServiceImages ?? true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile]);
 
@@ -211,6 +221,21 @@ export default function ProfilePage() {
       setSavingToggle(null);
     }
   }, [user, refreshProfile]);
+
+  const handleThemeImageField = useCallback(async (patch: Partial<Pick<ThemeConfig, "showProfileImage" | "profileImageSize" | "showServiceImages">>) => {
+    if (!user || !profile) return;
+    const current = profile.themeConfig ?? getDefaultThemeConfig();
+    const updated = { ...current, ...patch };
+    if (patch.showProfileImage !== undefined) setShowProfileImage(patch.showProfileImage);
+    if (patch.profileImageSize !== undefined) setProfileImageSize(patch.profileImageSize);
+    if (patch.showServiceImages !== undefined) setShowServiceImages(patch.showServiceImages);
+    try {
+      await updateDoc(doc(db, "professionals", user.uid), { themeConfig: updated });
+      await refreshProfile();
+    } catch (err) {
+      console.error("Theme image save error:", err);
+    }
+  }, [user, profile, refreshProfile]);
 
   const handleAddressField = (key: keyof PublicAddress, value: string | number | null) => {
     setPublicAddress((prev) => ({ ...prev, [key]: value }));
@@ -380,6 +405,54 @@ export default function ProfilePage() {
                   </label>
                 </div>
               </div>
+            </div>
+
+            {/* ── Section: Imagens / Fotos ──────────────────────────────── */}
+            <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-5 md:p-6 backdrop-blur-sm space-y-4">
+              <h2 className="text-sm font-bold text-slate-300">Imagens / Fotos</h2>
+
+              {/* showProfileImage */}
+              <ToggleRow
+                label="Exibir foto/logo na página pública"
+                hint="Mostra ou oculta sua foto circular no topo da página de agendamento."
+                checked={showProfileImage}
+                onChange={(v) => handleThemeImageField({ showProfileImage: v })}
+                saving={false}
+                saved={false}
+              />
+
+              {/* profileImageSize */}
+              {showProfileImage && (
+                <div>
+                  <span className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Tamanho da Foto / Logo</span>
+                  <div className="grid grid-cols-4 gap-2">
+                    {(["sm", "md", "lg", "xl"] as const).map((size) => {
+                      const labels: Record<string, string> = { sm: "Pequeno", md: "Médio", lg: "Grande", xl: "Extra" };
+                      const active = profileImageSize === size;
+                      return (
+                        <button
+                          key={size}
+                          type="button"
+                          onClick={() => handleThemeImageField({ profileImageSize: size })}
+                          className={`py-2 rounded-xl text-xs font-bold transition-all border ${active ? "bg-indigo-600 border-indigo-500 text-white" : "bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-600"}`}
+                        >
+                          {labels[size]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* showServiceImages */}
+              <ToggleRow
+                label="Exibir imagens dos serviços"
+                hint="Mostra a foto de capa do procedimento nos cards de agendamento público."
+                checked={showServiceImages}
+                onChange={(v) => handleThemeImageField({ showServiceImages: v })}
+                saving={false}
+                saved={false}
+              />
             </div>
 
             {/* ── Section: Identity ─────────────────────────────────────── */}
@@ -657,7 +730,7 @@ export default function ProfilePage() {
         {/* ── Preview card ───────────────────────────────────────────────── */}
         <div className="lg:col-span-1">
           <ThemePreview
-            themeConfig={profile?.themeConfig ?? getDefaultThemeConfig()}
+            themeConfig={{ ...(profile?.themeConfig ?? getDefaultThemeConfig()), showProfileImage, profileImageSize, showServiceImages }}
             businessName={nomeNegocio}
             professionalName={nome}
             fotoLogoUrl={fotoLogoUrl}
