@@ -391,63 +391,6 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {/* ── Section: Cor principal ────────────────────────────────── */}
-            <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-5 md:p-6 backdrop-blur-sm space-y-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-sm font-bold text-slate-300 flex items-center gap-2">
-                    <Palette className="h-4 w-4 text-indigo-400" />
-                    Tema da Página Pública
-                  </h2>
-                  <p className="text-[10px] text-slate-500 mt-1">Define a cor dos botões, destaques e ícones na sua página de agendamento.</p>
-                </div>
-                {/* Live preview swatch */}
-                <div className="shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-xl border" style={{ borderColor: `${corPrincipal}40`, backgroundColor: `${corPrincipal}15` }}>
-                  <span className="h-3 w-3 rounded-full" style={{ backgroundColor: corPrincipal }} />
-                  <span className="text-xs font-mono font-semibold" style={{ color: corPrincipal }}>{corPrincipal}</span>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {prebuiltColors.map((color) => (
-                  <button
-                    key={color.value}
-                    type="button"
-                    onClick={() => setCorPrincipal(color.value)}
-                    className="h-9 px-3 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5"
-                    style={{
-                      backgroundColor: `${color.value}${corPrincipal === color.value ? "25" : "10"}`,
-                      borderColor: corPrincipal === color.value ? color.value : "transparent",
-                      color: color.value,
-                      boxShadow: corPrincipal === color.value ? `0 0 0 1px ${color.value}` : "none",
-                    }}
-                  >
-                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color.value }} />
-                    <span>{color.label}</span>
-                  </button>
-                ))}
-              </div>
-
-              <div className="flex items-center gap-3">
-                <label className="cursor-pointer relative group">
-                  <input type="color" value={corPrincipal} onChange={(e) => setCorPrincipal(e.target.value)} className="sr-only" />
-                  <div
-                    className="h-9 w-9 rounded-xl border-2 transition-all group-hover:scale-110"
-                    style={{ backgroundColor: corPrincipal, borderColor: `${corPrincipal}80` }}
-                  />
-                </label>
-                <span className="text-xs text-slate-400">Personalizar cor → clique no quadrado</span>
-              </div>
-
-              {/* Mini button preview */}
-              <div className="flex items-center gap-3 pt-1">
-                <span className="text-[10px] text-slate-500 uppercase tracking-wider">Prévia:</span>
-                <button type="button" className="px-4 py-1.5 rounded-xl text-xs font-bold text-white transition-all" style={{ backgroundColor: corPrincipal }}>
-                  Agendar agora
-                </button>
-                <span className="text-xs font-semibold" style={{ color: corPrincipal }}>Link de destaque</span>
-              </div>
-            </div>
 
             {/* ── Section: Contato público ─────────────────────────────── */}
             <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-5 md:p-6 backdrop-blur-sm space-y-5">
