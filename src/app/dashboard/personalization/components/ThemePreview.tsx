@@ -5,12 +5,23 @@ import PublicServiceCard from "../../../p/[slug]/components/PublicServiceCard";
 import { formatPhoneFriendly } from "../../../../lib/contactUtils";
 import { Smartphone, Phone, MessageCircle, MapPin, ChevronRight } from "lucide-react";
 
+interface PreviewService {
+  id: string;
+  nome: string;
+  descricaoCurta?: string;
+  duracaoEstimada?: string;
+  imagemUrl?: string | null;
+  imagemAlt?: string | null;
+  imagemUpdatedAt?: any;
+}
+
 interface ThemePreviewProps {
   themeConfig: ThemeConfig;
   businessName: string;
   professionalName: string;
   fotoLogoUrl: string;
   descricaoCurta: string;
+  services?: PreviewService[];
   showResponsibleName?: boolean;
   showWelcomeMessage?: boolean;
   showPublicPhone?: boolean;
@@ -21,12 +32,34 @@ interface ThemePreviewProps {
   addressText?: string;
 }
 
+const MOCK_SERVICES: PreviewService[] = [
+  {
+    id: "mock-1",
+    nome: "Exemplo de Serviço",
+    descricaoCurta: "Descrição breve do serviço oferecido.",
+    duracaoEstimada: "60 min",
+    imagemUrl: null,
+    imagemAlt: null,
+    imagemUpdatedAt: null,
+  },
+  {
+    id: "mock-2",
+    nome: "Outro Serviço",
+    descricaoCurta: "Mais um serviço disponível para agendamento.",
+    duracaoEstimada: "30 min",
+    imagemUrl: null,
+    imagemAlt: null,
+    imagemUpdatedAt: null,
+  },
+];
+
 export default function ThemePreview({
   themeConfig,
   businessName,
   professionalName,
   fotoLogoUrl,
   descricaoCurta,
+  services,
   showResponsibleName = true,
   showWelcomeMessage = true,
   showPublicPhone = false,
@@ -36,30 +69,9 @@ export default function ThemePreview({
   telefoneWhatsapp = "",
   addressText = "",
 }: ThemePreviewProps) {
-  const [selectedServiceId, setSelectedServiceId] = useState("srv-1");
+  const displayServices = (services && services.length > 0) ? services : MOCK_SERVICES;
+  const [selectedServiceId, setSelectedServiceId] = useState(displayServices[0]?.id ?? "");
   const initials = businessName.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase();
-
-  // Mock services for preview
-  const mockServices = [
-    {
-      id: "srv-1",
-      nome: "Limpeza de pele profunda",
-      descricaoCurta: "Higienização facial com remoção de cravos e máscara hidratante especial.",
-      duracaoEstimada: "60 min",
-      imagemUrl: "/demo/service-preview.svg",
-      imagemAlt: "Imagem demonstrativa do serviço",
-      imagemUpdatedAt: null
-    },
-    {
-      id: "srv-2",
-      nome: "Design de Sobrancelhas",
-      descricaoCurta: "Modelagem harmônica com pinça e aplicação opcional de henna.",
-      duracaoEstimada: "30 min",
-      imagemUrl: null,
-      imagemAlt: null,
-      imagemUpdatedAt: null
-    }
-  ];
 
   // Resolve background style inline
   let bgStyle: React.CSSProperties = {};
@@ -239,7 +251,7 @@ export default function ThemePreview({
                 </div>
 
                 <div className="space-y-2">
-                  {mockServices.map((srv) => (
+                  {displayServices.map((srv) => (
                     <PublicServiceCard
                       key={srv.id}
                       service={srv}

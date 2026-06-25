@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { doc, updateDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, updateDoc, collection, query, where, getDocs, orderBy } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 import { useAuth } from "../../providers";
@@ -92,6 +92,19 @@ export default function ProfilePage() {
   const [privacyWarning, setPrivacyWarning] = useState<string | null>(null);
   const [savingToggle, setSavingToggle] = useState<string | null>(null);
   const [toggleSaved, setToggleSaved] = useState<string | null>(null);
+  const [realServices, setRealServices] = useState<any[]>([]);
+
+  // Carrega serviços reais para o preview
+  useEffect(() => {
+    if (!user) return;
+    getDocs(query(
+      collection(db, "professionals", user.uid, "services"),
+      where("ativo", "==", true),
+      orderBy("ordem", "asc")
+    )).then(snap => {
+      setRealServices(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }).catch(() => {});
+  }, [user]);
 
   // ── Load profile ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -581,6 +594,7 @@ export default function ProfilePage() {
             professionalName={nome}
             fotoLogoUrl={fotoLogoUrl}
             descricaoCurta={descricaoCurta}
+            services={realServices}
             showResponsibleName={showResponsibleName}
             showWelcomeMessage={showWelcomeMessage}
             showPublicPhone={showPublicPhone}

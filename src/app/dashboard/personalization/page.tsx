@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, updateDoc, collection, query, where, getDocs, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "../../providers";
 import { 
@@ -50,6 +50,19 @@ export default function PersonalizationPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [realServices, setRealServices] = useState<any[]>([]);
+
+  // Carrega serviços reais do profissional para o preview
+  useEffect(() => {
+    if (!user) return;
+    getDocs(query(
+      collection(db, "professionals", user.uid, "services"),
+      where("ativo", "==", true),
+      orderBy("ordem", "asc")
+    )).then(snap => {
+      setRealServices(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }).catch(() => {});
+  }, [user]);
 
   // Initialize draft config from profile
   useEffect(() => {
@@ -417,6 +430,19 @@ export default function PersonalizationPage() {
             professionalName={profile.nome}
             fotoLogoUrl={profile.fotoLogoUrl || ""}
             descricaoCurta={profile.descricaoCurta || ""}
+            services={realServices}
+            showResponsibleName={profile.showResponsibleName ?? true}
+            showWelcomeMessage={profile.showWelcomeMessage ?? true}
+            showPublicPhone={profile.showPublicPhone ?? false}
+            showPublicWhatsApp={profile.showPublicWhatsApp ?? false}
+            showPublicAddress={profile.showPublicAddress ?? false}
+            publicPhone={profile.publicPhone || ""}
+            telefoneWhatsapp={profile.telefoneWhatsapp || ""}
+            addressText={[
+              profile.publicAddress?.street && `${profile.publicAddress.street}${profile.publicAddress.number ? ", " + profile.publicAddress.number : ""}`,
+              profile.publicAddress?.city,
+              profile.publicAddress?.state,
+            ].filter(Boolean).join(" - ")}
           />
         </div>
 
