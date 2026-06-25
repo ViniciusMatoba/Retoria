@@ -16,6 +16,7 @@ import {
 } from "@/lib/contactUtils";
 import ThemePreview from "@/app/dashboard/personalization/components/ThemePreview";
 import { getDefaultThemeConfig } from "@/lib/themeUtils";
+import { useAppModal } from "@/components/ModalProvider";
 import {
   User,
   Briefcase,
@@ -78,6 +79,7 @@ const WELCOME_MAX = 240;
 
 export default function ProfilePage() {
   const { user, profile, refreshProfile } = useAuth();
+  const { showSuccessModal } = useAppModal();
 
   // ── Core fields ──────────────────────────────────────────────────────────
   const [nome, setNome] = useState("");
@@ -296,7 +298,10 @@ export default function ProfilePage() {
       await refreshProfile();
       setInstagram(cleanInsta);
       setPrivacyWarning(null);
-      setSuccess("Perfil atualizado com sucesso!");
+      showSuccessModal({
+        title: "Sucesso",
+        description: "Perfil atualizado com sucesso!",
+      });
     } catch (err: any) {
       setError("Erro ao salvar perfil: " + err.message);
     } finally {
