@@ -88,7 +88,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   let body: any;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "JSON inválido." }, { status: 400 }); }
 
-  const { nome, email, especialidade } = body ?? {};
+  const { nome, email, especialidade, cargo, permissions } = body ?? {};
   if (!nome || typeof nome !== "string" || nome.trim().length < 2) {
     return NextResponse.json({ error: "Nome obrigatório (mínimo 2 caracteres)." }, { status: 400 });
   }
@@ -108,15 +108,24 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const token = crypto.randomBytes(32).toString("hex");
 
+  const normalizedPermissions = {
+    canEditProfile:  permissions?.canEditProfile  ?? false,
+    canEditServices: permissions?.canEditServices ?? false,
+    canManageSlots:  permissions?.canManageSlots  ?? false,
+    canViewAllLeads: permissions?.canViewAllLeads ?? false,
+  };
+
   await dbAdmin.collection("teamInvites").doc(token).set({
     ownerUid: professionalId,
     ownerNomeNegocio: ownerSnap.data()?.nomeNegocio ?? "",
     email: email.toLowerCase().trim(),
     nome: nome.trim(),
     especialidade: especialidade?.trim() ?? "",
+    cargo: cargo?.trim() ?? "",
+    permissions: normalizedPermissions,
     status: "pending",
     createdAt: FieldValue.serverTimestamp(),
-    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 dias
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
   });
 
   return NextResponse.json({ token });

@@ -84,6 +84,18 @@ export async function POST(req: NextRequest, { params }: Params) {
   const baseSlug = `${ownerData.slugPublico ?? "prof"}-${invite.nome.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")}`;
   const slugPublico = `${baseSlug}-${memberUid.slice(-4)}`;
 
+  const teamConfig = {
+    especialidade: invite.especialidade ?? "",
+    cargo: invite.cargo ?? "",
+    whatsapp: null,
+    permissions: invite.permissions ?? {
+      canEditProfile:  false,
+      canEditServices: false,
+      canManageSlots:  false,
+      canViewAllLeads: false,
+    },
+  };
+
   // Criar documento do profissional membro
   await dbAdmin.collection("professionals").doc(memberUid).set({
     id: memberUid,
@@ -98,6 +110,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     role: "team_member",
     parentProfessionalId: invite.ownerUid,
     themeConfig: ownerData.themeConfig ?? null,
+    teamConfig,
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
   });

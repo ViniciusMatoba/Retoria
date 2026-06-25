@@ -77,6 +77,8 @@ export default function TeamPage() {
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [especialidade, setEspecialidade] = useState("");
+  const [cargo, setCargo] = useState("");
+  const [invitePermissions, setInvitePermissions] = useState({ ...DEFAULT_PERMISSIONS });
   const [sending, setSending] = useState(false);
   const [formError, setFormError] = useState("");
   const [generatedLink, setGeneratedLink] = useState<string | null>(null);
@@ -126,12 +128,12 @@ export default function TeamPage() {
       const res = await fetch(`/api/professionals/${user.uid}/team`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ nome, email, especialidade }),
+        body: JSON.stringify({ nome, email, especialidade, cargo, permissions: invitePermissions }),
       });
       const data = await res.json();
       if (!res.ok) { setFormError(data.error ?? "Erro ao gerar convite."); return; }
       setGeneratedLink(`${window.location.origin}/invite/${data.token}`);
-      setNome(""); setEmail(""); setEspecialidade("");
+      setNome(""); setEmail(""); setEspecialidade(""); setCargo(""); setInvitePermissions({ ...DEFAULT_PERMISSIONS });
       setShowForm(false);
       fetchTeam();
     } catch {
@@ -285,15 +287,55 @@ export default function TeamPage() {
                     className="w-full pl-9 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500 transition-all" />
                 </div>
               </div>
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Especialidade / Cargo</label>
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Especialidade</label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500"><Briefcase className="h-4 w-4" /></span>
                   <input type="text" value={especialidade} onChange={(e) => setEspecialidade(e.target.value)} placeholder="Ex: Barbeiro, Dentista..."
                     className="w-full pl-9 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500 transition-all" />
                 </div>
               </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Cargo interno</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500"><User className="h-4 w-4" /></span>
+                  <input type="text" value={cargo} onChange={(e) => setCargo(e.target.value)} placeholder="Ex: Sócio, Colaborador..."
+                    className="w-full pl-9 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500 transition-all" />
+                </div>
+              </div>
             </div>
+
+            {/* Permissões de acesso já no convite */}
+            <div className="space-y-3 pt-1">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Permissões de acesso</p>
+              <div className="space-y-3 bg-slate-950/40 rounded-2xl p-4">
+                <ToggleRow
+                  label="Pode editar o próprio perfil"
+                  hint="Nome, foto e dados pessoais."
+                  checked={invitePermissions.canEditProfile}
+                  onChange={(v) => setInvitePermissions((p) => ({ ...p, canEditProfile: v }))}
+                />
+                <ToggleRow
+                  label="Pode criar e editar serviços"
+                  hint="Adicionar, editar e remover serviços da sua agenda."
+                  checked={invitePermissions.canEditServices}
+                  onChange={(v) => setInvitePermissions((p) => ({ ...p, canEditServices: v }))}
+                />
+                <ToggleRow
+                  label="Pode gerenciar horários"
+                  hint="Criar e remover slots de disponibilidade."
+                  checked={invitePermissions.canManageSlots}
+                  onChange={(v) => setInvitePermissions((p) => ({ ...p, canManageSlots: v }))}
+                />
+                <ToggleRow
+                  label="Pode ver leads de outros membros"
+                  hint="Por padrão vê apenas os próprios agendamentos."
+                  checked={invitePermissions.canViewAllLeads}
+                  onChange={(v) => setInvitePermissions((p) => ({ ...p, canViewAllLeads: v }))}
+                />
+              </div>
+            </div>
+
             {formError && (
               <div className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
                 <AlertCircle className="h-4 w-4 shrink-0" /><span>{formError}</span>
