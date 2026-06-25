@@ -180,7 +180,14 @@ export default function ThemePreview({
                 <div className="absolute top-0 inset-x-0 h-1" style={{ backgroundColor: themeConfig.primaryColor }} />
 
                 {themeConfig.showProfileImage && (
-                  <div className="h-12 w-12 rounded-xl border border-[rgba(255,255,255,0.08)] bg-slate-950/60 flex items-center justify-center overflow-hidden mb-2.5 shadow-md">
+                  <div
+                    className={`rounded-xl border border-[rgba(255,255,255,0.08)] bg-slate-950/60 flex items-center justify-center overflow-hidden mb-2.5 shadow-md ${{
+                      sm: "h-8 w-8",
+                      md: "h-12 w-12",
+                      lg: "h-16 w-16",
+                      xl: "h-20 w-20",
+                    }[themeConfig.profileImageSize ?? "md"]}`}
+                  >
                     {fotoLogoUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={fotoLogoUrl} alt="Logo" className="h-full w-full object-cover" />

@@ -66,6 +66,7 @@ export interface ThemeConfig {
   backgroundAttachment: "scroll" | "fixed";
 
   showProfileImage: boolean;
+  profileImageSize: "sm" | "md" | "lg" | "xl";
   showServiceImages: boolean;
 
   updatedAt?: any;
@@ -322,6 +323,7 @@ export function getDefaultThemeConfig(): ThemeConfig {
     backgroundSize: "cover",
     backgroundAttachment: "scroll",
     showProfileImage: true,
+    profileImageSize: "md",
     showServiceImages: true
   };
 }

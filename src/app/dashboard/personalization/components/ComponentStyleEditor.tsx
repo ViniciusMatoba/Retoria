@@ -144,6 +144,29 @@ export default function ComponentStyleEditor({
             </button>
           </div>
 
+          {/* profileImageSize */}
+          {currentConfig.showProfileImage && (
+            <div>
+              <span className="block text-xs font-bold text-slate-200 mb-2">Tamanho da Foto / Logo</span>
+              <div className="grid grid-cols-4 gap-1.5">
+                {(["sm", "md", "lg", "xl"] as const).map((size) => {
+                  const labels: Record<string, string> = { sm: "Pequeno", md: "Médio", lg: "Grande", xl: "Extra" };
+                  const active = (currentConfig.profileImageSize ?? "md") === size;
+                  return (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => onChangeField("profileImageSize", size)}
+                      className={`py-1.5 rounded-lg text-[10px] font-bold transition-all border ${active ? "bg-indigo-600 border-indigo-500 text-white" : "bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500"}`}
+                    >
+                      {labels[size]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* showServiceImages */}
           <div className="flex items-center justify-between">
             <div>

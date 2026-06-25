@@ -160,12 +160,19 @@ export default function PublicProfessionalHeader({
 
         {/* Logo / Avatar */}
         {theme.showProfileImage && (
-          <div className="h-20 w-20 rounded-2xl border border-[rgba(255,255,255,0.08)] bg-slate-950/60 flex items-center justify-center overflow-hidden mb-4 shadow-md">
+          <div
+            className={`rounded-2xl border border-[rgba(255,255,255,0.08)] bg-slate-950/60 flex items-center justify-center overflow-hidden mb-4 shadow-md ${{
+              sm: "h-14 w-14",
+              md: "h-20 w-20",
+              lg: "h-28 w-28",
+              xl: "h-36 w-36",
+            }[theme.profileImageSize ?? "md"]}`}
+          >
             {profile.fotoLogoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={profile.fotoLogoUrl} alt={`Logo de ${profile.nomeNegocio}`} className="h-full w-full object-cover" />
             ) : (
-              <span className="text-2xl font-black" style={{ color: corBrand }}>{initials}</span>
+              <span className={`font-black ${{ sm: "text-xl", md: "text-2xl", lg: "text-3xl", xl: "text-4xl" }[theme.profileImageSize ?? "md"]}`} style={{ color: corBrand }}>{initials}</span>
             )}
           </div>
         )}
