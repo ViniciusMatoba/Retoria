@@ -82,6 +82,7 @@ export default function ProfilePage() {
   const [showPublicPhone, setShowPublicPhone] = useState(false);
   const [showPublicWhatsApp, setShowPublicWhatsApp] = useState(false);
   const [showPublicAddress, setShowPublicAddress] = useState(false);
+  const [showMiniMap, setShowMiniMap] = useState(false);
 
   // ── UI state ──────────────────────────────────────────────────────────────
   const [formLoading, setFormLoading] = useState(false);
@@ -128,6 +129,7 @@ export default function ProfilePage() {
     setShowPublicPhone(profile.showPublicPhone ?? false);
     setShowPublicWhatsApp(profile.showPublicWhatsApp ?? false);
     setShowPublicAddress(profile.showPublicAddress ?? false);
+    setShowMiniMap((profile as any).showMiniMap ?? false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile]);
 
@@ -166,6 +168,7 @@ export default function ProfilePage() {
         else setPrivacyWarning(null);
         break;
       }
+      case "showMiniMap": setShowMiniMap(value); break;
     }
     setSavingToggle(field);
     setToggleSaved(null);
@@ -259,6 +262,7 @@ export default function ProfilePage() {
         showPublicPhone: showPublicPhone && !!cleanPublicPhone,
         showPublicWhatsApp,
         showPublicAddress,
+        showMiniMap,
         updatedAt: new Date(),
       });
 
@@ -455,6 +459,23 @@ export default function ProfilePage() {
                   saving={savingToggle === "showPublicWhatsApp"}
                   saved={toggleSaved === "showPublicWhatsApp"}
                 />
+                <ToggleRow
+                  label="Exibir endereço na página pública"
+                  checked={showPublicAddress}
+                  onChange={(v) => handleToggle("showPublicAddress", v)}
+                  hint="O endereço ficará visível para qualquer visitante."
+                  saving={savingToggle === "showPublicAddress"}
+                  saved={toggleSaved === "showPublicAddress"}
+                />
+                <ToggleRow
+                  label="Exibir mini mapa (Google Maps)"
+                  checked={showMiniMap}
+                  onChange={(v) => handleToggle("showMiniMap", v)}
+                  disabled={!showPublicAddress}
+                  hint={!showPublicAddress ? "Ative 'Exibir endereço' primeiro" : "Incorpora um mapa abaixo do endereço."}
+                  saving={savingToggle === "showMiniMap"}
+                  saved={toggleSaved === "showMiniMap"}
+                />
               </div>
             </div>
 
@@ -563,14 +584,6 @@ export default function ProfilePage() {
                     )}
                   </div>
 
-                  <ToggleRow
-                    label="Exibir endereço na página pública"
-                    checked={showPublicAddress}
-                    onChange={(v) => handleToggle("showPublicAddress", v)}
-                    hint="Ativar tornará o endereço visível para qualquer visitante."
-                    saving={savingToggle === "showPublicAddress"}
-                    saved={toggleSaved === "showPublicAddress"}
-                  />
                 </div>
               )}
             </div>
@@ -600,6 +613,7 @@ export default function ProfilePage() {
             showPublicPhone={showPublicPhone}
             showPublicWhatsApp={showPublicWhatsApp}
             showPublicAddress={showPublicAddress}
+            showMiniMap={showMiniMap}
             publicPhone={formatPhoneForWhatsApp(publicPhone)}
             telefoneWhatsapp={formatPhoneForWhatsApp(telefoneWhatsapp)}
             addressText={[

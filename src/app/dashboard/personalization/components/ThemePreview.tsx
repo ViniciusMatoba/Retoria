@@ -27,6 +27,7 @@ interface ThemePreviewProps {
   showPublicPhone?: boolean;
   showPublicWhatsApp?: boolean;
   showPublicAddress?: boolean;
+  showMiniMap?: boolean;
   publicPhone?: string;
   telefoneWhatsapp?: string;
   addressText?: string;
@@ -65,6 +66,7 @@ export default function ThemePreview({
   showPublicPhone = false,
   showPublicWhatsApp = false,
   showPublicAddress = false,
+  showMiniMap = false,
   publicPhone = "",
   telefoneWhatsapp = "",
   addressText = "",
@@ -213,17 +215,19 @@ export default function ThemePreview({
                       <span className="truncate max-w-[200px]">{addressText}</span>
                     </div>
                     {/* Mini mapa */}
-                    <div className="mt-2 w-full rounded-lg overflow-hidden" style={{ height: 90 }}>
-                      <iframe
-                        title="Mapa"
-                        src={`https://maps.google.com/maps?q=${encodeURIComponent(addressText)}&output=embed`}
-                        width="100%"
-                        height="90"
-                        style={{ border: 0 }}
-                        loading="lazy"
-                        referrerPolicy="no-referrer-when-downgrade"
-                      />
-                    </div>
+                    {showMiniMap && (
+                      <div className="mt-2 w-full rounded-lg overflow-hidden" style={{ height: 90 }}>
+                        <iframe
+                          title="Mapa"
+                          src={`https://maps.google.com/maps?q=${encodeURIComponent(addressText)}&output=embed`}
+                          width="100%"
+                          height="90"
+                          style={{ border: 0 }}
+                          loading="lazy"
+                          referrerPolicy="no-referrer-when-downgrade"
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

@@ -40,6 +40,7 @@ export interface PublicProfileInfo {
   showPublicPhone?: boolean;
   showPublicWhatsApp?: boolean;
   showPublicAddress?: boolean;
+  showMiniMap?: boolean;
 }
 
 interface PublicProfessionalHeaderProps {
@@ -69,6 +70,7 @@ export default function PublicProfessionalHeader({
   const showPhone = !!(profile.showPublicPhone && profile.publicPhone && isValidPhone(profile.publicPhone));
   const showWhatsApp = !!(profile.showPublicWhatsApp && profile.telefoneWhatsapp && isValidPhone(profile.telefoneWhatsapp));
   const showAddress = !!(profile.showPublicAddress && hasMinimalAddress(profile.publicAddress));
+  const showMap = !!(profile.showMiniMap && showAddress);
 
   const welcomeMessage = getWelcomeMessage(profile.descricaoCurta);
 
@@ -232,7 +234,7 @@ export default function PublicProfessionalHeader({
                 </div>
 
                 {/* Mini mapa incorporado */}
-                {mapsEmbedUrl && !isPreview && (
+                {mapsEmbedUrl && showMap && !isPreview && (
                   <div className="w-full max-w-xs rounded-xl overflow-hidden border border-[rgba(255,255,255,0.08)] shadow-md mt-1" style={{ height: 140 }}>
                     <iframe
                       title="Localização"
