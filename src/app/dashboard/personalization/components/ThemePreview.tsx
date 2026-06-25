@@ -10,6 +10,8 @@ interface ThemePreviewProps {
   professionalName: string;
   fotoLogoUrl: string;
   descricaoCurta: string;
+  showResponsibleName?: boolean;
+  showWelcomeMessage?: boolean;
 }
 
 export default function ThemePreview({
@@ -17,7 +19,9 @@ export default function ThemePreview({
   businessName,
   professionalName,
   fotoLogoUrl,
-  descricaoCurta
+  descricaoCurta,
+  showResponsibleName = true,
+  showWelcomeMessage = true,
 }: ThemePreviewProps) {
   const [selectedServiceId, setSelectedServiceId] = useState("srv-1");
   const initials = businessName.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase();
@@ -144,8 +148,10 @@ export default function ThemePreview({
                 <h1 className="text-sm font-extrabold text-[var(--theme-text)] truncate max-w-[200px]" style={{ fontFamily: `'${themeConfig.headingFont}', sans-serif` }}>
                   {businessName || "Nome do Negócio"}
                 </h1>
-                <p className="text-[10px] text-[var(--theme-muted-text)] font-semibold mt-0.5">Responsável: {professionalName || "Profissional"}</p>
-                {descricaoCurta && (
+                {showResponsibleName && (
+                  <p className="text-[10px] text-[var(--theme-muted-text)] font-semibold mt-0.5">Responsável: {professionalName || "Profissional"}</p>
+                )}
+                {showWelcomeMessage && descricaoCurta && (
                   <p className="text-[10px] text-[var(--theme-muted-text)] mt-2 leading-relaxed max-w-[220px] line-clamp-2">
                     {descricaoCurta}
                   </p>

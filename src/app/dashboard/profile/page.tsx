@@ -581,6 +581,8 @@ export default function ProfilePage() {
             professionalName={nome}
             fotoLogoUrl={fotoLogoUrl}
             descricaoCurta={descricaoCurta}
+            showResponsibleName={showResponsibleName}
+            showWelcomeMessage={showWelcomeMessage}
           />
         </div>
 
