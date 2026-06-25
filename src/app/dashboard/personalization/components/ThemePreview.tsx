@@ -2,7 +2,8 @@ import React, { useState } from "react";
 import { ThemeConfig, gradientPresets, bgPatterns, getBestTextColor } from "../../../../lib/themeUtils";
 import PublicThemeProvider from "../../../p/[slug]/components/PublicThemeProvider";
 import PublicServiceCard from "../../../p/[slug]/components/PublicServiceCard";
-import { Calendar, Clock, Smartphone, User, Phone, ChevronRight } from "lucide-react";
+import { formatPhoneFriendly } from "../../../../lib/contactUtils";
+import { Smartphone, Phone, MessageCircle, MapPin, ChevronRight } from "lucide-react";
 
 interface ThemePreviewProps {
   themeConfig: ThemeConfig;
@@ -12,6 +13,12 @@ interface ThemePreviewProps {
   descricaoCurta: string;
   showResponsibleName?: boolean;
   showWelcomeMessage?: boolean;
+  showPublicPhone?: boolean;
+  showPublicWhatsApp?: boolean;
+  showPublicAddress?: boolean;
+  publicPhone?: string;
+  telefoneWhatsapp?: string;
+  addressText?: string;
 }
 
 export default function ThemePreview({
@@ -22,6 +29,12 @@ export default function ThemePreview({
   descricaoCurta,
   showResponsibleName = true,
   showWelcomeMessage = true,
+  showPublicPhone = false,
+  showPublicWhatsApp = false,
+  showPublicAddress = false,
+  publicPhone = "",
+  telefoneWhatsapp = "",
+  addressText = "",
 }: ThemePreviewProps) {
   const [selectedServiceId, setSelectedServiceId] = useState("srv-1");
   const initials = businessName.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase();
@@ -155,6 +168,37 @@ export default function ThemePreview({
                   <p className="text-[10px] text-[var(--theme-muted-text)] mt-2 leading-relaxed max-w-[220px] line-clamp-2">
                     {descricaoCurta}
                   </p>
+                )}
+
+                {/* Contact row */}
+                {(showPublicPhone || showPublicWhatsApp) && (
+                  <div className="mt-3 pt-2.5 border-t border-[rgba(255,255,255,0.07)] w-full flex flex-wrap items-center justify-center gap-1.5">
+                    {showPublicPhone && publicPhone && (
+                      <span
+                        className={`flex items-center gap-1 px-2.5 py-1.5 text-[9px] font-semibold border border-[rgba(255,255,255,0.1)] bg-[var(--theme-surface)] text-[var(--theme-text)] ${btnRadiusClass}`}
+                      >
+                        <Phone className="h-2.5 w-2.5 shrink-0" style={{ color: themeConfig.primaryColor }} />
+                        <span>{formatPhoneFriendly(publicPhone)}</span>
+                      </span>
+                    )}
+                    {showPublicWhatsApp && telefoneWhatsapp && (
+                      <span
+                        className={`flex items-center gap-1 px-2.5 py-1.5 text-[9px] font-semibold ${btnRadiusClass}`}
+                        style={{ backgroundColor: themeConfig.primaryColor, color: getBestTextColor(themeConfig.primaryColor) }}
+                      >
+                        <MessageCircle className="h-2.5 w-2.5 shrink-0" />
+                        <span>WhatsApp</span>
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* Address */}
+                {showPublicAddress && addressText && (
+                  <div className="mt-2 pt-2 border-t border-[rgba(255,255,255,0.07)] w-full flex items-center justify-center gap-1 text-[9px] text-[var(--theme-muted-text)]">
+                    <MapPin className="h-2.5 w-2.5 shrink-0" style={{ color: themeConfig.primaryColor }} />
+                    <span className="truncate max-w-[200px]">{addressText}</span>
+                  </div>
                 )}
               </div>
 

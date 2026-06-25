@@ -583,6 +583,16 @@ export default function ProfilePage() {
             descricaoCurta={descricaoCurta}
             showResponsibleName={showResponsibleName}
             showWelcomeMessage={showWelcomeMessage}
+            showPublicPhone={showPublicPhone}
+            showPublicWhatsApp={showPublicWhatsApp}
+            showPublicAddress={showPublicAddress}
+            publicPhone={formatPhoneForWhatsApp(publicPhone)}
+            telefoneWhatsapp={formatPhoneForWhatsApp(telefoneWhatsapp)}
+            addressText={[
+              publicAddress.street && `${publicAddress.street}${publicAddress.number ? ", " + publicAddress.number : ""}`,
+              publicAddress.city,
+              publicAddress.state,
+            ].filter(Boolean).join(" - ")}
           />
         </div>
 
