@@ -13,6 +13,9 @@ import {
   isValidPhone,
   validateCoordinates,
 } from "@/lib/contactUtils";
+import PublicProfessionalHeader from "@/app/p/[slug]/components/PublicProfessionalHeader";
+import PublicThemeProvider from "@/app/p/[slug]/components/PublicThemeProvider";
+import { getDefaultThemeConfig } from "@/lib/themeUtils";
 import {
   User,
   Briefcase,
@@ -27,7 +30,6 @@ import {
   ExternalLink,
   Eye,
   MapPin,
-  MessageCircle,
   ChevronDown,
   ChevronUp,
   Info,
@@ -573,59 +575,34 @@ export default function ProfilePage() {
         </div>
 
         {/* ── Preview card ───────────────────────────────────────────────── */}
-        <div className="lg:col-span-1 bg-slate-900/40 border border-slate-800 rounded-3xl p-5 md:p-6 backdrop-blur-sm space-y-4">
+        <div className="lg:col-span-1 space-y-3 sticky top-6 self-start">
           <div>
             <h3 className="font-bold text-sm text-slate-400 uppercase tracking-wider mb-1">Visualização do Cliente</h3>
             <p className="text-xs text-slate-500">Como o cabeçalho aparecerá na sua página pública.</p>
           </div>
 
-          <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-5 shadow-2xl relative overflow-hidden flex flex-col items-center text-center">
-            <div className="absolute top-0 inset-x-0 h-2" style={{ backgroundColor: corPrincipal }} />
-
-            <div className="h-16 w-16 rounded-2xl border border-slate-800 bg-slate-900 flex items-center justify-center overflow-hidden mb-4 shadow-md mt-2">
-              {fotoLogoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={fotoLogoUrl} alt="Logo" className="h-full w-full object-cover" />
-              ) : (
-                <span className="text-lg font-extrabold" style={{ color: corPrincipal }}>{getInitials()}</span>
-              )}
-            </div>
-
-            <h2 className="text-lg font-bold text-slate-100 truncate w-full">{nomeNegocio || "Nome do Negócio"}</h2>
-            {showResponsibleName && (
-              <p className="text-xs text-slate-500 font-semibold mt-0.5 truncate w-full">Responsável: {nome || "Seu Nome"}</p>
-            )}
-            {showWelcomeMessage && (
-              <p className="text-xs text-slate-400 mt-3 line-clamp-3 leading-relaxed">
-                {descricaoCurta || "Seja bem-vindo! Escolha um serviço e encontre o melhor horário para você."}
-              </p>
-            )}
-
-            {(showPublicPhone || showPublicWhatsApp) && (
-              <div className="mt-3 pt-3 border-t border-slate-800/60 w-full flex flex-wrap gap-2 justify-center">
-                {showPublicPhone && publicPhone && (
-                  <span className="flex items-center gap-1 text-xs text-slate-400 px-2 py-1 bg-slate-900 rounded-lg border border-slate-800">
-                    <Phone className="h-3 w-3" style={{ color: corPrincipal }} />
-                    {formatPhoneFriendly(formatPhoneForWhatsApp(publicPhone) ? publicPhone : publicPhone)}
-                  </span>
-                )}
-                {showPublicWhatsApp && telefoneWhatsapp && (
-                  <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg font-semibold" style={{ backgroundColor: `${corPrincipal}20`, color: corPrincipal }}>
-                    <MessageCircle className="h-3 w-3" />
-                    WhatsApp
-                  </span>
-                )}
-              </div>
-            )}
-
-            {showPublicAddress && (serviceLocationType === "physical" || serviceLocationType === "both") && (publicAddress.city || publicAddress.street) && (
-              <div className="mt-3 pt-3 border-t border-slate-800/60 w-full">
-                <div className="flex items-center gap-1 justify-center text-xs text-slate-500">
-                  <MapPin className="h-3 w-3 shrink-0" style={{ color: corPrincipal }} />
-                  <span className="truncate">{[publicAddress.street && `${publicAddress.street}${publicAddress.number ? ", " + publicAddress.number : ""}`, publicAddress.city, publicAddress.state].filter(Boolean).join(" - ")}</span>
-                </div>
-              </div>
-            )}
+          <div className="rounded-3xl overflow-hidden border border-slate-800 shadow-2xl">
+            <PublicThemeProvider themeConfig={profile?.themeConfig ?? getDefaultThemeConfig()}>
+              <PublicProfessionalHeader
+                isPreview
+                profile={{
+                  nomeNegocio: nomeNegocio || "Nome do Negócio",
+                  nome: nome || "Seu Nome",
+                  fotoLogoUrl,
+                  descricaoCurta,
+                  telefoneWhatsapp: formatPhoneForWhatsApp(telefoneWhatsapp),
+                  publicPhone: formatPhoneForWhatsApp(publicPhone),
+                  serviceLocationType,
+                  publicAddress: showPublicAddress ? publicAddress : null,
+                  showResponsibleName,
+                  showWelcomeMessage,
+                  showPublicPhone,
+                  showPublicWhatsApp,
+                  showPublicAddress,
+                  themeConfig: profile?.themeConfig ?? getDefaultThemeConfig(),
+                }}
+              />
+            </PublicThemeProvider>
           </div>
         </div>
 
