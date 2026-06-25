@@ -1507,14 +1507,14 @@ export default function SlotsPage() {
         {/* 42 days grid */}
         <div className="grid grid-cols-7 gap-2">
           {grid.map(dateStr => {
+            const today = getSaoPauloToday();
             const isCurrentMonth = dateStr.split("-")[1] === currentMonthNum;
-            const isToday = dateStr === getSaoPauloToday();
-            
+            const isToday = dateStr === today;
+            const isPast = dateStr < today;
+
             const daySlots = slotsByDate.get(dateStr) || [];
             const availableCount = daySlots.filter(s => s.disponivel).length;
             const reservedCount = daySlots.filter(s => !s.disponivel).length;
-            
-            // Count cancelled leads on this date
             const cancelledCount = leads.filter(l => l.status === "Cancelado" && l.dataEscolhida === dateStr).length;
             const dayNum = dateStr.split("-")[2];
 
@@ -1526,21 +1526,24 @@ export default function SlotsPage() {
               <div
                 key={dateStr}
                 onClick={() => {
+                  if (isPast) return;
                   setCalendarRefDate(dateStr);
                   setCalendarView("day");
                 }}
                 className={`
-                  p-3 rounded-2xl border text-left flex flex-col justify-between h-28 cursor-pointer transition-all duration-200 hover:border-slate-650 hover:border-slate-600
-                  ${isToday 
-                    ? "bg-indigo-950/20 border-indigo-500/50 shadow-md shadow-indigo-500/5" 
-                    : isCurrentMonth 
-                      ? "bg-slate-950/40 border-slate-800/80 border-slate-850" 
-                      : "bg-slate-950/10 border-slate-900/60 opacity-40"
+                  p-3 rounded-2xl border text-left flex flex-col justify-between h-28 transition-all duration-200
+                  ${isPast
+                    ? "bg-slate-950/10 border-slate-900/30 opacity-30 cursor-default"
+                    : isToday
+                      ? "bg-indigo-950/20 border-indigo-500/50 shadow-md shadow-indigo-500/5 cursor-pointer hover:border-indigo-400/70"
+                      : isCurrentMonth
+                        ? "bg-slate-950/40 border-slate-800/80 cursor-pointer hover:border-slate-600"
+                        : "bg-slate-950/10 border-slate-900/60 opacity-40 cursor-pointer hover:border-slate-700"
                   }
                 `}
               >
                 <div className="flex justify-between items-center">
-                  <span className={`text-sm font-black ${isToday ? "text-indigo-400" : "text-slate-300"}`}>
+                  <span className={`text-sm font-black ${isToday ? "text-indigo-400" : isPast ? "text-slate-600" : "text-slate-300"}`}>
                     {parseInt(dayNum, 10)}
                   </span>
                   {isToday && (
@@ -1549,19 +1552,19 @@ export default function SlotsPage() {
                 </div>
 
                 <div className="space-y-1 mt-2 text-[10px] font-bold">
-                  {availableCount > 0 && (
+                  {!isPast && availableCount > 0 && (
                     <div className="flex items-center gap-1" style={{ color: styleLivre.bg }}>
                       <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: styleLivre.bg }} />
                       <span>{availableCount} {styleLivre.label}</span>
                     </div>
                   )}
-                  {reservedCount > 0 && (
+                  {!isPast && reservedCount > 0 && (
                     <div className="flex items-center gap-1" style={{ color: styleAgendado.bg }}>
                       <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: styleAgendado.bg }} />
                       <span>{reservedCount} Ocupados</span>
                     </div>
                   )}
-                  {cancelledCount > 0 && (
+                  {!isPast && cancelledCount > 0 && (
                     <div className="flex items-center gap-1" style={{ color: styleCancelado.bg }}>
                       <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: styleCancelado.bg }} />
                       <span>{cancelledCount} Cancelados</span>
@@ -1587,22 +1590,30 @@ export default function SlotsPage() {
     return (
       <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
         {weekDays.map(dateStr => {
-          const isToday = dateStr === getSaoPauloToday();
+          const today = getSaoPauloToday();
+          const isToday = dateStr === today;
+          const isPast = dateStr < today;
           const daySlots = slotsByDate.get(dateStr) || [];
           const sortedSlots = [...daySlots].sort((a, b) => timeToMinutes(a.horario) - timeToMinutes(b.horario));
           const cancelledCount = leads.filter(l => l.status === "Cancelado" && l.dataEscolhida === dateStr).length;
 
           return (
-            <div 
+            <div
               key={dateStr}
               className={`
-                border rounded-2xl p-4 flex flex-col gap-3 min-h-[400px] bg-slate-950/20
-                ${isToday ? "border-indigo-500/30 ring-1 ring-indigo-500/10 shadow-lg shadow-indigo-500/5" : "border-slate-800/80"}
+                border rounded-2xl p-4 flex flex-col gap-3 min-h-[400px]
+                ${isPast
+                  ? "bg-slate-950/5 border-slate-900/30 opacity-40"
+                  : isToday
+                    ? "bg-slate-950/20 border-indigo-500/30 ring-1 ring-indigo-500/10 shadow-lg shadow-indigo-500/5"
+                    : "bg-slate-950/20 border-slate-800/80"
+                }
               `}
             >
-              <div 
-                className="border-b border-slate-800/60 pb-2 cursor-pointer hover:text-indigo-400 transition-colors"
+              <div
+                className={`border-b border-slate-800/60 pb-2 transition-colors ${isPast ? "cursor-default" : "cursor-pointer hover:text-indigo-400"}`}
                 onClick={() => {
+                  if (isPast) return;
                   setCalendarRefDate(dateStr);
                   setCalendarView("day");
                 }}
@@ -1619,7 +1630,9 @@ export default function SlotsPage() {
 
               {/* Slots List */}
               <div className="flex-1 space-y-2 max-h-[500px] overflow-y-auto pr-1">
-                {sortedSlots.length === 0 ? (
+                {isPast ? (
+                  <div className="text-center py-8 text-slate-600 text-[10px] font-semibold">Dia passado</div>
+                ) : sortedSlots.length === 0 ? (
                   <div className="text-center py-8 text-slate-650 text-[10px] font-semibold">Nenhum slot</div>
                 ) : (
                   sortedSlots.map(slot => {
@@ -1704,8 +1717,8 @@ export default function SlotsPage() {
               </div>
 
               {/* Weekly Cancellation Summary Indicator */}
-              {cancelledCount > 0 && (
-                <div 
+              {!isPast && cancelledCount > 0 && (
+                <div
                   onClick={() => {
                     setCalendarRefDate(dateStr);
                     setCalendarView("day");
@@ -1725,6 +1738,8 @@ export default function SlotsPage() {
   const renderDayView = () => {
     if (!calendarRefDate) return null;
     const dateStr = calendarRefDate;
+    const today = getSaoPauloToday();
+    const isPast = dateStr < today;
     const daySlots = slotsByDate.get(dateStr) || [];
     const sortedSlots = [...daySlots].sort((a, b) => timeToMinutes(a.horario) - timeToMinutes(b.horario));
     const dayCancelledLeads = leads.filter(l => l.status === "Cancelado" && l.dataEscolhida === dateStr);
@@ -1734,12 +1749,23 @@ export default function SlotsPage() {
         <div className="border-b border-slate-800 pb-3 flex justify-between items-center">
           <div>
             <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-400">Visão Diária</h4>
-            <h3 className="text-lg font-black text-slate-200 mt-0.5">{formatDateFriendly(dateStr)}</h3>
+            <h3 className={`text-lg font-black mt-0.5 ${isPast ? "text-slate-500" : "text-slate-200"}`}>{formatDateFriendly(dateStr)}</h3>
           </div>
           <div className="text-xs text-slate-500 font-bold">
-            {sortedSlots.length} slot(s) cadastrado(s)
+            {isPast ? (
+              <span className="text-amber-500/70 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg">Dia passado</span>
+            ) : (
+              `${sortedSlots.length} slot(s) cadastrado(s)`
+            )}
           </div>
         </div>
+
+        {isPast && (
+          <div className="flex items-center gap-3 p-4 bg-slate-900/40 border border-slate-800/60 rounded-2xl text-sm text-slate-500">
+            <span>Este dia já passou. Navegue para uma data futura para ver os horários disponíveis.</span>
+          </div>
+        )}
+
 
         <div className="space-y-2.5 max-h-[600px] overflow-y-auto pr-1">
           {sortedSlots.length === 0 ? (
@@ -2438,20 +2464,33 @@ export default function SlotsPage() {
 
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => {
-                    if (calendarView === "month") {
-                      setCalendarRefDate(prev => shiftMonth(prev, -1));
-                    } else if (calendarView === "week") {
-                      setCalendarRefDate(prev => addDaysSaoPaulo(prev, -7));
-                    } else {
-                      setCalendarRefDate(prev => addDaysSaoPaulo(prev, -1));
-                    }
-                  }}
-                  className="p-2 bg-slate-950 border border-slate-850 hover:border-slate-700 rounded-xl text-slate-400 hover:text-slate-200 transition-all"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
+                {(() => {
+                  const today = getSaoPauloToday();
+                  const todayMonth = today.slice(0, 7);
+                  const todayWeekStart = getStartOfWeekSaoPaulo(today);
+                  const isPrevDisabled =
+                    (calendarView === "month" && calendarRefDate.slice(0, 7) <= todayMonth) ||
+                    (calendarView === "week" && getStartOfWeekSaoPaulo(calendarRefDate) <= todayWeekStart) ||
+                    (calendarView === "day" && calendarRefDate <= today);
+                  return (
+                    <button
+                      onClick={() => {
+                        if (isPrevDisabled) return;
+                        if (calendarView === "month") {
+                          setCalendarRefDate(prev => shiftMonth(prev, -1));
+                        } else if (calendarView === "week") {
+                          setCalendarRefDate(prev => addDaysSaoPaulo(prev, -7));
+                        } else {
+                          setCalendarRefDate(prev => addDaysSaoPaulo(prev, -1));
+                        }
+                      }}
+                      disabled={isPrevDisabled}
+                      className="p-2 bg-slate-950 border border-slate-850 rounded-xl text-slate-400 transition-all disabled:opacity-30 disabled:cursor-not-allowed hover:border-slate-700 hover:text-slate-200 disabled:hover:border-slate-850 disabled:hover:text-slate-400"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                  );
+                })()}
                 <button
                   onClick={() => setCalendarRefDate(getSaoPauloToday())}
                   className="px-3.5 py-2 bg-slate-950 border border-slate-850 text-slate-300 text-xs font-bold rounded-xl transition-all hover:bg-slate-900"
