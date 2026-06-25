@@ -617,10 +617,11 @@ function ToggleRow({ label, checked, onChange, disabled, hint, saving, saved }: 
           aria-checked={checked}
           disabled={disabled || saving}
           onClick={() => !disabled && !saving && onChange(!checked)}
-          className={`relative h-6 w-11 rounded-full transition-all duration-200 shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${checked ? "bg-indigo-600" : "bg-slate-700"} ${disabled || saving ? "cursor-not-allowed opacity-70" : "cursor-pointer hover:brightness-110"}`}
+          className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 ${checked ? "bg-indigo-600" : "bg-slate-600"} ${disabled || saving ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
         >
           <span
-            className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${checked ? "translate-x-6" : "translate-x-1"}`}
+            aria-hidden="true"
+            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${checked ? "translate-x-5" : "translate-x-0"}`}
           />
         </button>
       </div>
