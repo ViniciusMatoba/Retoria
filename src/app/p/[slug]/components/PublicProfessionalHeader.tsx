@@ -99,6 +99,19 @@ export default function PublicProfessionalHeader({
 
   // Address section logic
   const addressText = formatPublicAddress(profile.publicAddress);
+
+  // Build Google Maps embed URL — uses coordinates when available, falls back to address string
+  const mapsEmbedUrl = (() => {
+    const addr = profile.publicAddress;
+    if (!addr) return null;
+    if (addr.latitude != null && addr.longitude != null) {
+      return `https://maps.google.com/maps?q=${addr.latitude},${addr.longitude}&z=16&output=embed`;
+    }
+    const query = encodeURIComponent(addressText ?? "");
+    if (!query) return null;
+    return `https://maps.google.com/maps?q=${query}&output=embed`;
+  })();
+
   const canShowDirections =
     hasMinimalAddress(profile.publicAddress) &&
     profile.serviceLocationType !== "online";
@@ -212,11 +225,27 @@ export default function PublicProfessionalHeader({
                 Atendimento em domicílio — consulte a área de atendimento.
               </p>
             ) : (
-              <div className="flex flex-col items-center gap-2">
+              <div className="flex flex-col items-center gap-2 w-full">
                 <div className="flex items-start gap-1.5 text-xs text-[var(--theme-muted-text)] max-w-xs text-center leading-relaxed">
                   <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5" style={{ color: corBrand }} aria-hidden="true" />
                   <span>{addressText}</span>
                 </div>
+
+                {/* Mini mapa incorporado */}
+                {mapsEmbedUrl && !isPreview && (
+                  <div className="w-full max-w-xs rounded-xl overflow-hidden border border-[rgba(255,255,255,0.08)] shadow-md mt-1" style={{ height: 140 }}>
+                    <iframe
+                      title="Localização"
+                      src={mapsEmbedUrl}
+                      width="100%"
+                      height="140"
+                      style={{ border: 0 }}
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                    />
+                  </div>
+                )}
+
                 {canShowDirections && (
                   <button
                     type="button"
