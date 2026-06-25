@@ -96,6 +96,30 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "E-mail inválido." }, { status: 400 });
   }
 
+  // Verificar limite de membros do plano
+  const licenseSnap = await dbAdmin.collection("licenses").doc(professionalId).get();
+  if (licenseSnap.exists()) {
+    const license = licenseSnap.data()!;
+    const maxMembers: number = license.maxMembers ?? 0;
+    if (maxMembers !== -1) { // -1 = ilimitado
+      const activeCount = (await dbAdmin.collection("professionals")
+        .where("parentProfessionalId", "==", professionalId)
+        .where("role", "==", "team_member")
+        .where("professionalStatus", "==", "active")
+        .get()).size;
+      const pendingCount = (await dbAdmin.collection("teamInvites")
+        .where("ownerUid", "==", professionalId)
+        .where("status", "==", "pending")
+        .get()).size;
+      if (activeCount + pendingCount >= maxMembers) {
+        return NextResponse.json(
+          { error: `Limite de membros atingido para o seu plano (${maxMembers} membro${maxMembers !== 1 ? "s" : ""}). Faça upgrade para adicionar mais.` },
+          { status: 403 }
+        );
+      }
+    }
+  }
+
   // Verificar se já existe membro ativo com esse e-mail
   try {
     await authAdmin.getUserByEmail(email.toLowerCase().trim());
@@ -149,8 +173,20 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   const { professionalId } = await params;
   if (callerUid !== professionalId) return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
 
-  const { memberId } = await req.json().catch(() => ({}));
-  if (!memberId) return NextResponse.json({ error: "memberId obrigatório." }, { status: 400 });
+  const body = await req.json().catch(() => ({}));
+  const { memberId, inviteToken } = body ?? {};
+
+  if (inviteToken) {
+    // Cancelar convite pendente
+    const inviteSnap = await dbAdmin.collection("teamInvites").doc(inviteToken).get();
+    if (!inviteSnap.exists || inviteSnap.data()?.ownerUid !== professionalId) {
+      return NextResponse.json({ error: "Convite não encontrado." }, { status: 404 });
+    }
+    await dbAdmin.collection("teamInvites").doc(inviteToken).delete();
+    return NextResponse.json({ ok: true });
+  }
+
+  if (!memberId) return NextResponse.json({ error: "memberId ou inviteToken obrigatório." }, { status: 400 });
 
   const memberSnap = await dbAdmin.collection("professionals").doc(memberId).get();
   if (!memberSnap.exists || memberSnap.data()?.parentProfessionalId !== professionalId) {

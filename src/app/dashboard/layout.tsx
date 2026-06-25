@@ -26,6 +26,8 @@ import {
   bgPatterns,
   buildVersionedImageUrl,
 } from "@/lib/themeUtils";
+import { db } from "@/lib/firebase";
+import { doc, onSnapshot } from "firebase/firestore";
 import { getGoogleFontsLink } from "../p/[slug]/components/PublicThemeProvider";
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -56,6 +58,8 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const { user, profile, loading, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [licenseStatus, setLicenseStatus] = useState<string | null>(null);
+  const [licenseEnd, setLicenseEnd] = useState<Date | null>(null);
 
   const themeConfig = normalizeThemeConfig({
     ...(profile?.themeConfig || {}),
@@ -85,6 +89,20 @@ export default function DashboardLayout({
 
     // Profissionais antigos sem professionalStatus têm acesso (fallback compatível)
   }, [user, profile, loading, router]);
+
+  // License listener — apenas para owners (team_members herdam do dono)
+  useEffect(() => {
+    if (!user || !profile || profile.role === "team_member") return;
+    const licenseRef = doc(db, "licenses", user.uid);
+    const unsub = onSnapshot(licenseRef, (snap) => {
+      if (!snap.exists()) return;
+      const data = snap.data();
+      setLicenseStatus(data.status ?? null);
+      const end = data.currentPeriodEnd;
+      setLicenseEnd(end ? (end.toDate ? end.toDate() : new Date(end)) : null);
+    });
+    return unsub;
+  }, [user, profile]);
 
   const handleLogout = async () => {
     try {
@@ -391,6 +409,32 @@ export default function DashboardLayout({
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 overflow-y-auto relative z-10">
+        {/* License grace period banner */}
+        {licenseStatus === "grace" && licenseEnd && (() => {
+          const daysLeft = Math.max(0, Math.ceil((licenseEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+          return (
+            <div className="sticky top-0 z-20 bg-amber-500/90 backdrop-blur-sm border-b border-amber-600/50 px-4 py-2.5 flex items-center gap-2 text-amber-950 text-sm font-semibold">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>
+                Seu plano expirou.{" "}
+                {daysLeft > 0 ? `Você tem ${daysLeft} dia${daysLeft !== 1 ? "s" : ""} de período de graça antes da suspensão.` : "Seu acesso será suspenso em breve."}
+                {" "}Entre em contato para renovar.
+              </span>
+            </div>
+          );
+        })()}
+        {licenseStatus === "trial" && licenseEnd && (() => {
+          const daysLeft = Math.max(0, Math.ceil((licenseEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+          if (daysLeft > 3) return null;
+          return (
+            <div className="sticky top-0 z-20 bg-blue-500/90 backdrop-blur-sm border-b border-blue-600/50 px-4 py-2.5 flex items-center gap-2 text-blue-950 text-sm font-semibold">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>
+                Seu trial termina em {daysLeft} dia{daysLeft !== 1 ? "s" : ""}. Entre em contato para garantir a continuidade do acesso.
+              </span>
+            </div>
+          );
+        })()}
         <div className="flex-1 p-4 md:p-8 max-w-7xl w-full mx-auto">
           {children}
         </div>

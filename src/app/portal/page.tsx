@@ -13,7 +13,10 @@ import {
   Loader2,
   ChevronRight,
   Sparkles,
+  Shield,
 } from "lucide-react";
+
+const ADMIN_UID = "Br8CTpvxb9eZvz92kytZ2AKX6tJ3";
 
 export default function PortalPage() {
   const router = useRouter();
@@ -178,6 +181,23 @@ export default function PortalPage() {
                 </p>
               </div>
               <ChevronRight className="h-5 w-5 text-slate-600 group-hover:text-slate-300 transition-colors shrink-0" />
+            </Link>
+          )}
+
+          {/* Admin panel — só visível para o admin */}
+          {user.uid === ADMIN_UID && (
+            <Link
+              href="/admin"
+              className="group flex items-center gap-4 p-5 bg-slate-900/60 hover:bg-slate-800/80 border border-indigo-500/30 hover:border-indigo-400/60 rounded-2xl transition-all duration-200 shadow-sm"
+            >
+              <div className="h-12 w-12 rounded-xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center shrink-0 group-hover:bg-indigo-500/25 transition-colors">
+                <Shield className="h-6 w-6 text-indigo-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h2 className="font-bold text-indigo-300 text-base">Painel Admin</h2>
+                <p className="text-sm text-slate-400 mt-0.5">Gerenciar clientes, licenças e links de acesso.</p>
+              </div>
+              <ChevronRight className="h-5 w-5 text-slate-600 group-hover:text-indigo-400 transition-colors shrink-0" />
             </Link>
           )}
 

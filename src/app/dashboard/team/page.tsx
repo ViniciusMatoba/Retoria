@@ -144,7 +144,7 @@ export default function TeamPage() {
   };
 
   const handleRemove = async (memberId: string) => {
-    if (!user || !confirm("Desativar este membro da equipe?")) return;
+    if (!user || !confirm("Desativar este membro da equipe? Ele perderá acesso ao painel.")) return;
     const token = await user.getIdToken();
     await fetch(`/api/professionals/${user.uid}/team`, {
       method: "DELETE",
@@ -152,6 +152,17 @@ export default function TeamPage() {
       body: JSON.stringify({ memberId }),
     });
     setEditingMember(null);
+    fetchTeam();
+  };
+
+  const handleRemoveInvite = async (inviteToken: string, inviteNome: string) => {
+    if (!user || !confirm(`Cancelar o convite de ${inviteNome}? O link deixará de funcionar.`)) return;
+    const token = await user.getIdToken();
+    await fetch(`/api/professionals/${user.uid}/team`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ inviteToken }),
+    });
     fetchTeam();
   };
 
@@ -430,10 +441,16 @@ export default function TeamPage() {
                       <p className="text-sm font-semibold text-slate-200">{inv.nome}</p>
                       <p className="text-xs text-slate-400 truncate">{inv.email}</p>
                     </div>
-                    <button onClick={() => copyLink(`${window.location.origin}/invite/${inv.token}`)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-lg text-xs font-semibold transition-all shrink-0">
-                      <Copy className="h-3 w-3" /><span>Link</span>
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button onClick={() => copyLink(`${window.location.origin}/invite/${inv.token}`)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-lg text-xs font-semibold transition-all">
+                        <Copy className="h-3 w-3" /><span>Link</span>
+                      </button>
+                      <button onClick={() => handleRemoveInvite(inv.token, inv.nome)}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-red-400 hover:bg-red-500/10 border border-red-500/20 rounded-lg text-xs font-semibold transition-all">
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </>
