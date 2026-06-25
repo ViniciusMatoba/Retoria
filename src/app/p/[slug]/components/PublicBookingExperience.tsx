@@ -46,6 +46,7 @@ export interface Professional {
   showPublicAddress?: boolean;
   showMiniMap?: boolean;
   instagram?: string;
+  showPublicInstagram?: boolean;
 }
 
 export interface Service {
@@ -69,6 +70,13 @@ export interface AvailableSlot {
   disponivel: boolean;
 }
 
+export interface TeamMemberPublic {
+  id: string;
+  nome: string;
+  especialidade?: string;
+  fotoLogoUrl?: string | null;
+}
+
 // Demo data used in preview mode when real data is unavailable
 const DEMO_SERVICES: Service[] = [
   { id: "demo-1", nome: "Consulta Inicial", descricaoCurta: "Primeira consulta de avaliação completa", duracaoEstimada: "60 min", ativo: true },
@@ -88,6 +96,10 @@ interface PublicBookingExperienceProps {
   slots: AvailableSlot[];
   themeConfig?: ThemeConfig;
   previewMode?: boolean;
+  teamMembers?: TeamMemberPublic[];
+  activeProfessionalId?: string;
+  onSelectMember?: (id: string) => void;
+  loadingMemberData?: boolean;
 }
 
 export default function PublicBookingExperience({
@@ -96,6 +108,10 @@ export default function PublicBookingExperience({
   slots: rawSlots,
   themeConfig,
   previewMode = false,
+  teamMembers = [],
+  activeProfessionalId,
+  onSelectMember,
+  loadingMemberData = false,
 }: PublicBookingExperienceProps) {
   const theme = themeConfig ?? professional.themeConfig ?? getDefaultThemeConfig();
 
@@ -103,7 +119,8 @@ export default function PublicBookingExperience({
   const services = rawServices.length > 0 ? rawServices : previewMode ? DEMO_SERVICES : rawServices;
   const slots = rawSlots.length > 0 ? rawSlots : previewMode ? DEMO_SLOTS : rawSlots;
 
-  const [step, setStep] = useState(1);
+  const hasTeam = teamMembers.length > 0;
+  const [step, setStep] = useState(hasTeam ? 0 : 1);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null);
@@ -201,6 +218,7 @@ export default function PublicBookingExperience({
   };
 
   const handleNextStep = () => {
+    if (step === 0 && !activeProfessionalId) { setError("Por favor, selecione um profissional para prosseguir."); return; }
     if (step === 1 && !selectedService) { setError("Por favor, selecione um serviço para prosseguir."); return; }
     if (step === 2 && (!selectedDate || !selectedSlot)) { setError("Por favor, escolha uma data e horário."); return; }
     setError("");
@@ -262,7 +280,7 @@ export default function PublicBookingExperience({
         method: "POST",
         headers,
         body: JSON.stringify({
-          professionalId: professional.id,
+          professionalId: activeProfessionalId ?? professional.id,
           serviceId: selectedService.id,
           nome: trimmedNome,
           telefone: formattedClientPhone,
@@ -377,25 +395,24 @@ export default function PublicBookingExperience({
                 color: "var(--theme-muted-text)",
               }}
             >
-              <span
-                className="font-black"
-                style={step === 1 ? { color: "var(--theme-primary)" } : { color: "var(--theme-muted-text)", opacity: 0.5 }}
-              >
-                1. Serviço
+              {hasTeam && (
+                <>
+                  <span className="font-black" style={step === 0 ? { color: "var(--theme-primary)" } : { color: "var(--theme-muted-text)", opacity: 0.5 }}>
+                    1. Profissional
+                  </span>
+                  <ChevronRight className="h-3 w-3 opacity-30" style={{ color: "var(--theme-muted-text)" }} />
+                </>
+              )}
+              <span className="font-black" style={step === 1 ? { color: "var(--theme-primary)" } : { color: "var(--theme-muted-text)", opacity: 0.5 }}>
+                {hasTeam ? "2." : "1."} Serviço
               </span>
               <ChevronRight className="h-3 w-3 opacity-30" style={{ color: "var(--theme-muted-text)" }} />
-              <span
-                className="font-black"
-                style={step === 2 ? { color: "var(--theme-primary)" } : { color: "var(--theme-muted-text)", opacity: 0.5 }}
-              >
-                2. Horário
+              <span className="font-black" style={step === 2 ? { color: "var(--theme-primary)" } : { color: "var(--theme-muted-text)", opacity: 0.5 }}>
+                {hasTeam ? "3." : "2."} Horário
               </span>
               <ChevronRight className="h-3 w-3 opacity-30" style={{ color: "var(--theme-muted-text)" }} />
-              <span
-                className="font-black"
-                style={step === 3 ? { color: "var(--theme-primary)" } : { color: "var(--theme-muted-text)", opacity: 0.5 }}
-              >
-                3. Seus Dados
+              <span className="font-black" style={step === 3 ? { color: "var(--theme-primary)" } : { color: "var(--theme-muted-text)", opacity: 0.5 }}>
+                {hasTeam ? "4." : "3."} Seus Dados
               </span>
             </div>
           )}
@@ -406,6 +423,79 @@ export default function PublicBookingExperience({
               <div className="mb-4 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex gap-3 items-center">
                 <AlertCircle className="h-5 w-5 shrink-0" />
                 <p className="font-medium">{error}</p>
+              </div>
+            )}
+
+            {/* STEP 0 — Escolha do profissional (só aparece quando há equipe) */}
+            {step === 0 && hasTeam && (
+              <div className="space-y-4">
+                <div>
+                  <h2 className="text-lg font-bold text-[var(--theme-text)] mb-1" style={{ fontFamily: "var(--theme-heading-font)" }}>Escolha o profissional</h2>
+                  <p className="text-xs text-[var(--theme-muted-text)]">Selecione com quem você gostaria de ser atendido.</p>
+                </div>
+
+                <div className="space-y-3 pt-2">
+                  {/* Owner card */}
+                  {[
+                    { id: professional.id, nome: professional.nome, especialidade: (professional as any).especialidade ?? "", fotoLogoUrl: professional.fotoLogoUrl ?? null },
+                    ...teamMembers,
+                  ].map((member) => {
+                    const isSelected = activeProfessionalId === member.id;
+                    return (
+                      <button
+                        key={member.id}
+                        type="button"
+                        onClick={() => { onSelectMember?.(member.id); setError(""); setSelectedService(null); setSelectedDate(""); setSelectedSlot(null); }}
+                        style={{
+                          borderRadius: `${theme.cardRadius}px`,
+                          borderColor: isSelected ? corBrand : undefined,
+                          boxShadow: isSelected ? `0 0 0 1px ${corBrand}` : undefined,
+                        }}
+                        className={`w-full text-left flex items-center gap-4 p-4 transition-all duration-200 ${cardClass} ${!isSelected ? "hover:border-[rgba(255,255,255,0.2)]" : ""}`}
+                      >
+                        <div
+                          style={{ borderRadius: `${Math.max(0, theme.cardRadius - 4)}px` }}
+                          className="h-14 w-14 shrink-0 overflow-hidden border border-[rgba(255,255,255,0.08)] bg-slate-950/60 flex items-center justify-center"
+                        >
+                          {member.fotoLogoUrl
+                            // eslint-disable-next-line @next/next/no-img-element
+                            ? <img src={member.fotoLogoUrl} alt={member.nome} className="h-full w-full object-cover" />
+                            : <span className="text-xl font-black" style={{ color: corBrand }}>{member.nome[0]}</span>
+                          }
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-[var(--theme-text)] text-sm">{member.nome}</p>
+                          {member.especialidade && <p className="text-xs mt-0.5" style={{ color: corBrand }}>{member.especialidade}</p>}
+                        </div>
+                        {isSelected && (
+                          <div className="shrink-0 h-6 w-6 rounded-full flex items-center justify-center" style={{ backgroundColor: corBrand }}>
+                            <Check className="h-3.5 w-3.5" style={{ color: getBestTextColor(corBrand) }} />
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {loadingMemberData && (
+                  <div className="flex items-center justify-center gap-2 py-2 text-xs text-[var(--theme-muted-text)]">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>Carregando agenda...</span>
+                  </div>
+                )}
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="button"
+                    onClick={handleNextStep}
+                    disabled={!activeProfessionalId || loadingMemberData}
+                    style={{ backgroundColor: corBrand, color: getBestTextColor(corBrand) }}
+                    className={`flex items-center gap-2 px-6 py-3 font-semibold text-sm transition-all disabled:opacity-40 ${btnRadiusClass}`}
+                  >
+                    <span>Continuar</span>
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             )}
 
@@ -436,12 +526,22 @@ export default function PublicBookingExperience({
                     ))}
                   </div>
                 )}
-                <div className="pt-4">
+                <div className={`pt-4 flex gap-3 ${hasTeam ? "justify-between" : ""}`}>
+                  {hasTeam && (
+                    <button
+                      type="button"
+                      onClick={handlePrevStep}
+                      className={`flex items-center gap-1.5 px-4 py-3 font-semibold text-sm transition-all text-[var(--theme-muted-text)] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.2)] ${btnRadiusClass}`}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      <span>Voltar</span>
+                    </button>
+                  )}
                   <button
                     onClick={handleNextStep}
                     disabled={!selectedService}
                     style={selectedService ? { backgroundColor: theme.primaryColor, color: getBestTextColor(theme.primaryColor), fontFamily: "var(--theme-body-font)" } : {}}
-                    className={`w-full py-3.5 px-4 font-semibold text-sm transition-all shadow-lg flex items-center justify-center gap-2 active:scale-[0.98] ${btnRadiusClass} ${!selectedService ? "bg-slate-800 text-slate-500 cursor-not-allowed shadow-none" : "hover:brightness-110"}`}
+                    className={`${hasTeam ? "" : "w-full"} flex-1 py-3.5 px-4 font-semibold text-sm transition-all shadow-lg flex items-center justify-center gap-2 active:scale-[0.98] ${btnRadiusClass} ${!selectedService ? "bg-slate-800 text-slate-500 cursor-not-allowed shadow-none" : "hover:brightness-110"}`}
                   >
                     <span>Escolher Data & Horário</span>
                     <ChevronRight className="h-4 w-4" />

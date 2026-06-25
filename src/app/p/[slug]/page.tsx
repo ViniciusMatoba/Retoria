@@ -10,6 +10,7 @@ import PublicBookingExperience, {
   Professional,
   Service,
   AvailableSlot,
+  TeamMemberPublic,
 } from "./components/PublicBookingExperience";
 
 interface PageProps {
@@ -29,6 +30,11 @@ export default function PublicBookingPage({ params }: PageProps) {
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState("");
 
+  // Team support
+  const [teamMembers, setTeamMembers] = useState<TeamMemberPublic[]>([]);
+  const [activeProfessionalId, setActiveProfessionalId] = useState<string | undefined>(undefined);
+  const [loadingMemberData, setLoadingMemberData] = useState(false);
+
   const fetchServices = async (profId: string) => {
     try {
       const servicesRef = collection(db, "professionals", profId, "services");
@@ -45,6 +51,35 @@ export default function PublicBookingPage({ params }: PageProps) {
     } catch (e) {
       console.error("Error loading services:", e);
     }
+  };
+
+  const fetchTeamMembers = async (ownerId: string): Promise<TeamMemberPublic[]> => {
+    try {
+      const q = query(
+        collection(db, "professionals"),
+        where("parentProfessionalId", "==", ownerId),
+        where("role", "==", "team_member"),
+        where("professionalStatus", "==", "active"),
+      );
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => ({
+        id: d.id,
+        nome: d.data().nome ?? "",
+        especialidade: d.data().especialidade ?? "",
+        fotoLogoUrl: d.data().fotoLogoUrl ?? null,
+      }));
+    } catch {
+      return [];
+    }
+  };
+
+  const handleSelectMember = async (memberId: string) => {
+    setActiveProfessionalId(memberId);
+    setLoadingMemberData(true);
+    const prof = professional;
+    const windowDays = prof?.agendaConfig?.janelaAgendamentoDias ?? 30;
+    await Promise.all([fetchServices(memberId), fetchAvailableSlots(memberId, windowDays)]);
+    setLoadingMemberData(false);
   };
 
   const fetchAvailableSlots = async (profId: string, windowDays: number = 30) => {
@@ -102,7 +137,17 @@ export default function PublicBookingPage({ params }: PageProps) {
 
         setProfessional(profData);
         const windowDays = profData.agendaConfig?.janelaAgendamentoDias || 30;
-        await Promise.all([fetchServices(docSnap.id), fetchAvailableSlots(docSnap.id, windowDays)]);
+
+        // Fetch team members; if owner has team don't pre-load services (user picks member first)
+        const members = await fetchTeamMembers(docSnap.id);
+        setTeamMembers(members);
+
+        if (members.length === 0) {
+          // No team — load owner's services/slots immediately (existing flow)
+          setActiveProfessionalId(docSnap.id);
+          await Promise.all([fetchServices(docSnap.id), fetchAvailableSlots(docSnap.id, windowDays)]);
+        }
+        // If team exists, activeProfessionalId stays undefined until user picks
       } catch (err) {
         console.error("Error loading booking page:", err);
         setError("Erro ao carregar dados. Tente novamente mais tarde.");
@@ -141,6 +186,10 @@ export default function PublicBookingPage({ params }: PageProps) {
       professional={professional}
       services={services}
       slots={slots}
+      teamMembers={teamMembers}
+      activeProfessionalId={activeProfessionalId}
+      onSelectMember={handleSelectMember}
+      loadingMemberData={loadingMemberData}
     />
   );
 }
