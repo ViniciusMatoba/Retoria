@@ -1513,8 +1513,9 @@ export default function SlotsPage() {
             const isPast = dateStr < today;
 
             const daySlots = slotsByDate.get(dateStr) || [];
-            const availableCount = daySlots.filter(s => s.disponivel).length;
-            const reservedCount = daySlots.filter(s => !s.disponivel).length;
+            const futureSlots = daySlots.filter(s => !isPastDateTimeSaoPaulo(dateStr, s.horario));
+            const availableCount = futureSlots.filter(s => s.disponivel).length;
+            const reservedCount = futureSlots.filter(s => !s.disponivel).length;
             const cancelledCount = leads.filter(l => l.status === "Cancelado" && l.dataEscolhida === dateStr).length;
             const dayNum = dateStr.split("-")[2];
 
@@ -1596,6 +1597,7 @@ export default function SlotsPage() {
           const daySlots = slotsByDate.get(dateStr) || [];
           const sortedSlots = [...daySlots].sort((a, b) => timeToMinutes(a.horario) - timeToMinutes(b.horario));
           const cancelledCount = leads.filter(l => l.status === "Cancelado" && l.dataEscolhida === dateStr).length;
+          const isSlotExpired = (horario: string) => isToday && isPastDateTimeSaoPaulo(dateStr, horario);
 
           return (
             <div
@@ -1654,6 +1656,19 @@ export default function SlotsPage() {
                     });
 
                     const isContinuation = coveringLead && (!lead);
+                    const expired = isSlotExpired(slot.horario);
+
+                    if (expired) {
+                      return (
+                        <div
+                          key={slot.id}
+                          className="p-2.5 rounded-xl border bg-slate-950/10 border-slate-900/30 flex items-center justify-between text-[11px] opacity-40"
+                        >
+                          <span className="font-mono text-slate-500 line-through">{slot.horario}</span>
+                          <span className="text-[9px] text-slate-600 uppercase tracking-wider font-bold">Expirado</span>
+                        </div>
+                      );
+                    }
 
                     if (slot.disponivel) {
                       const style = getCalendarStatusStyle("Disponível", calendarColors);
@@ -1792,6 +1807,22 @@ export default function SlotsPage() {
               });
 
               const isContinuation = coveringLead && (!lead);
+              const expired = isPastDateTimeSaoPaulo(dateStr, slot.horario);
+
+              if (expired && !lead && !isContinuation) {
+                return (
+                  <div
+                    key={slot.id}
+                    className="p-4 bg-slate-950/20 border border-slate-900/30 rounded-2xl flex items-center justify-between text-xs opacity-35"
+                  >
+                    <div className="flex items-center gap-4">
+                      <span className="font-mono text-slate-500 text-sm line-through">{slot.horario}</span>
+                      <span className="text-[10px] text-slate-600 font-medium">Horário expirado</span>
+                    </div>
+                    <span className="text-[10px] text-slate-600 uppercase tracking-wider font-bold">Expirado</span>
+                  </div>
+                );
+              }
 
               if (slot.disponivel) {
                 const style = getCalendarStatusStyle("Disponível", calendarColors);
@@ -1804,8 +1835,8 @@ export default function SlotsPage() {
                       <span className="font-mono text-slate-200 text-sm font-bold">{slot.horario}</span>
                       <span className="text-[10px] text-slate-500 font-medium">Horário Livre</span>
                     </div>
-                    <span 
-                      className="px-2.5 py-0.5 rounded text-[10px] uppercase tracking-wider font-extrabold" 
+                    <span
+                      className="px-2.5 py-0.5 rounded text-[10px] uppercase tracking-wider font-extrabold"
                       style={{ backgroundColor: style.bg + "20", color: style.bg, border: `1px solid ${style.bg}30` }}
                     >
                       {style.label}
