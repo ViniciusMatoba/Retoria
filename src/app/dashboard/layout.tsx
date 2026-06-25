@@ -18,6 +18,14 @@ import {
   Palette,
   LayoutGrid,
 } from "lucide-react";
+import {
+  normalizeThemeConfig,
+  fontCatalog,
+  gradientPresets,
+  bgPatterns,
+  buildVersionedImageUrl,
+} from "@/lib/themeUtils";
+import { getGoogleFontsLink } from "../p/[slug]/components/PublicThemeProvider";
 
 export default function DashboardLayout({
   children,
@@ -28,6 +36,12 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const { user, profile, loading, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const themeConfig = normalizeThemeConfig({
+    ...(profile?.themeConfig || {}),
+    primaryColor: profile?.themeConfig?.primaryColor || profile?.corPrincipal
+  });
+  const fontUrl = getGoogleFontsLink(themeConfig.headingFont, themeConfig.bodyFont);
 
   // Auth Guard — must be logged in AND have a valid active professional document
   useEffect(() => {
@@ -86,10 +100,81 @@ export default function DashboardLayout({
     { name: "Editar Perfil", href: "/dashboard/profile", icon: Settings },
   ];
 
+  const styleVariables = {
+    "--theme-primary": themeConfig.primaryColor || "#6366f1",
+    "--theme-primary-hover": themeConfig.primaryColor || "#4f46e5",
+    "--theme-heading-font": `'${themeConfig.headingFont}', ${fontCatalog.find(f => f.family === themeConfig.headingFont)?.fallback || 'sans-serif'}`,
+    "--theme-body-font": `'${themeConfig.bodyFont}', ${fontCatalog.find(f => f.family === themeConfig.bodyFont)?.fallback || 'sans-serif'}`,
+  } as React.CSSProperties;
+
+  const bgStyle: React.CSSProperties = { 
+    ...styleVariables,
+    fontFamily: "var(--theme-body-font)",
+  };
+
+  if (themeConfig.backgroundType === "solid") {
+    bgStyle.backgroundColor = themeConfig.backgroundColor;
+  } else if (themeConfig.backgroundType === "gradient" && themeConfig.backgroundGradient) {
+    bgStyle.background = gradientPresets[themeConfig.backgroundGradient] || themeConfig.backgroundColor;
+  } else if (themeConfig.backgroundType === "preset" && themeConfig.backgroundPreset) {
+    bgStyle.background = bgPatterns[themeConfig.backgroundPreset]?.css || themeConfig.backgroundColor;
+    if (themeConfig.backgroundPreset === "texturized") {
+      bgStyle.backgroundSize = "20px 20px";
+    }
+  } else if (themeConfig.backgroundType === "image" && themeConfig.backgroundImageUrl) {
+    const versionedUrl = buildVersionedImageUrl(themeConfig.backgroundImageUrl, themeConfig.backgroundUpdatedAt);
+    bgStyle.backgroundImage = `url(${versionedUrl})`;
+    bgStyle.backgroundPosition = themeConfig.backgroundPosition;
+    bgStyle.backgroundSize = themeConfig.backgroundSize;
+    bgStyle.backgroundAttachment = "fixed";
+  } else {
+    bgStyle.backgroundColor = "#020617";
+  }
+
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-slate-950 text-slate-100 font-sans">
+    <div style={bgStyle} className="min-h-screen flex flex-col md:flex-row text-slate-100 font-sans relative selection:bg-[var(--theme-primary)] selection:text-white transition-colors duration-200 overflow-x-hidden">
+      {fontUrl && <link rel="stylesheet" href={fontUrl} />}
+      
+      {/* Dark overlay glass layer to protect readability of the dashboard */}
+      <div 
+        className="absolute inset-0 z-0 bg-slate-950/85 backdrop-blur-[12px] pointer-events-none"
+      />
+
+      {/* Dynamic style overrides for Tailwind colors to match the theme primary color */}
+      <style>{`
+        :root {
+          --theme-primary: ${themeConfig.primaryColor || '#6366f1'};
+        }
+        .bg-indigo-600 {
+          background-color: var(--theme-primary) !important;
+        }
+        .hover\\:bg-indigo-500:hover {
+          background-color: var(--theme-primary) !important;
+          filter: brightness(0.9) !important;
+        }
+        .border-indigo-500 {
+          border-color: var(--theme-primary) !important;
+        }
+        .text-indigo-600 {
+          color: var(--theme-primary) !important;
+        }
+        .text-indigo-500 {
+          color: var(--theme-primary) !important;
+        }
+        .text-indigo-400 {
+          color: var(--theme-primary) !important;
+        }
+        .focus\\:border-indigo-500:focus {
+          border-color: var(--theme-primary) !important;
+        }
+        .focus\\:ring-indigo-500:focus {
+          --tw-ring-color: var(--theme-primary) !important;
+          border-color: var(--theme-primary) !important;
+        }
+      `}</style>
+
       {/* Mobile Header */}
-      <header className="flex md:hidden items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-800 shrink-0">
+      <header className="flex md:hidden items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-800 shrink-0 relative z-10">
         <div className="flex items-center gap-2">
           <div className="h-8 w-8 rounded-lg bg-indigo-600 flex items-center justify-center">
             <Calendar className="h-4 w-4 text-white" />
@@ -106,7 +191,7 @@ export default function DashboardLayout({
 
       {/* Sidebar - Desktop */}
       <aside className={`
-        fixed inset-0 z-40 md:relative md:z-0
+        fixed inset-0 z-45 md:relative md:z-10
         flex flex-col w-64 bg-slate-900 border-r border-slate-800/80 shrink-0
         transition-transform duration-300 md:transition-none md:translate-x-0
         ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
@@ -198,7 +283,7 @@ export default function DashboardLayout({
       )}
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto relative z-10">
         <div className="flex-1 p-4 md:p-8 max-w-7xl w-full mx-auto">
           {children}
         </div>
