@@ -195,20 +195,37 @@ export default function ThemePreview({
 
                 {/* Address */}
                 {showPublicAddress && addressText && (
-                  <div className="mt-2 pt-2 border-t border-[rgba(255,255,255,0.07)] w-full flex items-center justify-center gap-1 text-[9px] text-[var(--theme-muted-text)]">
-                    <MapPin className="h-2.5 w-2.5 shrink-0" style={{ color: themeConfig.primaryColor }} />
-                    <span className="truncate max-w-[200px]">{addressText}</span>
+                  <div className="mt-2 pt-2 border-t border-[rgba(255,255,255,0.07)] w-full">
+                    <div className="flex items-center justify-center gap-1 text-[9px] text-[var(--theme-muted-text)]">
+                      <MapPin className="h-2.5 w-2.5 shrink-0" style={{ color: themeConfig.primaryColor }} />
+                      <span className="truncate max-w-[200px]">{addressText}</span>
+                    </div>
+                    {/* Mini mapa */}
+                    <div className="mt-2 w-full rounded-lg overflow-hidden" style={{ height: 90 }}>
+                      <iframe
+                        title="Mapa"
+                        src={`https://maps.google.com/maps?q=${encodeURIComponent(addressText)}&output=embed`}
+                        width="100%"
+                        height="90"
+                        style={{ border: 0 }}
+                        loading="lazy"
+                        referrerPolicy="no-referrer-when-downgrade"
+                      />
+                    </div>
                   </div>
                 )}
               </div>
 
               {/* Progress Steps Header */}
-              <div className="bg-[rgba(15,23,42,0.4)] backdrop-blur-sm border border-[rgba(255,255,255,0.05)] rounded-2xl px-3 py-2 flex justify-between items-center text-[10px] font-bold text-[var(--theme-muted-text)]">
-                <span className="text-[var(--theme-primary)] font-black">1. Serviço</span>
-                <ChevronRight className="h-2.5 w-2.5 text-slate-700" />
-                <span className="opacity-50">2. Horário</span>
-                <ChevronRight className="h-2.5 w-2.5 text-slate-700" />
-                <span className="opacity-50">3. Dados</span>
+              <div
+                className="backdrop-blur-sm rounded-2xl px-3 py-2 flex justify-between items-center text-[10px] font-bold"
+                style={{ backgroundColor: "var(--theme-surface)", border: "1px solid rgba(128,128,128,0.12)", color: "var(--theme-muted-text)" }}
+              >
+                <span className="font-black" style={{ color: "var(--theme-primary)" }}>1. Serviço</span>
+                <ChevronRight className="h-2.5 w-2.5 opacity-30" style={{ color: "var(--theme-muted-text)" }} />
+                <span style={{ color: "var(--theme-muted-text)", opacity: 0.5 }}>2. Horário</span>
+                <ChevronRight className="h-2.5 w-2.5 opacity-30" style={{ color: "var(--theme-muted-text)" }} />
+                <span style={{ color: "var(--theme-muted-text)", opacity: 0.5 }}>3. Dados</span>
               </div>
 
               {/* Services List Panel */}
