@@ -73,6 +73,29 @@ export interface CalendarEventParams {
   timezone?: string;
 }
 
+export async function deleteCalendarEvent(
+  professionalUid: string,
+  calendarEventId: string
+): Promise<void> {
+  const tokens = await getTokens(professionalUid);
+  if (!tokens?.refresh_token) return;
+
+  const oauth2Client = createOAuthClient();
+  oauth2Client.setCredentials({
+    access_token: tokens.access_token,
+    refresh_token: tokens.refresh_token,
+    expiry_date: tokens.expiry_date,
+  });
+
+  const calendar = google.calendar({ version: "v3", auth: oauth2Client });
+  try {
+    await calendar.events.delete({ calendarId: "primary", eventId: calendarEventId });
+  } catch (err: any) {
+    // 410 Gone = já foi deletado, ignora
+    if (err?.code !== 410) throw err;
+  }
+}
+
 export async function createCalendarEvent(
   professionalUid: string,
   params: CalendarEventParams
