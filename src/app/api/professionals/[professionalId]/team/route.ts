@@ -1,0 +1,153 @@
+import { NextRequest, NextResponse } from "next/server";
+import { dbAdmin, authAdmin } from "@/lib/firebaseAdmin";
+import { FieldValue } from "firebase-admin/firestore";
+import crypto from "crypto";
+
+type Params = { params: Promise<{ professionalId: string }> };
+
+// ── GET: lista membros da equipe ───────────────────────────────────────────
+export async function GET(req: NextRequest, { params }: Params) {
+  if (!dbAdmin || !authAdmin) return NextResponse.json({ error: "Config error." }, { status: 500 });
+
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  let callerUid: string;
+  try {
+    const decoded = await authAdmin.verifyIdToken(authHeader.slice(7));
+    callerUid = decoded.uid;
+  } catch {
+    return NextResponse.json({ error: "Token inválido." }, { status: 401 });
+  }
+
+  const { professionalId } = await params;
+  if (callerUid !== professionalId) return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
+
+  // Membros ativos
+  const membersSnap = await dbAdmin
+    .collection("professionals")
+    .where("parentProfessionalId", "==", professionalId)
+    .where("role", "==", "team_member")
+    .get();
+
+  const members = membersSnap.docs.map((d: any) => ({
+    id: d.id,
+    nome: d.data().nome,
+    especialidade: d.data().especialidade ?? "",
+    fotoLogoUrl: d.data().fotoLogoUrl ?? null,
+    professionalStatus: d.data().professionalStatus,
+    email: d.data().email ?? null,
+  }));
+
+  // Convites pendentes
+  const invitesSnap = await dbAdmin
+    .collection("teamInvites")
+    .where("ownerUid", "==", professionalId)
+    .where("status", "==", "pending")
+    .get();
+
+  const invites = invitesSnap.docs.map((d: any) => ({
+    token: d.id,
+    email: d.data().email,
+    nome: d.data().nome,
+    createdAt: d.data().createdAt,
+  }));
+
+  return NextResponse.json({ members, invites });
+}
+
+// ── POST: criar convite ────────────────────────────────────────────────────
+export async function POST(req: NextRequest, { params }: Params) {
+  if (!dbAdmin || !authAdmin) return NextResponse.json({ error: "Config error." }, { status: 500 });
+
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  let callerUid: string;
+  try {
+    const decoded = await authAdmin.verifyIdToken(authHeader.slice(7));
+    callerUid = decoded.uid;
+  } catch {
+    return NextResponse.json({ error: "Token inválido." }, { status: 401 });
+  }
+
+  const { professionalId } = await params;
+  if (callerUid !== professionalId) return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
+
+  // Validar que o caller é owner (role !== team_member)
+  const ownerSnap = await dbAdmin.collection("professionals").doc(professionalId).get();
+  if (!ownerSnap.exists) return NextResponse.json({ error: "Profissional não encontrado." }, { status: 404 });
+  if (ownerSnap.data()?.role === "team_member") {
+    return NextResponse.json({ error: "Membros da equipe não podem convidar outros membros." }, { status: 403 });
+  }
+
+  let body: any;
+  try { body = await req.json(); } catch { return NextResponse.json({ error: "JSON inválido." }, { status: 400 }); }
+
+  const { nome, email, especialidade } = body ?? {};
+  if (!nome || typeof nome !== "string" || nome.trim().length < 2) {
+    return NextResponse.json({ error: "Nome obrigatório (mínimo 2 caracteres)." }, { status: 400 });
+  }
+  if (!email || typeof email !== "string" || !email.includes("@")) {
+    return NextResponse.json({ error: "E-mail inválido." }, { status: 400 });
+  }
+
+  // Verificar se já existe membro ativo com esse e-mail
+  try {
+    await authAdmin.getUserByEmail(email.toLowerCase().trim());
+    return NextResponse.json({ error: "Já existe uma conta com esse e-mail." }, { status: 409 });
+  } catch (e: any) {
+    if (e.code !== "auth/user-not-found") {
+      return NextResponse.json({ error: "Erro ao verificar e-mail." }, { status: 500 });
+    }
+  }
+
+  const token = crypto.randomBytes(32).toString("hex");
+
+  await dbAdmin.collection("teamInvites").doc(token).set({
+    ownerUid: professionalId,
+    ownerNomeNegocio: ownerSnap.data()?.nomeNegocio ?? "",
+    email: email.toLowerCase().trim(),
+    nome: nome.trim(),
+    especialidade: especialidade?.trim() ?? "",
+    status: "pending",
+    createdAt: FieldValue.serverTimestamp(),
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 dias
+  });
+
+  return NextResponse.json({ token });
+}
+
+// ── DELETE: remover membro ─────────────────────────────────────────────────
+export async function DELETE(req: NextRequest, { params }: Params) {
+  if (!dbAdmin || !authAdmin) return NextResponse.json({ error: "Config error." }, { status: 500 });
+
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  let callerUid: string;
+  try {
+    const decoded = await authAdmin.verifyIdToken(authHeader.slice(7));
+    callerUid = decoded.uid;
+  } catch {
+    return NextResponse.json({ error: "Token inválido." }, { status: 401 });
+  }
+
+  const { professionalId } = await params;
+  if (callerUid !== professionalId) return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
+
+  const { memberId } = await req.json().catch(() => ({}));
+  if (!memberId) return NextResponse.json({ error: "memberId obrigatório." }, { status: 400 });
+
+  const memberSnap = await dbAdmin.collection("professionals").doc(memberId).get();
+  if (!memberSnap.exists || memberSnap.data()?.parentProfessionalId !== professionalId) {
+    return NextResponse.json({ error: "Membro não encontrado." }, { status: 404 });
+  }
+
+  await dbAdmin.collection("professionals").doc(memberId).update({
+    professionalStatus: "suspended",
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  return NextResponse.json({ ok: true });
+}

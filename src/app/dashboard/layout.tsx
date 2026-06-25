@@ -17,6 +17,7 @@ import {
   AlertCircle,
   Palette,
   LayoutGrid,
+  UserCog,
 } from "lucide-react";
 import {
   normalizeThemeConfig,
@@ -111,11 +112,16 @@ export default function DashboardLayout({
     return pathname.startsWith(path);
   };
 
+  const isTeamMember = profile?.role === "team_member";
+
   const navItems = [
     { name: "Leads / Contatos", href: "/dashboard", icon: Users },
     { name: "Serviços", href: "/dashboard/services", icon: Briefcase },
     { name: "Horários", href: "/dashboard/slots", icon: Calendar },
-    { name: "Personalização da Página", href: "/dashboard/personalization", icon: Palette },
+    ...(!isTeamMember ? [
+      { name: "Equipe", href: "/dashboard/team", icon: UserCog },
+      { name: "Personalização da Página", href: "/dashboard/personalization", icon: Palette },
+    ] : []),
     { name: "Editar Perfil", href: "/dashboard/profile", icon: Settings },
   ];
 
@@ -309,9 +315,15 @@ export default function DashboardLayout({
 
         {/* Professional Details Mini Card */}
         <div className="p-4 mx-3 my-4 bg-slate-950/50 border border-slate-800/50 rounded-2xl">
-          <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-1">Profissional</p>
+          <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-1">
+            {profile?.role === "team_member" ? "Membro da Equipe" : "Profissional"}
+          </p>
           <h4 className="font-bold text-sm text-slate-200 truncate">{profile?.nome || "Sem Nome"}</h4>
-          <p className="text-xs text-indigo-400 font-medium truncate mb-2">{profile?.nomeNegocio || "Sem Negócio"}</p>
+          <p className="text-xs text-indigo-400 font-medium truncate mb-2">
+            {profile?.role === "team_member"
+              ? (profile.especialidade || profile.nomeNegocio || "Sem Negócio")
+              : (profile?.nomeNegocio || "Sem Negócio")}
+          </p>
           
           {profile?.slugPublico && (
             <Link 

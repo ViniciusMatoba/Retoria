@@ -38,6 +38,12 @@ export interface ProfessionalProfile {
   showPublicAddress?: boolean;
   showMiniMap?: boolean;
   instagram?: string;
+  showPublicInstagram?: boolean;
+
+  // Team (multi-professional)
+  role?: "owner" | "team_member";
+  parentProfessionalId?: string; // set when role === "team_member"
+  especialidade?: string;        // member specialty/title shown publicly
 }
 
 interface AuthContextType {
