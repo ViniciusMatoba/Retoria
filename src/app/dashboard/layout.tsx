@@ -157,8 +157,8 @@ export default function DashboardLayout({
                 onClick={() => setMobileMenuOpen(false)}
                 className={`
                   flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200
-                  ${active 
-                    ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/15" 
+                  ${active
+                    ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/15"
                     : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
                   }
                 `}
@@ -168,26 +168,25 @@ export default function DashboardLayout({
               </Link>
             );
           })}
-        </nav>
 
-        {/* Sidebar Footer */}
-        <div className="p-4 border-t border-slate-800/50 space-y-1">
-          <Link
-            href="/portal"
-            onClick={() => setMobileMenuOpen(false)}
-            className="flex items-center gap-3 w-full px-4 py-3 text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 rounded-xl text-sm font-semibold transition-all duration-200"
-          >
-            <LayoutGrid className="h-5 w-5" />
-            <span>Trocar de área</span>
-          </Link>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-3 w-full px-4 py-3 text-slate-400 hover:bg-red-500/10 hover:text-red-400 rounded-xl text-sm font-semibold transition-all duration-200"
-          >
-            <LogOut className="h-5 w-5" />
-            <span>Sair da conta</span>
-          </button>
-        </div>
+          <div className="pt-2 border-t border-slate-800/50 space-y-1 mt-2">
+            <Link
+              href="/portal"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center gap-3 w-full px-4 py-3 text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 rounded-xl text-sm font-semibold transition-all duration-200"
+            >
+              <LayoutGrid className="h-5 w-5" />
+              <span>Trocar de área</span>
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-3 w-full px-4 py-3 text-slate-400 hover:bg-red-500/10 hover:text-red-400 rounded-xl text-sm font-semibold transition-all duration-200"
+            >
+              <LogOut className="h-5 w-5" />
+              <span>Sair da conta</span>
+            </button>
+          </div>
+        </nav>
       </aside>
 
       {/* Backdrop (mobile menu) */}
