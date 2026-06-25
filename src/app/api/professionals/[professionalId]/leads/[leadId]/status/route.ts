@@ -158,7 +158,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     try {
       const slotsRef = dbAdmin
         .collection("professionals").doc(professionalId)
-        .collection("slots");
+        .collection("availableSlots");
 
       const bookedSnap = await slotsRef
         .where("bookingId", "==", leadId)

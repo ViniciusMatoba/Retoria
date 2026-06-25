@@ -1657,6 +1657,19 @@ export default function SlotsPage() {
 
                     const isContinuation = coveringLead && (!lead);
                     const expired = isSlotExpired(slot.horario);
+                    const isOrphanBlocked = !slot.disponivel && !lead && !isContinuation;
+
+                    if (isOrphanBlocked) {
+                      return (
+                        <div
+                          key={slot.id}
+                          className="p-2.5 rounded-xl border bg-slate-950/10 border-slate-900/30 flex items-center justify-between text-[11px] opacity-50"
+                        >
+                          <span className="font-mono text-slate-400">{slot.horario}</span>
+                          <span className="text-[9px] text-emerald-500/60 uppercase tracking-wider font-bold">Livre</span>
+                        </div>
+                      );
+                    }
 
                     if (expired) {
                       return (
@@ -1808,6 +1821,24 @@ export default function SlotsPage() {
 
               const isContinuation = coveringLead && (!lead);
               const expired = isPastDateTimeSaoPaulo(dateStr, slot.horario);
+
+              // Slot bloqueado mas lead está cancelado/perdido (cleanup ainda não rodou)
+              const isOrphanBlocked = !slot.disponivel && !lead && !isContinuation;
+
+              if (isOrphanBlocked) {
+                return (
+                  <div
+                    key={slot.id}
+                    className="p-4 bg-slate-950/20 border border-slate-800/30 rounded-2xl flex items-center justify-between text-xs opacity-50"
+                  >
+                    <div className="flex items-center gap-4">
+                      <span className="font-mono text-slate-400 text-sm">{slot.horario}</span>
+                      <span className="text-[10px] text-slate-500 font-medium">Horário livre</span>
+                    </div>
+                    <span className="text-[10px] text-emerald-500/60 uppercase tracking-wider font-bold">Disponível</span>
+                  </div>
+                );
+              }
 
               if (expired && !lead && !isContinuation) {
                 return (

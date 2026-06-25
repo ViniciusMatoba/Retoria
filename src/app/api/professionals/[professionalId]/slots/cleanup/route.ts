@@ -37,13 +37,12 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
   }
 
-  const slotsRef = dbAdmin.collection("professionals").doc(professionalId).collection("slots");
+  const slotsRef = dbAdmin.collection("professionals").doc(professionalId).collection("availableSlots");
   const leadsRef = dbAdmin.collection("professionals").doc(professionalId).collection("leads");
 
-  // Busca todos slots bloqueados com bookingId
+  // Busca todos slots bloqueados — filtra bookingId em JS para evitar índice composto
   const blockedSnap = await slotsRef
     .where("disponivel", "==", false)
-    .where("bookingId", "!=", null)
     .get();
 
   if (blockedSnap.empty) {
