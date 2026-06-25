@@ -2,18 +2,9 @@ import React, { useState } from "react";
 import { ThemeConfig, gradientPresets, bgPatterns, getBestTextColor } from "../../../../lib/themeUtils";
 import PublicThemeProvider from "../../../p/[slug]/components/PublicThemeProvider";
 import PublicServiceCard from "../../../p/[slug]/components/PublicServiceCard";
+import type { Service } from "../../../p/[slug]/components/PublicBookingExperience";
 import { formatPhoneFriendly } from "../../../../lib/contactUtils";
 import { Smartphone, Phone, MessageCircle, MapPin, ChevronRight } from "lucide-react";
-
-interface PreviewService {
-  id: string;
-  nome: string;
-  descricaoCurta?: string;
-  duracaoEstimada?: string;
-  imagemUrl?: string | null;
-  imagemAlt?: string | null;
-  imagemUpdatedAt?: any;
-}
 
 interface ThemePreviewProps {
   themeConfig: ThemeConfig;
@@ -21,7 +12,7 @@ interface ThemePreviewProps {
   professionalName: string;
   fotoLogoUrl: string;
   descricaoCurta: string;
-  services?: PreviewService[];
+  services?: Service[];
   showResponsibleName?: boolean;
   showWelcomeMessage?: boolean;
   showPublicPhone?: boolean;
@@ -33,12 +24,13 @@ interface ThemePreviewProps {
   addressText?: string;
 }
 
-const MOCK_SERVICES: PreviewService[] = [
+const MOCK_SERVICES: Service[] = [
   {
     id: "mock-1",
     nome: "Exemplo de Serviço",
     descricaoCurta: "Descrição breve do serviço oferecido.",
     duracaoEstimada: "60 min",
+    ativo: true,
     imagemUrl: null,
     imagemAlt: null,
     imagemUpdatedAt: null,
@@ -48,6 +40,7 @@ const MOCK_SERVICES: PreviewService[] = [
     nome: "Outro Serviço",
     descricaoCurta: "Mais um serviço disponível para agendamento.",
     duracaoEstimada: "30 min",
+    ativo: true,
     imagemUrl: null,
     imagemAlt: null,
     imagemUpdatedAt: null,
