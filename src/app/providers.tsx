@@ -36,6 +36,7 @@ export interface ProfessionalProfile {
   showPublicPhone?: boolean;
   showPublicWhatsApp?: boolean;
   showPublicAddress?: boolean;
+  showMiniMap?: boolean;
 }
 
 interface AuthContextType {

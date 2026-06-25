@@ -129,7 +129,7 @@ export default function ProfilePage() {
     setShowPublicPhone(profile.showPublicPhone ?? false);
     setShowPublicWhatsApp(profile.showPublicWhatsApp ?? false);
     setShowPublicAddress(profile.showPublicAddress ?? false);
-    setShowMiniMap((profile as any).showMiniMap ?? false);
+    setShowMiniMap(profile.showMiniMap ?? false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile]);
 
@@ -174,6 +174,7 @@ export default function ProfilePage() {
     setToggleSaved(null);
     try {
       await updateDoc(doc(db, "professionals", user.uid), { [field]: value });
+      await refreshProfile();
       setToggleSaved(field);
       setTimeout(() => setToggleSaved(null), 1500);
     } catch (err: any) {
@@ -181,7 +182,7 @@ export default function ProfilePage() {
     } finally {
       setSavingToggle(null);
     }
-  }, [user]);
+  }, [user, refreshProfile]);
 
   const handleAddressField = (key: keyof PublicAddress, value: string | number | null) => {
     setPublicAddress((prev) => ({ ...prev, [key]: value }));

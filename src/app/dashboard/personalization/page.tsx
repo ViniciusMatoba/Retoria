@@ -436,7 +436,7 @@ export default function PersonalizationPage() {
             showPublicPhone={profile.showPublicPhone ?? false}
             showPublicWhatsApp={profile.showPublicWhatsApp ?? false}
             showPublicAddress={profile.showPublicAddress ?? false}
-            showMiniMap={(profile as any).showMiniMap ?? false}
+            showMiniMap={profile.showMiniMap ?? false}
             publicPhone={profile.publicPhone || ""}
             telefoneWhatsapp={profile.telefoneWhatsapp || ""}
             addressText={[
