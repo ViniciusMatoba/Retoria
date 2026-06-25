@@ -97,6 +97,12 @@ service cloud.firestore {
         allow read: if isProfessional(profId);
         allow write: if false;
       }
+
+      // Integrações (ex: Google Calendar tokens) — somente o próprio profissional lê; gravação via Admin SDK
+      match /integrations/{integrationId} {
+        allow read: if isProfessional(profId);
+        allow write: if false;
+      }
     }
   }
 }
