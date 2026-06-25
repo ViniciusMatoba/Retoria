@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { doc, updateDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
@@ -89,6 +89,8 @@ export default function ProfilePage() {
   const [success, setSuccess] = useState("");
   const [showCoordsPanel, setShowCoordsPanel] = useState(false);
   const [privacyWarning, setPrivacyWarning] = useState<string | null>(null);
+  const [savingToggle, setSavingToggle] = useState<string | null>(null);
+  const [toggleSaved, setToggleSaved] = useState<string | null>(null);
 
   // ── Load profile ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -134,32 +136,35 @@ export default function ProfilePage() {
     }
   };
 
-  const handleTogglePublicAddress = (value: boolean) => {
-    if (value) {
-      setPrivacyWarning("Este endereço ficará visível para qualquer pessoa que acessar sua página pública.");
-    } else {
-      setPrivacyWarning(null);
-    }
-    setShowPublicAddress(value);
-  };
 
-  const handleTogglePublicPhone = (value: boolean) => {
-    if (value) {
-      setPrivacyWarning("Este número ficará visível para qualquer pessoa que acessar sua página pública.");
-    } else {
-      setPrivacyWarning(null);
+  // Auto-save individual toggle flags directly to Firestore
+  const handleToggle = useCallback(async (field: string, value: boolean) => {
+    if (!user) return;
+    // Update local state immediately
+    switch (field) {
+      case "showResponsibleName": setShowResponsibleName(value); break;
+      case "showWelcomeMessage": setShowWelcomeMessage(value); break;
+      case "showPublicPhone": setShowPublicPhone(value); break;
+      case "showPublicWhatsApp": setShowPublicWhatsApp(value); break;
+      case "showPublicAddress": {
+        setShowPublicAddress(value);
+        if (value) setPrivacyWarning("Este endereço ficará visível para qualquer pessoa que acessar sua página pública.");
+        else setPrivacyWarning(null);
+        break;
+      }
     }
-    setShowPublicPhone(value);
-  };
-
-  const handleTogglePublicWhatsApp = (value: boolean) => {
-    if (value) {
-      setPrivacyWarning("Este número de WhatsApp ficará visível para qualquer pessoa que acessar sua página pública.");
-    } else {
-      setPrivacyWarning(null);
+    setSavingToggle(field);
+    setToggleSaved(null);
+    try {
+      await updateDoc(doc(db, "professionals", user.uid), { [field]: value });
+      setToggleSaved(field);
+      setTimeout(() => setToggleSaved(null), 1500);
+    } catch (err: any) {
+      console.error("Toggle save error:", err);
+    } finally {
+      setSavingToggle(null);
     }
-    setShowPublicWhatsApp(value);
-  };
+  }, [user]);
 
   const handleAddressField = (key: keyof PublicAddress, value: string | number | null) => {
     setPublicAddress((prev) => ({ ...prev, [key]: value }));
@@ -386,25 +391,62 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {/* ── Section: Cor principal (legacy) ──────────────────────── */}
+            {/* ── Section: Cor principal ────────────────────────────────── */}
             <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-5 md:p-6 backdrop-blur-sm space-y-4">
-              <h2 className="text-sm font-bold text-slate-300 flex items-center gap-2">
-                <Palette className="h-4 w-4 text-indigo-400" />
-                Cor Principal
-              </h2>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-bold text-slate-300 flex items-center gap-2">
+                    <Palette className="h-4 w-4 text-indigo-400" />
+                    Tema da Página Pública
+                  </h2>
+                  <p className="text-[10px] text-slate-500 mt-1">Define a cor dos botões, destaques e ícones na sua página de agendamento.</p>
+                </div>
+                {/* Live preview swatch */}
+                <div className="shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-xl border" style={{ borderColor: `${corPrincipal}40`, backgroundColor: `${corPrincipal}15` }}>
+                  <span className="h-3 w-3 rounded-full" style={{ backgroundColor: corPrincipal }} />
+                  <span className="text-xs font-mono font-semibold" style={{ color: corPrincipal }}>{corPrincipal}</span>
+                </div>
+              </div>
+
               <div className="flex flex-wrap gap-2">
                 {prebuiltColors.map((color) => (
-                  <button key={color.value} type="button" onClick={() => setCorPrincipal(color.value)} className="h-8 px-3 rounded-lg border text-xs font-bold transition-all flex items-center gap-1.5" style={{ backgroundColor: `${color.value}15`, borderColor: corPrincipal === color.value ? color.value : "transparent", color: color.value }}>
-                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color.value }} />
+                  <button
+                    key={color.value}
+                    type="button"
+                    onClick={() => setCorPrincipal(color.value)}
+                    className="h-9 px-3 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5"
+                    style={{
+                      backgroundColor: `${color.value}${corPrincipal === color.value ? "25" : "10"}`,
+                      borderColor: corPrincipal === color.value ? color.value : "transparent",
+                      color: color.value,
+                      boxShadow: corPrincipal === color.value ? `0 0 0 1px ${color.value}` : "none",
+                    }}
+                  >
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color.value }} />
                     <span>{color.label}</span>
                   </button>
                 ))}
               </div>
-              <div className="flex items-center gap-2">
-                <input type="color" value={corPrincipal} onChange={(e) => setCorPrincipal(e.target.value)} className="h-9 w-9 rounded-lg border border-slate-800 bg-slate-950 p-1 cursor-pointer shrink-0" />
-                <span className="text-xs text-slate-400 font-mono">Personalizar hexadecimal: {corPrincipal}</span>
+
+              <div className="flex items-center gap-3">
+                <label className="cursor-pointer relative group">
+                  <input type="color" value={corPrincipal} onChange={(e) => setCorPrincipal(e.target.value)} className="sr-only" />
+                  <div
+                    className="h-9 w-9 rounded-xl border-2 transition-all group-hover:scale-110"
+                    style={{ backgroundColor: corPrincipal, borderColor: `${corPrincipal}80` }}
+                  />
+                </label>
+                <span className="text-xs text-slate-400">Personalizar cor → clique no quadrado</span>
               </div>
-              <p className="text-[10px] text-slate-500">Para temas visuais avançados, use a página de Personalização.</p>
+
+              {/* Mini button preview */}
+              <div className="flex items-center gap-3 pt-1">
+                <span className="text-[10px] text-slate-500 uppercase tracking-wider">Prévia:</span>
+                <button type="button" className="px-4 py-1.5 rounded-xl text-xs font-bold text-white transition-all" style={{ backgroundColor: corPrincipal }}>
+                  Agendar agora
+                </button>
+                <span className="text-xs font-semibold" style={{ color: corPrincipal }}>Link de destaque</span>
+              </div>
             </div>
 
             {/* ── Section: Contato público ─────────────────────────────── */}
@@ -429,24 +471,32 @@ export default function ProfilePage() {
                 <ToggleRow
                   label="Exibir nome do responsável"
                   checked={showResponsibleName}
-                  onChange={setShowResponsibleName}
+                  onChange={(v) => handleToggle("showResponsibleName", v)}
+                  saving={savingToggle === "showResponsibleName"}
+                  saved={toggleSaved === "showResponsibleName"}
                 />
                 <ToggleRow
                   label="Exibir mensagem de boas-vindas"
                   checked={showWelcomeMessage}
-                  onChange={setShowWelcomeMessage}
+                  onChange={(v) => handleToggle("showWelcomeMessage", v)}
+                  saving={savingToggle === "showWelcomeMessage"}
+                  saved={toggleSaved === "showWelcomeMessage"}
                 />
                 <ToggleRow
                   label="Exibir telefone de contato publicamente"
                   checked={showPublicPhone}
-                  onChange={handleTogglePublicPhone}
+                  onChange={(v) => handleToggle("showPublicPhone", v)}
                   disabled={!publicPhone}
                   hint={!publicPhone ? "Preencha o telefone acima para ativar" : undefined}
+                  saving={savingToggle === "showPublicPhone"}
+                  saved={toggleSaved === "showPublicPhone"}
                 />
                 <ToggleRow
                   label="Exibir WhatsApp de agendamento publicamente"
                   checked={showPublicWhatsApp}
-                  onChange={handleTogglePublicWhatsApp}
+                  onChange={(v) => handleToggle("showPublicWhatsApp", v)}
+                  saving={savingToggle === "showPublicWhatsApp"}
+                  saved={toggleSaved === "showPublicWhatsApp"}
                 />
               </div>
             </div>
@@ -559,8 +609,10 @@ export default function ProfilePage() {
                   <ToggleRow
                     label="Exibir endereço na página pública"
                     checked={showPublicAddress}
-                    onChange={handleTogglePublicAddress}
+                    onChange={(v) => handleToggle("showPublicAddress", v)}
                     hint="Ativar tornará o endereço visível para qualquer visitante."
+                    saving={savingToggle === "showPublicAddress"}
+                    saved={toggleSaved === "showPublicAddress"}
                   />
                 </div>
               )}
@@ -647,27 +699,33 @@ interface ToggleRowProps {
   onChange: (val: boolean) => void;
   disabled?: boolean;
   hint?: string;
+  saving?: boolean;
+  saved?: boolean;
 }
 
-function ToggleRow({ label, checked, onChange, disabled, hint }: ToggleRowProps) {
+function ToggleRow({ label, checked, onChange, disabled, hint, saving, saved }: ToggleRowProps) {
   return (
-    <div className={`flex items-center justify-between gap-3 ${disabled ? "opacity-50" : ""}`}>
-      <div>
+    <div className={`flex items-center justify-between gap-3 py-0.5 ${disabled ? "opacity-50" : ""}`}>
+      <div className="min-w-0">
         <p className="text-xs font-semibold text-slate-300">{label}</p>
         {hint && <p className="text-[10px] text-slate-500 mt-0.5">{hint}</p>}
       </div>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        disabled={disabled}
-        onClick={() => !disabled && onChange(!checked)}
-        className={`relative h-5 w-9 rounded-full border transition-colors shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${checked ? "bg-indigo-600 border-indigo-500" : "bg-slate-800 border-slate-700"} ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
-      >
-        <span
-          className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${checked ? "translate-x-4" : "translate-x-0.5"}`}
-        />
-      </button>
+      <div className="flex items-center gap-2 shrink-0">
+        {saving && <Loader2 className="h-3 w-3 text-indigo-400 animate-spin" />}
+        {saved && !saving && <Check className="h-3 w-3 text-emerald-400" />}
+        <button
+          type="button"
+          role="switch"
+          aria-checked={checked}
+          disabled={disabled || saving}
+          onClick={() => !disabled && !saving && onChange(!checked)}
+          className={`relative h-6 w-11 rounded-full transition-all duration-200 shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${checked ? "bg-indigo-600" : "bg-slate-700"} ${disabled || saving ? "cursor-not-allowed opacity-70" : "cursor-pointer hover:brightness-110"}`}
+        >
+          <span
+            className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${checked ? "translate-x-6" : "translate-x-1"}`}
+          />
+        </button>
+      </div>
     </div>
   );
 }
