@@ -13,8 +13,7 @@ import {
   isValidPhone,
   validateCoordinates,
 } from "@/lib/contactUtils";
-import PublicProfessionalHeader from "@/app/p/[slug]/components/PublicProfessionalHeader";
-import PublicThemeProvider from "@/app/p/[slug]/components/PublicThemeProvider";
+import ThemePreview from "@/app/dashboard/personalization/components/ThemePreview";
 import { getDefaultThemeConfig } from "@/lib/themeUtils";
 import {
   User,
@@ -575,35 +574,14 @@ export default function ProfilePage() {
         </div>
 
         {/* ── Preview card ───────────────────────────────────────────────── */}
-        <div className="lg:col-span-1 space-y-3 sticky top-6 self-start">
-          <div>
-            <h3 className="font-bold text-sm text-slate-400 uppercase tracking-wider mb-1">Visualização do Cliente</h3>
-            <p className="text-xs text-slate-500">Como o cabeçalho aparecerá na sua página pública.</p>
-          </div>
-
-          <div className="rounded-3xl overflow-hidden border border-slate-800 shadow-2xl">
-            <PublicThemeProvider themeConfig={profile?.themeConfig ?? getDefaultThemeConfig()}>
-              <PublicProfessionalHeader
-                isPreview
-                profile={{
-                  nomeNegocio: nomeNegocio || "Nome do Negócio",
-                  nome: nome || "Seu Nome",
-                  fotoLogoUrl,
-                  descricaoCurta,
-                  telefoneWhatsapp: formatPhoneForWhatsApp(telefoneWhatsapp),
-                  publicPhone: formatPhoneForWhatsApp(publicPhone),
-                  serviceLocationType,
-                  publicAddress: showPublicAddress ? publicAddress : null,
-                  showResponsibleName,
-                  showWelcomeMessage,
-                  showPublicPhone,
-                  showPublicWhatsApp,
-                  showPublicAddress,
-                  themeConfig: profile?.themeConfig ?? getDefaultThemeConfig(),
-                }}
-              />
-            </PublicThemeProvider>
-          </div>
+        <div className="lg:col-span-1">
+          <ThemePreview
+            themeConfig={profile?.themeConfig ?? getDefaultThemeConfig()}
+            businessName={nomeNegocio}
+            professionalName={nome}
+            fotoLogoUrl={fotoLogoUrl}
+            descricaoCurta={descricaoCurta}
+          />
         </div>
 
       </div>
