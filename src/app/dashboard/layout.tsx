@@ -83,7 +83,7 @@ export default function DashboardLayout({
     { name: "Serviços", href: "/dashboard/services", icon: Briefcase },
     { name: "Horários Disponíveis", href: "/dashboard/slots", icon: Calendar },
     { name: "Personalização da Página", href: "/dashboard/personalization", icon: Palette },
-    { name: "Perfil e Página", href: "/dashboard/profile", icon: Settings },
+    { name: "Editar Perfil", href: "/dashboard/profile", icon: Settings },
   ];
 
   return (
