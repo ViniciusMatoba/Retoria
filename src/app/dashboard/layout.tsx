@@ -170,9 +170,9 @@ export default function DashboardLayout({
           --theme-surface: ${themeConfig.surfaceColor || '#0f172a'};
           --theme-text: ${themeConfig.textColor || '#f8fafc'};
           --theme-muted-text: ${themeConfig.mutedTextColor || '#94a3b8'};
-          --theme-border: ${themeConfig.mode === 'light' ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.08)'};
-          --theme-input-bg: ${themeConfig.mode === 'light' ? 'rgba(0, 0, 0, 0.03)' : 'rgba(255, 255, 255, 0.03)'};
-          --theme-card-bg: ${themeConfig.mode === 'light' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(15, 23, 42, 0.7)'};
+          --theme-border: ${hexToRgba(themeConfig.textColor || '#ffffff', 0.08)};
+          --theme-input-bg: ${hexToRgba(themeConfig.textColor || '#ffffff', 0.03)};
+          --theme-card-bg: ${hexToRgba(themeConfig.surfaceColor || '#0f172a', themeConfig.mode === 'light' ? 0.9 : 0.75)};
         }
         
         .font-sans {
@@ -186,14 +186,26 @@ export default function DashboardLayout({
         .bg-slate-900 {
           background-color: var(--theme-surface) !important;
         }
-        .bg-slate-950\\/50 {
+
+        /* Target all opacity variants of bg-slate-900 (like /50, /30, etc.) to use theme-card-bg */
+        [class*="bg-slate-900/"], [class*="bg-slate-900\\/"] {
+          background-color: var(--theme-card-bg) !important;
+        }
+
+        /* Target all opacity variants of bg-slate-950 to use input background */
+        [class*="bg-slate-950/"], [class*="bg-slate-950\\/"] {
           background-color: var(--theme-input-bg) !important;
         }
-        .bg-slate-900\\/40 {
+
+        /* Target bg-slate-800 and its variants */
+        .bg-slate-800 {
+          background-color: var(--theme-surface) !important;
+        }
+        [class*="bg-slate-800/"], [class*="bg-slate-800\\/"] {
           background-color: var(--theme-input-bg) !important;
         }
         
-        /* Overrides for sidebar nav elements */
+        /* Overrides for hover elements */
         .hover\\:bg-slate-800\\/50:hover {
           background-color: var(--theme-input-bg) !important;
         }
@@ -221,14 +233,8 @@ export default function DashboardLayout({
           color: var(--theme-muted-text) !important;
         }
 
-        /* Border overrides */
-        .border-slate-800 {
-          border-color: var(--theme-border) !important;
-        }
-        .border-slate-800\\/80 {
-          border-color: var(--theme-border) !important;
-        }
-        .border-slate-800\\/50 {
+        /* Border overrides dynamically targeting all slate borders */
+        [class*="border-slate-800"] {
           border-color: var(--theme-border) !important;
         }
 
