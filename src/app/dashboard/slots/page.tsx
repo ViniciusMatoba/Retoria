@@ -33,13 +33,13 @@ import {
 } from "@/lib/timezone";
 import { useAuth } from "../../providers";
 import { 
-  Calendar as CalendarIcon, 
-  Clock, 
-  Plus, 
-  Trash2, 
-  Check, 
-  X, 
-  Loader2, 
+  Calendar as CalendarIcon,
+  Clock,
+  Plus,
+  Trash2,
+  Check,
+  X,
+  Loader2,
   AlertCircle,
   ToggleLeft,
   ToggleRight,
@@ -51,7 +51,8 @@ import {
   User,
   Users,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Building2
 } from "lucide-react";
 
 interface AvailableSlot {
@@ -197,11 +198,21 @@ const windowDaysOptions = [
   { value: 180, label: "Próximos 180 dias" }
 ];
 
+interface TeamMemberTab {
+  id: string;
+  nome: string;
+  especialidade?: string;
+}
+
 export default function SlotsPage() {
   const { user, profile, refreshProfile } = useAuth();
   const [slots, setSlots] = useState<AvailableSlot[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
+  // Team / profissional selector
+  const [teamMembers, setTeamMembers] = useState<TeamMemberTab[]>([]);
+  const [activeProfId, setActiveProfId] = useState<string>("");
+
   // Navigation Tabs
   const [activeTab, setActiveTab] = useState<"smart" | "manual" | "agenda">("smart");
   
@@ -329,7 +340,33 @@ export default function SlotsPage() {
     setManualDate(addDaysSaoPaulo(todayStr, 1));
   }, []);
 
-  // Load all slots in real-time
+  // Fetch team members and set default activeProfId
+  useEffect(() => {
+    if (!user) return;
+    const fetchTeam = async () => {
+      try {
+        const q = query(
+          collection(db, "professionals"),
+          where("parentProfessionalId", "==", user.uid),
+          where("role", "==", "team_member"),
+          where("professionalStatus", "==", "active"),
+        );
+        const snap = await getDocs(q);
+        const members: TeamMemberTab[] = snap.docs.map((d) => ({
+          id: d.id,
+          nome: d.data().nome ?? "",
+          especialidade: d.data().teamConfig?.especialidade ?? d.data().especialidade ?? "",
+        }));
+        setTeamMembers(members);
+      } catch {
+        // sem equipe
+      } finally {
+        setActiveProfId((prev) => prev || user.uid);
+      }
+    };
+    fetchTeam();
+  }, [user]);
+
   // Limpeza automática de slots bloqueados por leads cancelados/deletados
   useEffect(() => {
     if (!user) return;
@@ -348,10 +385,11 @@ export default function SlotsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid]);
 
+  // Load slots in real-time — re-executa quando muda o profissional ativo
   useEffect(() => {
-    if (!user) return;
+    if (!user || !activeProfId) return;
 
-    const slotsRef = collection(db, "professionals", user.uid, "availableSlots");
+    const slotsRef = collection(db, "professionals", activeProfId, "availableSlots");
     const q = query(slotsRef, orderBy("data", "asc"), orderBy("horario", "asc"));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -367,16 +405,15 @@ export default function SlotsPage() {
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, activeProfId]);
 
-  // Load services and leads in real-time
+  // Load services and leads — re-executa quando muda o profissional ativo
   useEffect(() => {
-    if (!user) return;
+    if (!user || !activeProfId) return;
 
-    // Load active services
-    const servicesRef = collection(db, "professionals", user.uid, "services");
+    const servicesRef = collection(db, "professionals", activeProfId, "services");
     const servicesQuery = query(servicesRef, where("ativo", "==", true), orderBy("nome", "asc"));
-    
+
     getDocs(servicesQuery).then(snap => {
       const servicesList: Service[] = [];
       snap.forEach(doc => {
@@ -385,8 +422,7 @@ export default function SlotsPage() {
       setServices(servicesList);
     }).catch(err => console.error("Error loading services:", err));
 
-    // Load leads in real-time
-    const leadsRef = collection(db, "professionals", user.uid, "leads");
+    const leadsRef = collection(db, "professionals", activeProfId, "leads");
     const unsubscribeLeads = onSnapshot(leadsRef, (snapshot) => {
       const leadsList: any[] = [];
       snapshot.forEach(doc => {
@@ -400,7 +436,7 @@ export default function SlotsPage() {
     return () => {
       unsubscribeLeads();
     };
-  }, [user]);
+  }, [user, activeProfId]);
 
   // Initialize and clear inputs for manual booking modal
   useEffect(() => {
@@ -824,7 +860,7 @@ export default function SlotsPage() {
       }
 
       // 4. Fetch existing slots in range to compute duplicates
-      const slotsRef = collection(db, "professionals", user.uid, "availableSlots");
+      const slotsRef = collection(db, "professionals", activeProfId, "availableSlots");
       const todayStr = new Date().toISOString().split("T")[0];
       
       const futureDate = new Date();
@@ -878,7 +914,7 @@ export default function SlotsPage() {
 
     try {
       // Fetch all slots in the range to be absolutely sure we do not touch booked ones
-      const slotsRef = collection(db, "professionals", user.uid, "availableSlots");
+      const slotsRef = collection(db, "professionals", activeProfId, "availableSlots");
       const todayStr = previewSummary.startDateStr;
       const futureStr = previewSummary.endDateStr;
 
@@ -913,10 +949,10 @@ export default function SlotsPage() {
       let batchCount = 0;
 
       for (const slot of slotsToSave) {
-        const docRef = doc(db, "professionals", user.uid, "availableSlots", slot.slotId);
+        const docRef = doc(db, "professionals", activeProfId, "availableSlots", slot.slotId);
         const payload = {
           id: slot.slotId,
-          professionalId: user.uid,
+          professionalId: activeProfId,
           data: slot.data,
           horario: slot.horario,
           disponivel: true,
@@ -1002,23 +1038,23 @@ export default function SlotsPage() {
     setActionLoading(true);
 
     try {
-      const slotsRef = collection(db, "professionals", user.uid, "availableSlots");
+      const slotsRef = collection(db, "professionals", activeProfId, "availableSlots");
       let addedCount = 0;
       let duplicateCount = 0;
 
       for (const time of manualSelectedTimes) {
         // Deterministic slotId
         const slotId = `${manualDate}_${time.replace(":", "-")}`;
-        
+
         // Check duplication using direct document reference
-        const docRef = doc(db, "professionals", user.uid, "availableSlots", slotId);
+        const docRef = doc(db, "professionals", activeProfId, "availableSlots", slotId);
         const q = query(slotsRef, where("data", "==", manualDate), where("horario", "==", time));
         const checkSnap = await getDocs(q);
 
         if (checkSnap.empty) {
           const slotPayload = {
             id: slotId,
-            professionalId: user.uid,
+            professionalId: activeProfId,
             data: manualDate,
             horario: time,
             disponivel: true,
@@ -1051,7 +1087,7 @@ export default function SlotsPage() {
   const handleToggleSlot = async (slot: AvailableSlot) => {
     if (!user) return;
     try {
-      const docRef = doc(db, "professionals", user.uid, "availableSlots", slot.id);
+      const docRef = doc(db, "professionals", activeProfId, "availableSlots", slot.id);
       await updateDoc(docRef, {
         disponivel: !slot.disponivel,
         updatedAt: new Date()
@@ -1065,7 +1101,7 @@ export default function SlotsPage() {
     if (!user) return;
     if (!window.confirm("Deseja excluir este horário?")) return;
     try {
-      const docRef = doc(db, "professionals", user.uid, "availableSlots", slotId);
+      const docRef = doc(db, "professionals", activeProfId, "availableSlots", slotId);
       await deleteDoc(docRef);
     } catch (err) {
       console.error("Error deleting slot:", err);
@@ -1081,7 +1117,7 @@ export default function SlotsPage() {
       for (const slot of dateSlots) {
         // Never delete or touch slots that are booked (disponivel == false)
         if (slot.disponivel) {
-          const docRef = doc(db, "professionals", user.uid, "availableSlots", slot.id);
+          const docRef = doc(db, "professionals", activeProfId, "availableSlots", slot.id);
           await deleteDoc(docRef);
         }
       }
@@ -1191,7 +1227,7 @@ export default function SlotsPage() {
         // 1. Fetch and verify slot availability inside transaction
         const slotRefs = [];
         for (const slot of targetSlots) {
-          const slotRef = doc(db, "professionals", user.uid, "availableSlots", slot.id);
+          const slotRef = doc(db, "professionals", activeProfId, "availableSlots", slot.id);
           const docSnap = await transaction.get(slotRef);
           if (!docSnap.exists()) {
             throw new Error(`O horário ${slot.horario} não foi encontrado.`);
@@ -1203,12 +1239,12 @@ export default function SlotsPage() {
         }
 
         // 2. Prepare Lead document payload
-        const leadsRef = collection(db, "professionals", user.uid, "leads");
+        const leadsRef = collection(db, "professionals", activeProfId, "leads");
         const newLeadRef = doc(leadsRef);
         const service = services.find(s => s.id === bookingServicoId);
 
         const leadPayload = {
-          professionalId: user.uid,
+          professionalId: activeProfId,
           nome: trimmedNome,
           telefone: formattedPhone,
           servicoEscolhido: service?.nome || "",
@@ -1316,11 +1352,11 @@ export default function SlotsPage() {
 
     try {
       await runTransaction(db, async (transaction) => {
-        const leadDocRef = doc(db, "professionals", user.uid, "leads", editingLead.id);
+        const leadDocRef = doc(db, "professionals", activeProfId, "leads", editingLead.id);
         const service = services.find(s => s.id === editServicoId);
 
         // 1. Fetch old slots associated with this booking
-        const slotsRef = collection(db, "professionals", user.uid, "availableSlots");
+        const slotsRef = collection(db, "professionals", activeProfId, "availableSlots");
         const oldSlotsSnap = await getDocs(query(slotsRef, where("bookingId", "==", editingLead.id)));
 
         const willBeInactive = editStatus === "Cancelado";
@@ -1985,8 +2021,32 @@ export default function SlotsPage() {
       {/* Header */}
       <div>
         <h1 className="text-3xl font-extrabold tracking-tight text-white md:text-4xl">Horários Disponíveis</h1>
-        <p className="text-sm text-slate-400 mt-1">Configure seus períodos de funcionamento semanal, crie horários avulsos ou gerencie sua agenda atual.</p>
+        <p className="text-sm text-slate-400 mt-1">Configure os períodos de funcionamento, crie horários avulsos ou gerencie a agenda.</p>
       </div>
+
+      {/* Seletor de profissional — visível apenas quando há equipe */}
+      {teamMembers.length > 0 && activeProfId && (
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setActiveProfId(user!.uid)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-semibold transition-all ${activeProfId === user?.uid ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20" : "border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"}`}
+          >
+            <Building2 className="h-4 w-4" />
+            <span>Estabelecimento</span>
+          </button>
+          {teamMembers.map((m) => (
+            <button
+              key={m.id}
+              onClick={() => setActiveProfId(m.id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-semibold transition-all ${activeProfId === m.id ? "bg-amber-500/20 border-amber-500 text-amber-300 shadow-lg shadow-amber-500/10" : "border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"}`}
+            >
+              <User className="h-4 w-4" />
+              <span>{m.nome}</span>
+              {m.especialidade && <span className="text-xs opacity-70">· {m.especialidade}</span>}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Integração Google Calendar */}
       <GoogleCalendarIntegration />

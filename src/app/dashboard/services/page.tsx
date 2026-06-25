@@ -186,31 +186,41 @@ export default function ServicesPage() {
     }
 
     const profId = modalMode === "add" ? (targetProfId || user.uid) : editingProfId;
+    // "Estabelecimento" com equipe = todos os profissionais
+    const isEstabelecimento = modalMode === "add" && profId === user.uid && hasTeam;
+    const targetProfIds = isEstabelecimento
+      ? [user.uid, ...teamMembers.map((m) => m.id)]
+      : [profId];
 
     try {
-      const servicesRef = collection(db, "professionals", profId, "services");
       let serviceId = editingId;
 
       if (modalMode === "add") {
-        const newDocRef = doc(servicesRef);
-        serviceId = newDocRef.id;
+        // Gera o ID uma vez; todas as cópias compartilham o mesmo ID
+        const tempRef = doc(collection(db, "professionals", profId, "services"));
+        serviceId = tempRef.id;
         const precoNum = preco.trim() !== "" ? parseFloat(preco.replace(",", ".")) : null;
-        await setDoc(newDocRef, {
-          id: serviceId,
-          professionalId: profId,
-          nome: nome.trim(),
-          descricaoCurta: descricaoCurta.trim(),
-          duracaoEstimada: duracaoEstimada.trim(),
-          ativo,
-          preco: precoNum,
-          exibirPreco,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          imagemUrl: null,
-          imagemStoragePath: null,
-          imagemAlt: null,
-          imagemUpdatedAt: null,
-        });
+
+        for (const pid of targetProfIds) {
+          const newDocRef = doc(db, "professionals", pid, "services", serviceId);
+          await setDoc(newDocRef, {
+            id: serviceId,
+            professionalId: pid,
+            nome: nome.trim(),
+            descricaoCurta: descricaoCurta.trim(),
+            duracaoEstimada: duracaoEstimada.trim(),
+            ativo,
+            preco: precoNum,
+            exibirPreco,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            imagemUrl: null,
+            imagemStoragePath: null,
+            imagemAlt: null,
+            imagemUpdatedAt: null,
+            ...(isEstabelecimento ? { isEstabelecimento: true } : {}),
+          });
+        }
       } else {
         const precoNum = preco.trim() !== "" ? parseFloat(preco.replace(",", ".")) : null;
         await updateDoc(doc(db, "professionals", profId, "services", serviceId), {
@@ -220,11 +230,14 @@ export default function ServicesPage() {
         });
       }
 
-      const docRef = doc(db, "professionals", profId, "services", serviceId);
+      // Imagem: upload uma vez no owner (profId), propaga URL para todas as cópias
+      const primaryDocRef = doc(db, "professionals", profId, "services", serviceId);
 
       if (removeImageMarked && existingImageStoragePath) {
         try { await deleteObject(ref(storage, existingImageStoragePath)); } catch {}
-        await updateDoc(docRef, { imagemUrl: null, imagemStoragePath: null, imagemAlt: null, imagemUpdatedAt: Date.now() });
+        for (const pid of targetProfIds) {
+          await updateDoc(doc(db, "professionals", pid, "services", serviceId), { imagemUrl: null, imagemStoragePath: null, imagemAlt: null, imagemUpdatedAt: Date.now() });
+        }
       }
 
       if (imageFile) {
@@ -232,9 +245,12 @@ export default function ServicesPage() {
         const fileRef = ref(storage, storagePath);
         await uploadBytes(fileRef, imageFile);
         const downloadUrl = await getDownloadURL(fileRef);
-        await updateDoc(docRef, { imagemUrl: downloadUrl, imagemStoragePath: storagePath, imagemAlt: imageAlt.trim() || nome.trim(), imagemUpdatedAt: Date.now() });
+        const imgPayload = { imagemUrl: downloadUrl, imagemStoragePath: storagePath, imagemAlt: imageAlt.trim() || nome.trim(), imagemUpdatedAt: Date.now() };
+        for (const pid of targetProfIds) {
+          await updateDoc(doc(db, "professionals", pid, "services", serviceId), imgPayload);
+        }
       } else if (!removeImageMarked && modalMode === "edit" && existingImageUrl) {
-        await updateDoc(docRef, { imagemAlt: imageAlt.trim() || nome.trim(), updatedAt: new Date() });
+        await updateDoc(primaryDocRef, { imagemAlt: imageAlt.trim() || nome.trim(), updatedAt: new Date() });
       }
 
       setIsModalOpen(false);
