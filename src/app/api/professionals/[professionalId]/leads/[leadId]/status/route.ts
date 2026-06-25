@@ -3,6 +3,7 @@ import { dbAdmin, authAdmin } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { isValidLeadStatus, type LeadStatus } from "@/lib/leadTypes";
 import { createCalendarEvent, deleteCalendarEvent } from "@/lib/googleCalendar";
+import type * as FirebaseFirestore from "firebase-admin/firestore";
 
 type Params = { params: Promise<{ professionalId: string; leadId: string }> };
 
@@ -141,8 +142,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           .collection("leads").doc(leadId)
           .update({ calendarEventId: eventId, updatedAt: FieldValue.serverTimestamp() });
       }
-    } else if (newStatus === "Cancelado" && leadData.calendarEventId) {
-      // Remove evento do Calendar quando cancelado
+    } else if ((newStatus === "Cancelado" || newStatus === "Perdido") && leadData.calendarEventId) {
       await deleteCalendarEvent(professionalId, leadData.calendarEventId);
       await dbAdmin
         .collection("professionals").doc(professionalId)
@@ -151,6 +151,35 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
   } catch (calErr) {
     console.warn("[google-calendar] Falha ao sincronizar evento:", calErr);
+  }
+
+  // ── 7. Liberar slots quando cancelado ou perdido ────────────────────────────
+  if (newStatus === "Cancelado" || newStatus === "Perdido") {
+    try {
+      const slotsRef = dbAdmin
+        .collection("professionals").doc(professionalId)
+        .collection("slots");
+
+      const bookedSnap = await slotsRef
+        .where("bookingId", "==", leadId)
+        .get();
+
+      if (!bookedSnap.empty) {
+        const batch = dbAdmin.batch();
+        bookedSnap.docs.forEach((d: FirebaseFirestore.QueryDocumentSnapshot) => {
+          batch.update(d.ref, {
+            disponivel: true,
+            bookingId: null,
+            ocupacaoTipo: null,
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        });
+        await batch.commit();
+        console.log(`[lead-status] ${bookedSnap.size} slot(s) liberados para lead=${leadId}`);
+      }
+    } catch (slotErr) {
+      console.warn("[lead-status] Falha ao liberar slots:", slotErr);
+    }
   }
 
   return NextResponse.json({ ok: true, status: newStatus });

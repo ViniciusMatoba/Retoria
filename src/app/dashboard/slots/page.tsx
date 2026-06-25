@@ -330,6 +330,24 @@ export default function SlotsPage() {
   }, []);
 
   // Load all slots in real-time
+  // Limpeza automática de slots bloqueados por leads cancelados/deletados
+  useEffect(() => {
+    if (!user) return;
+    user.getIdToken().then(token => {
+      fetch(`/api/professionals/${user.uid}/slots/cleanup`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then(r => r.json())
+        .then(({ fixed, checked }) => {
+          if (fixed > 0) console.log(`[slots/cleanup] ${fixed}/${checked} slots liberados`);
+        })
+        .catch(() => {});
+    });
+  // Roda apenas uma vez ao montar
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid]);
+
   useEffect(() => {
     if (!user) return;
 
@@ -1132,7 +1150,7 @@ export default function SlotsPage() {
 
     // Check conflict: active leads overlapping
     const conflictsWithLeads = leads.some(l => {
-      if (l.status === "Perdido") return false;
+      if (l.status === "Perdido" || l.status === "Cancelado") return false;
       if (l.dataEscolhida !== bookingData) return false;
       const existStart = timeToMinutes(l.horarioInicio || l.horarioEscolhido);
       const existDur = getLeadDurationInMinutes(l, services, slotDuration);
