@@ -27,6 +27,25 @@ import {
 } from "@/lib/themeUtils";
 import { getGoogleFontsLink } from "../p/[slug]/components/PublicThemeProvider";
 
+function hexToRgba(hex: string, alpha: number): string {
+  if (!hex) return `rgba(15, 23, 42, ${alpha})`;
+  let cleanHex = hex.replace("#", "");
+  if (cleanHex.length === 3) {
+    cleanHex = cleanHex.split("").map(c => c + c).join("");
+  }
+  try {
+    const r = parseInt(cleanHex.substring(0, 2), 16);
+    const g = parseInt(cleanHex.substring(2, 4), 16);
+    const b = parseInt(cleanHex.substring(4, 6), 16);
+    if (isNaN(r) || isNaN(g) || isNaN(b)) {
+      return `rgba(15, 23, 42, ${alpha})`;
+    }
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  } catch (e) {
+    return `rgba(15, 23, 42, ${alpha})`;
+  }
+}
+
 export default function DashboardLayout({
   children,
 }: {
@@ -135,18 +154,88 @@ export default function DashboardLayout({
     <div style={bgStyle} className="min-h-screen flex flex-col md:flex-row text-slate-100 font-sans relative selection:bg-[var(--theme-primary)] selection:text-white transition-colors duration-200 overflow-x-hidden">
       {fontUrl && <link rel="stylesheet" href={fontUrl} />}
       
-      {/* Dark overlay glass layer to protect readability of the dashboard */}
+      {/* Dynamic overlay glass layer to protect readability of the dashboard */}
       <div 
-        className="absolute inset-0 z-0 bg-slate-950/85 backdrop-blur-[12px] pointer-events-none"
+        className="absolute inset-0 z-0 backdrop-blur-[12px] pointer-events-none transition-colors duration-200"
+        style={{
+          backgroundColor: hexToRgba(themeConfig.backgroundColor, 0.85)
+        }}
       />
 
-      {/* Dynamic style overrides for Tailwind colors to match the theme primary color */}
+      {/* Dynamic style overrides for Tailwind colors to match the theme configs */}
       <style>{`
         :root {
           --theme-primary: ${themeConfig.primaryColor || '#6366f1'};
+          --theme-background: ${themeConfig.backgroundColor || '#020617'};
+          --theme-surface: ${themeConfig.surfaceColor || '#0f172a'};
+          --theme-text: ${themeConfig.textColor || '#f8fafc'};
+          --theme-muted-text: ${themeConfig.mutedTextColor || '#94a3b8'};
+          --theme-border: ${themeConfig.mode === 'light' ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.08)'};
+          --theme-input-bg: ${themeConfig.mode === 'light' ? 'rgba(0, 0, 0, 0.03)' : 'rgba(255, 255, 255, 0.03)'};
+          --theme-card-bg: ${themeConfig.mode === 'light' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(15, 23, 42, 0.7)'};
         }
+        
+        .font-sans {
+          font-family: var(--theme-body-font) !important;
+        }
+
+        /* Override main layouts backgrounds to match theme */
+        .bg-slate-950 {
+          background-color: var(--theme-background) !important;
+        }
+        .bg-slate-900 {
+          background-color: var(--theme-surface) !important;
+        }
+        .bg-slate-950\\/50 {
+          background-color: var(--theme-input-bg) !important;
+        }
+        .bg-slate-900\\/40 {
+          background-color: var(--theme-input-bg) !important;
+        }
+        
+        /* Overrides for sidebar nav elements */
+        .hover\\:bg-slate-800\\/50:hover {
+          background-color: var(--theme-input-bg) !important;
+        }
+        .hover\\:bg-slate-800:hover {
+          background-color: var(--theme-input-bg) !important;
+        }
+
+        /* Text colors to adapt to mode (dark in light theme, light in dark theme) */
+        .text-slate-100 {
+          color: var(--theme-text) !important;
+        }
+        .text-white {
+          color: var(--theme-text) !important;
+        }
+        .text-slate-200 {
+          color: var(--theme-text) !important;
+        }
+        .text-slate-300 {
+          color: var(--theme-text) !important;
+        }
+        .text-slate-400 {
+          color: var(--theme-muted-text) !important;
+        }
+        .text-slate-500 {
+          color: var(--theme-muted-text) !important;
+        }
+
+        /* Border overrides */
+        .border-slate-800 {
+          border-color: var(--theme-border) !important;
+        }
+        .border-slate-800\\/80 {
+          border-color: var(--theme-border) !important;
+        }
+        .border-slate-800\\/50 {
+          border-color: var(--theme-border) !important;
+        }
+
+        /* Accent primary color overrides */
         .bg-indigo-600 {
           background-color: var(--theme-primary) !important;
+          color: ${themeConfig.mode === 'light' ? '#ffffff' : 'var(--theme-text)'} !important;
         }
         .hover\\:bg-indigo-500:hover {
           background-color: var(--theme-primary) !important;
