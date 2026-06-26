@@ -55,6 +55,7 @@ import {
   ChevronRight,
   Building2
 } from "lucide-react";
+import { useAppModal } from "@/components/ModalProvider";
 
 interface AvailableSlot {
   id: string;
@@ -206,6 +207,7 @@ interface TeamMemberTab {
 
 export default function SlotsPage() {
   const { user, profile, refreshProfile } = useAuth();
+  const { showConfirmationModal } = useAppModal();
   const [slots, setSlots] = useState<AvailableSlot[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -1098,37 +1100,48 @@ export default function SlotsPage() {
     }
   };
 
-  const handleDeleteSlot = async (slotId: string) => {
+  const handleDeleteSlot = (slotId: string) => {
     if (!user) return;
-    if (!window.confirm("Deseja excluir este horário?")) return;
-    try {
-      const docRef = doc(db, "professionals", activeProfId, "availableSlots", slotId);
-      await deleteDoc(docRef);
-    } catch (err) {
-      console.error("Error deleting slot:", err);
-    }
+    showConfirmationModal({
+      title: "Excluir horário",
+      description: "Deseja excluir este horário da agenda?",
+      confirmLabel: "Excluir",
+      cancelLabel: "Cancelar",
+      variant: "danger",
+      onConfirm: async () => {
+        const docRef = doc(db, "professionals", activeProfId, "availableSlots", slotId);
+        await deleteDoc(docRef);
+      },
+    });
   };
 
-  const handleDeleteDateSlots = async (dateStr: string) => {
+  const handleDeleteDateSlots = (dateStr: string) => {
     if (!user) return;
-    if (!window.confirm(`Deseja excluir TODOS os horários de ${formatDate(dateStr)}?`)) return;
-    setActionLoading(true);
-    try {
-      const dateSlots = groupedSlots[dateStr];
-      for (const slot of dateSlots) {
-        // Never delete or touch slots that are booked (disponivel == false)
-        if (slot.disponivel) {
-          const docRef = doc(db, "professionals", activeProfId, "availableSlots", slot.id);
-          await deleteDoc(docRef);
+    showConfirmationModal({
+      title: "Excluir todos os horários",
+      description: `Deseja excluir TODOS os horários disponíveis de ${formatDate(dateStr)}? Horários ocupados não serão afetados.`,
+      confirmLabel: "Excluir todos",
+      cancelLabel: "Cancelar",
+      variant: "danger",
+      onConfirm: async () => {
+        setActionLoading(true);
+        try {
+          const dateSlots = groupedSlots[dateStr];
+          for (const slot of dateSlots) {
+            if (slot.disponivel) {
+              const docRef = doc(db, "professionals", activeProfId, "availableSlots", slot.id);
+              await deleteDoc(docRef);
+            }
+          }
+          setSuccess(`Os horários livres de ${formatDate(dateStr)} foram excluídos. Horários já reservados foram preservados.`);
+        } catch (err: any) {
+          console.error(err);
+          setError("Erro ao excluir horários do dia.");
+        } finally {
+          setActionLoading(false);
         }
-      }
-      setSuccess(`Os horários livres de ${formatDate(dateStr)} foram excluídos. Horários já reservados foram preservados.`);
-    } catch (err: any) {
-      console.error(err);
-      setError("Erro ao excluir horários do dia.");
-    } finally {
-      setActionLoading(false);
-    }
+      },
+    });
   };
 
   // --- MANUAL BOOKING HANDLERS ---

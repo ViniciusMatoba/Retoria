@@ -7,9 +7,10 @@ import { useAuth } from "../../providers";
 import { formatDateFriendlySaoPaulo } from "@/lib/timezone";
 import {
   CalendarCheck, Clock, Briefcase, MapPin, ChevronRight,
-  Loader2, CalendarX, ExternalLink,
+  Loader2, CalendarX, ExternalLink, XCircle,
 } from "lucide-react";
 import Link from "next/link";
+import { useAppModal } from "@/components/ModalProvider";
 
 interface CustomerBooking {
   bookingId: string;
@@ -26,18 +27,22 @@ interface CustomerBooking {
 }
 
 const STATUS_STYLES: Record<string, { label: string; classes: string }> = {
-  Novo:        { label: "Novo",        classes: "bg-cyan-500/15 text-cyan-300 border-cyan-500/20" },
-  "Em contato":{ label: "Em contato", classes: "bg-yellow-500/15 text-yellow-300 border-yellow-500/20" },
-  Agendado:    { label: "Confirmado",  classes: "bg-blue-500/15 text-blue-300 border-blue-500/20" },
-  Atendido:    { label: "Concluído",   classes: "bg-violet-500/15 text-violet-300 border-violet-500/20" },
-  Cancelado:   { label: "Cancelado",   classes: "bg-red-500/15 text-red-400 border-red-500/20" },
-  Perdido:     { label: "Não realizado",classes: "bg-orange-500/15 text-orange-300 border-orange-500/20" },
+  Novo:        { label: "Novo",           classes: "bg-cyan-500/15 text-cyan-300 border-cyan-500/20" },
+  "Em contato":{ label: "Em contato",    classes: "bg-yellow-500/15 text-yellow-300 border-yellow-500/20" },
+  Agendado:    { label: "Confirmado",     classes: "bg-blue-500/15 text-blue-300 border-blue-500/20" },
+  Atendido:    { label: "Concluído",      classes: "bg-violet-500/15 text-violet-300 border-violet-500/20" },
+  Cancelado:   { label: "Cancelado",      classes: "bg-red-500/15 text-red-400 border-red-500/20" },
+  Perdido:     { label: "Não realizado",  classes: "bg-orange-500/15 text-orange-300 border-orange-500/20" },
 };
+
+const CANCELLABLE = new Set(["Novo", "Em contato", "Agendado"]);
 
 export default function CustomerAppointmentsPage() {
   const { user, loading } = useAuth();
+  const { showConfirmationModal } = useAppModal();
   const [bookings, setBookings] = useState<CustomerBooking[]>([]);
   const [listLoading, setListLoading] = useState(true);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -53,6 +58,32 @@ export default function CustomerAppointmentsPage() {
     );
     return () => unsub();
   }, [user]);
+
+  const handleCancel = (booking: CustomerBooking) => {
+    showConfirmationModal({
+      title: "Cancelar agendamento",
+      description: `Deseja cancelar "${booking.serviceName}" com ${booking.professionalName} em ${formatDateFriendlySaoPaulo(booking.date)} às ${booking.startTime}? O horário ficará disponível para outros clientes.`,
+      confirmLabel: "Cancelar agendamento",
+      cancelLabel: "Voltar",
+      variant: "danger",
+      onConfirm: async () => {
+        setCancellingId(booking.bookingId);
+        try {
+          const token = await user!.getIdToken();
+          const res = await fetch(`/api/customer/cancel/${booking.bookingId}`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (!res.ok) {
+            const data = await res.json();
+            throw new Error(data.error ?? "Erro ao cancelar.");
+          }
+        } finally {
+          setCancellingId(null);
+        }
+      },
+    });
+  };
 
   if (loading || listLoading) {
     return (
@@ -73,7 +104,6 @@ export default function CustomerAppointmentsPage() {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-extrabold tracking-tight flex items-center gap-2">
           <CalendarCheck className="h-6 w-6 text-emerald-400" />
@@ -89,7 +119,7 @@ export default function CustomerAppointmentsPage() {
       ) : (
         <>
           {upcoming.length > 0 && (
-            <Section title="Próximos" bookings={upcoming} />
+            <Section title="Próximos" bookings={upcoming} onCancel={handleCancel} cancellingId={cancellingId} />
           )}
           {past.length > 0 && (
             <Section title="Histórico" bookings={past} muted />
@@ -101,24 +131,42 @@ export default function CustomerAppointmentsPage() {
 }
 
 function Section({
-  title, bookings, muted,
+  title, bookings, muted, onCancel, cancellingId,
 }: {
-  title: string; bookings: CustomerBooking[]; muted?: boolean;
+  title: string;
+  bookings: CustomerBooking[];
+  muted?: boolean;
+  onCancel?: (b: CustomerBooking) => void;
+  cancellingId?: string | null;
 }) {
   return (
     <div>
       <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3">{title}</p>
       <div className="space-y-3">
         {bookings.map((b) => (
-          <BookingCard key={b.bookingId} booking={b} muted={muted} />
+          <BookingCard
+            key={b.bookingId}
+            booking={b}
+            muted={muted}
+            onCancel={onCancel}
+            cancelling={cancellingId === b.bookingId}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function BookingCard({ booking: b, muted }: { booking: CustomerBooking; muted?: boolean }) {
+function BookingCard({
+  booking: b, muted, onCancel, cancelling,
+}: {
+  booking: CustomerBooking;
+  muted?: boolean;
+  onCancel?: (b: CustomerBooking) => void;
+  cancelling?: boolean;
+}) {
   const style = STATUS_STYLES[b.status] ?? { label: b.status, classes: "bg-slate-800 text-slate-400 border-slate-700" };
+  const canCancel = CANCELLABLE.has(b.status) && !!onCancel;
 
   return (
     <div className={`p-4 rounded-2xl border transition-all ${muted ? "bg-slate-900/30 border-slate-800/60" : "bg-slate-900/60 border-slate-800"}`}>
@@ -152,16 +200,33 @@ function BookingCard({ booking: b, muted }: { booking: CustomerBooking; muted?: 
           </div>
         </div>
 
-        {b.professionalSlug && (
-          <Link
-            href={`/p/${b.professionalSlug}`}
-            target="_blank"
-            className="shrink-0 flex items-center gap-1 text-xs text-slate-500 hover:text-indigo-400 transition-colors mt-1"
-            title="Ver página do profissional"
-          >
-            <ExternalLink className="h-4 w-4" />
-          </Link>
-        )}
+        <div className="flex flex-col items-end gap-2 shrink-0">
+          {b.professionalSlug && (
+            <Link
+              href={`/p/${b.professionalSlug}`}
+              target="_blank"
+              className="flex items-center gap-1 text-xs text-slate-500 hover:text-indigo-400 transition-colors"
+              title="Ver página do profissional"
+            >
+              <ExternalLink className="h-4 w-4" />
+            </Link>
+          )}
+
+          {canCancel && (
+            <button
+              onClick={() => onCancel(b)}
+              disabled={cancelling}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-red-400 hover:text-white bg-red-500/10 hover:bg-red-600 border border-red-500/20 hover:border-red-600 rounded-lg transition-all disabled:opacity-50 disabled:cursor-wait"
+            >
+              {cancelling ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <XCircle className="h-3 w-3" />
+              )}
+              <span>Cancelar</span>
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

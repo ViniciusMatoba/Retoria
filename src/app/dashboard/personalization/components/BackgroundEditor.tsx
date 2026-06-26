@@ -4,6 +4,7 @@ import { storage } from "@/lib/firebase";
 import { useAuth } from "../../../providers";
 import { ThemeConfig, gradientPresets, bgPatterns, validateImageFile } from "../../../../lib/themeUtils";
 import { Upload, Loader2, Trash2, Sliders } from "lucide-react";
+import { useAppModal } from "@/components/ModalProvider";
 
 interface BackgroundEditorProps {
   currentConfig: ThemeConfig;
@@ -15,6 +16,7 @@ export default function BackgroundEditor({
   onChangeField
 }: BackgroundEditorProps) {
   const { user } = useAuth();
+  const { showConfirmationModal } = useAppModal();
   const [uploadLoading, setUploadLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -49,28 +51,33 @@ export default function BackgroundEditor({
     }
   };
 
-  const handleRemoveBackground = async () => {
+  const handleRemoveBackground = () => {
     if (!currentConfig.backgroundStoragePath) return;
-    if (!window.confirm("Deseja remover a imagem de fundo? A imagem será apagada do Storage.")) return;
-
-    setUploadLoading(true);
-    setError("");
-
-    try {
-      const fileRef = ref(storage, currentConfig.backgroundStoragePath);
-      await deleteObject(fileRef);
-    } catch (err: any) {
-      // Ignore if not found
-      if (err.code !== "storage/object-not-found") {
-        console.error("Background delete error:", err);
-      }
-    } finally {
-      onChangeField("backgroundImageUrl", null);
-      onChangeField("backgroundStoragePath", null);
-      onChangeField("backgroundUpdatedAt", Date.now());
-      onChangeField("backgroundType", "solid");
-      setUploadLoading(false);
-    }
+    showConfirmationModal({
+      title: "Remover imagem de fundo",
+      description: "A imagem será apagada permanentemente do Storage. Esta ação não pode ser desfeita.",
+      confirmLabel: "Remover",
+      cancelLabel: "Cancelar",
+      variant: "danger",
+      onConfirm: async () => {
+        setUploadLoading(true);
+        setError("");
+        try {
+          const fileRef = ref(storage, currentConfig.backgroundStoragePath!);
+          await deleteObject(fileRef);
+        } catch (err: any) {
+          if (err.code !== "storage/object-not-found") {
+            console.error("Background delete error:", err);
+          }
+        } finally {
+          onChangeField("backgroundImageUrl", null);
+          onChangeField("backgroundStoragePath", null);
+          onChangeField("backgroundUpdatedAt", Date.now());
+          onChangeField("backgroundType", "solid");
+          setUploadLoading(false);
+        }
+      },
+    });
   };
 
   return (

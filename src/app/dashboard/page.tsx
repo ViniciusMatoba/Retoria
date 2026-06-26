@@ -11,6 +11,7 @@ import {
   DollarSign, Inbox, AlertCircle, Loader2, CalendarClock, X,
   Building2, User, Users, CheckCircle2,
 } from "lucide-react";
+import { useAppModal } from "@/components/ModalProvider";
 
 interface Lead {
   id: string;
@@ -52,6 +53,7 @@ type ProfFilter = string | null;
 
 export default function DashboardHome() {
   const { user } = useAuth();
+  const { showConfirmationModal } = useAppModal();
 
   const [teamMembers, setTeamMembers] = useState<TeamMemberTab[]>([]);
   const [activeProfId, setActiveProfId] = useState<ProfFilter>(null); // null = ainda carregando default
@@ -216,14 +218,19 @@ export default function DashboardHome() {
   };
 
   // ── Delete ─────────────────────────────────────────────────────────────────
-  const handleDeleteLead = async (lead: Lead) => {
-    if (!user || !window.confirm("Deseja realmente excluir este contato?")) return;
+  const handleDeleteLead = (lead: Lead) => {
+    if (!user) return;
     const profId = lead.professionalId || user.uid;
-    try {
-      await deleteDoc(doc(db, "professionals", profId, "leads", lead.id));
-    } catch (e) {
-      console.error("Error deleting lead:", e);
-    }
+    showConfirmationModal({
+      title: "Excluir contato",
+      description: `Deseja realmente excluir "${lead.nome}"? Esta ação não pode ser desfeita.`,
+      confirmLabel: "Excluir",
+      cancelLabel: "Cancelar",
+      variant: "danger",
+      onConfirm: async () => {
+        await deleteDoc(doc(db, "professionals", profId, "leads", lead.id));
+      },
+    });
   };
 
   // ── Metrics ────────────────────────────────────────────────────────────────

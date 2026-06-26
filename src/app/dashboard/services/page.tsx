@@ -9,6 +9,7 @@ import {
   Plus, Edit2, Trash2, Clock, Check, X, Loader2, AlertCircle, Sparkles,
   ToggleLeft, ToggleRight, Upload, Briefcase, Building2, User,
 } from "lucide-react";
+import { useAppModal } from "@/components/ModalProvider";
 import { validateImageFile, buildVersionedImageUrl } from "../../../lib/themeUtils";
 
 interface Service {
@@ -39,6 +40,7 @@ interface TeamMemberOption {
 
 export default function ServicesPage() {
   const { user } = useAuth();
+  const { showConfirmationModal } = useAppModal();
 
   const [services, setServices] = useState<Service[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMemberOption[]>([]);
@@ -274,21 +276,30 @@ export default function ServicesPage() {
     } catch (err) { console.error(err); }
   };
 
-  const handleDelete = async (service: Service) => {
-    if (!user || !window.confirm(`Excluir o serviço "${service.nome}"?`)) return;
-    const profId = service._profId ?? user.uid;
-    setDeleteLoading(service.id);
-    try {
-      if (service.imagemStoragePath) {
-        try { await deleteObject(ref(storage, service.imagemStoragePath)); } catch {}
-      }
-      await deleteDoc(doc(db, "professionals", profId, "services", service.id));
-      loadAllServices();
-    } catch (err: any) {
-      alert("Erro ao excluir serviço: " + err.message);
-    } finally {
-      setDeleteLoading(null);
-    }
+  const handleDelete = (service: Service) => {
+    if (!user) return;
+    showConfirmationModal({
+      title: "Excluir serviço",
+      description: `Deseja excluir "${service.nome}"? Esta ação não pode ser desfeita.`,
+      confirmLabel: "Excluir",
+      cancelLabel: "Cancelar",
+      variant: "danger",
+      onConfirm: async () => {
+        const profId = service._profId ?? user.uid;
+        setDeleteLoading(service.id);
+        try {
+          if (service.imagemStoragePath) {
+            try { await deleteObject(ref(storage, service.imagemStoragePath)); } catch {}
+          }
+          await deleteDoc(doc(db, "professionals", profId, "services", service.id));
+          loadAllServices();
+        } catch (err: any) {
+          console.error("Erro ao excluir serviço:", err);
+        } finally {
+          setDeleteLoading(null);
+        }
+      },
+    });
   };
 
   // ── Label helpers ──────────────────────────────────────────────────────────
@@ -535,9 +546,14 @@ export default function ServicesPage() {
                         }} />
                       </label>
                       <button type="button" onClick={() => {
-                        if (window.confirm("Remover imagem? Será confirmado ao salvar.")) {
-                          setImageFile(null); setImagePreview(""); setRemoveImageMarked(true);
-                        }
+                        showConfirmationModal({
+                          title: "Remover imagem",
+                          description: "A imagem será removida ao salvar o serviço.",
+                          confirmLabel: "Remover",
+                          cancelLabel: "Cancelar",
+                          variant: "warning",
+                          onConfirm: () => { setImageFile(null); setImagePreview(""); setRemoveImageMarked(true); },
+                        });
                       }} className="px-3 py-1.5 bg-red-600 hover:bg-red-500 border border-red-500/30 text-xs font-bold rounded-lg text-white transition-all">
                         Remover
                       </button>
