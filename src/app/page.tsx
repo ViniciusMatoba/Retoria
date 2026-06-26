@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Calendar, ArrowRight, CheckCircle2, Smartphone, ShieldCheck, Zap } from "lucide-react";
+import { Calendar, ArrowRight, CheckCircle2, Smartphone, Users, Zap } from "lucide-react";
 
 export default function Home() {
   return (
@@ -21,7 +21,7 @@ export default function Home() {
             Entrar
           </Link>
           <Link href="/register" className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl text-sm transition-all shadow-lg shadow-indigo-500/25 active:scale-[0.97]">
-            Começar Grátis
+            Solicitar acesso
           </Link>
         </div>
       </header>
@@ -32,7 +32,7 @@ export default function Home() {
         {/* Badge */}
         <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-500/10 border border-indigo-500/25 text-indigo-400 rounded-full text-xs font-semibold tracking-wide">
           <Zap className="h-3.5 w-3.5 animate-pulse" />
-          <span>Agenda + WhatsApp simplificados</span>
+          <span>Pré-atendimento profissional via WhatsApp</span>
         </div>
 
         {/* Hero Title */}
@@ -47,11 +47,11 @@ export default function Home() {
 
         {/* CTAs */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center w-full max-w-md pt-2">
-          <Link 
-            href="/register" 
+          <Link
+            href="/register"
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-2xl text-base transition-all shadow-lg shadow-indigo-500/20 active:scale-[0.98]"
           >
-            <span>Criar minha página grátis</span>
+            <span>Quero começar agora</span>
             <ArrowRight className="h-5 w-5" />
           </Link>
           <Link 
@@ -90,11 +90,11 @@ export default function Home() {
           {/* Card 3 */}
           <div className="bg-slate-900/40 border border-slate-850 p-6 rounded-3xl backdrop-blur-sm space-y-3">
             <div className="h-10 w-10 bg-indigo-500/10 border border-indigo-500/20 rounded-xl flex items-center justify-center text-indigo-400">
-              <ShieldCheck className="h-5 w-5" />
+              <Users className="h-5 w-5" />
             </div>
-            <h3 className="font-bold text-lg text-slate-100">100% Protegido</h3>
+            <h3 className="font-bold text-lg text-slate-100">Histórico de clientes</h3>
             <p className="text-sm text-slate-400 leading-relaxed">
-              Cada profissional faz login individual seguro e visualiza somente seus próprios atendimentos e configurações.
+              Cada pedido é salvo com nome, telefone e observações. Você tem acesso ao histórico completo de quem já agendou.
             </p>
           </div>
 

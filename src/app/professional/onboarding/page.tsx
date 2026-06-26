@@ -55,14 +55,21 @@ export default function OnboardingPage() {
     }
   }, [nomeNegocio]);
 
-  // Guard
+  // Guard + pré-preenchimento com dados da ativação
   useEffect(() => {
     if (loading) return;
     if (!user) { router.push("/login"); return; }
-    // If already has a completed professional profile, go to dashboard
     if (profile && profile.professionalStatus !== "onboarding") {
       router.push("/dashboard");
+      return;
     }
+    // Pré-preencher com dados do profile (vindos da ativação)
+    if (profile?.nome && !nomePublico) setNomePublico(profile.nome);
+    if ((profile as any)?.telefoneWhatsapp && !telefone) {
+      const raw = (profile as any).telefoneWhatsapp.replace(/\D/g, "").replace(/^55/, "");
+      setTelefone(maskPhone(raw));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, profile, loading, router]);
 
   const checkSlug = async () => {

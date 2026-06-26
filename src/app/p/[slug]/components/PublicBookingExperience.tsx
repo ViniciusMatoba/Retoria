@@ -13,6 +13,8 @@ import {
   Loader2,
   AlertCircle,
   Smartphone,
+  MessageCircle,
+  Info,
 } from "lucide-react";
 import PublicThemeProvider from "./PublicThemeProvider";
 import PublicServiceCard from "./PublicServiceCard";
@@ -131,6 +133,7 @@ export default function PublicBookingExperience({
   const [clientObservacao, setClientObservacao] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [whatsappUrl, setWhatsappUrl] = useState("");
 
   const corBrand = theme.primaryColor;
 
@@ -321,8 +324,8 @@ export default function PublicBookingExperience({
       const friendlyDate = `${day}/${month}/${year}`;
       const message = `Olá, meu nome é ${trimmedNome}. Tenho interesse em ${selectedService.nome} e gostaria de verificar a disponibilidade para ${friendlyDate} às ${selectedSlot.horario}.`;
       const redirectUrl = getWhatsAppLink(activeWhatsapp ?? professional.telefoneWhatsapp, message);
+      setWhatsappUrl(redirectUrl);
       setStep(4);
-      window.location.href = redirectUrl;
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Ocorreu um erro ao registrar sua solicitação.");
@@ -390,7 +393,7 @@ export default function PublicBookingExperience({
           {/* Step indicator */}
           {step < 4 && (
             <div
-              className="backdrop-blur-sm rounded-2xl px-5 py-3.5 flex justify-between items-center text-xs font-semibold"
+              className="backdrop-blur-sm rounded-2xl px-3 py-2.5 flex justify-between items-center text-[10px] sm:text-xs font-semibold"
               style={{
                 backgroundColor: "var(--theme-surface)",
                 border: "1px solid rgba(var(--theme-text-rgb, 0,0,0), 0.08)",
@@ -400,21 +403,23 @@ export default function PublicBookingExperience({
               {hasTeam && (
                 <>
                   <span className="font-black" style={step === 0 ? { color: "var(--theme-primary)" } : { color: "var(--theme-muted-text)", opacity: 0.5 }}>
-                    1. Profissional
+                    <span className="sm:hidden">1. Prof.</span>
+                    <span className="hidden sm:inline">1. Profissional</span>
                   </span>
-                  <ChevronRight className="h-3 w-3 opacity-30" style={{ color: "var(--theme-muted-text)" }} />
+                  <ChevronRight className="h-3 w-3 opacity-30 shrink-0" style={{ color: "var(--theme-muted-text)" }} />
                 </>
               )}
               <span className="font-black" style={step === 1 ? { color: "var(--theme-primary)" } : { color: "var(--theme-muted-text)", opacity: 0.5 }}>
                 {hasTeam ? "2." : "1."} Serviço
               </span>
-              <ChevronRight className="h-3 w-3 opacity-30" style={{ color: "var(--theme-muted-text)" }} />
+              <ChevronRight className="h-3 w-3 opacity-30 shrink-0" style={{ color: "var(--theme-muted-text)" }} />
               <span className="font-black" style={step === 2 ? { color: "var(--theme-primary)" } : { color: "var(--theme-muted-text)", opacity: 0.5 }}>
                 {hasTeam ? "3." : "2."} Horário
               </span>
-              <ChevronRight className="h-3 w-3 opacity-30" style={{ color: "var(--theme-muted-text)" }} />
+              <ChevronRight className="h-3 w-3 opacity-30 shrink-0" style={{ color: "var(--theme-muted-text)" }} />
               <span className="font-black" style={step === 3 ? { color: "var(--theme-primary)" } : { color: "var(--theme-muted-text)", opacity: 0.5 }}>
-                {hasTeam ? "4." : "3."} Seus Dados
+                <span className="sm:hidden">{hasTeam ? "4." : "3."} Dados</span>
+                <span className="hidden sm:inline">{hasTeam ? "4." : "3."} Seus Dados</span>
               </span>
             </div>
           )}
@@ -698,6 +703,10 @@ export default function PublicBookingExperience({
                     <p className="flex justify-between items-center"><span className="text-[var(--theme-muted-text)]">Data e Horário:</span><span className="font-bold">{formatDateTitle(selectedSlot.data)} às {selectedSlot.horario}</span></p>
                   )}
                 </div>
+                <div style={cardRadiusStyle} className="flex items-start gap-2.5 px-3 py-2.5 bg-amber-500/8 border border-amber-500/20 text-amber-300/80 text-xs">
+                  <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                  <span>Este é um <strong>pedido de pré-agendamento</strong>. O profissional confirmará o horário com você pelo WhatsApp.</span>
+                </div>
                 <form onSubmit={handleBookAppointment} className="space-y-4">
                   <div>
                     <label className="block text-xs font-semibold text-[var(--theme-muted-text)] uppercase tracking-wider mb-2">Seu Nome *</label>
@@ -730,7 +739,7 @@ export default function PublicBookingExperience({
                       style={submitting ? {} : { backgroundColor: theme.primaryColor, color: getBestTextColor(theme.primaryColor), fontFamily: "var(--theme-body-font)" }}
                       className={`flex-[2] py-3.5 px-4 font-semibold text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${btnRadiusClass} ${submitting ? "bg-slate-800 text-slate-500 cursor-not-allowed shadow-none" : "hover:brightness-110 shadow-lg"}`}
                     >
-                      {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <><Smartphone className="h-4 w-4" /><span>{previewMode ? "Confirmar (prévia)" : "Solicitar Horário no WhatsApp"}</span></>}
+                      {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <><Smartphone className="h-4 w-4" /><span>{previewMode ? "Confirmar (prévia)" : "Enviar pedido de agendamento"}</span></>}
                     </button>
                   </div>
                 </form>
@@ -740,32 +749,32 @@ export default function PublicBookingExperience({
             {/* STEP 4 */}
             {step === 4 && (
               <div className="flex flex-col items-center justify-center py-8 text-center space-y-4">
-                <div className="h-16 w-16 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/5">
-                  <Check className="h-8 w-8" />
+                <div className="h-16 w-16 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-full flex items-center justify-center shadow-lg shadow-amber-500/5">
+                  <MessageCircle className="h-8 w-8" />
                 </div>
                 <div>
                   <h2 className="text-xl font-bold text-[var(--theme-text)]" style={{ fontFamily: "var(--theme-heading-font)" }}>
-                    {previewMode ? "Prévia: solicitação enviada!" : "Solicitação enviada com sucesso!"}
+                    {previewMode ? "Prévia: pedido registrado!" : "Pedido registrado!"}
                   </h2>
                   <p className="text-sm text-[var(--theme-muted-text)] max-w-sm mt-2 leading-relaxed">
                     {previewMode
-                      ? "Na página real o cliente seria redirecionado para o WhatsApp do profissional."
-                      : `Estamos redirecionando você para o WhatsApp de ${professional.nomeNegocio} para confirmar seu agendamento.`}
+                      ? "Na página real o cliente enviaria a mensagem pelo WhatsApp para confirmar o horário."
+                      : "Agora envie a mensagem para o profissional pelo WhatsApp. Ele confirmará o horário com você em breve."}
                   </p>
                 </div>
-                {!previewMode && selectedSlot && (
-                  <div className="pt-4 w-full">
-                    <button
-                      onClick={() => {
-                        const [year, month, day] = selectedSlot.data.split("-");
-                        const friendlyDate = `${day}/${month}/${year}`;
-                        const message = `Olá, meu nome é ${clientNome.trim()}. Tenho interesse em ${selectedService!.nome} e gostaria de verificar a disponibilidade para ${friendlyDate} às ${selectedSlot.horario}.`;
-                        window.location.href = getWhatsAppLink(activeWhatsapp ?? professional.telefoneWhatsapp, message);
-                      }}
+                {!previewMode && (
+                  <div className="pt-2 w-full space-y-3">
+                    <a
+                      href={whatsappUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className={`w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm transition-all shadow-lg flex items-center justify-center gap-2 active:scale-[0.98] ${btnRadiusClass}`}
                     >
-                      <Smartphone className="h-5 w-5" /><span>Abrir WhatsApp Manualmente</span>
-                    </button>
+                      <Smartphone className="h-5 w-5" /><span>Enviar mensagem no WhatsApp</span>
+                    </a>
+                    <p className="text-xs text-[var(--theme-muted-text)]">
+                      O WhatsApp abrirá com a mensagem já preenchida. Basta enviar.
+                    </p>
                   </div>
                 )}
               </div>

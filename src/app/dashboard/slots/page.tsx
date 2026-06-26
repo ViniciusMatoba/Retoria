@@ -1568,7 +1568,7 @@ export default function SlotsPage() {
                   setCalendarView("day");
                 }}
                 className={`
-                  p-3 rounded-2xl border text-left flex flex-col justify-between h-28 transition-all duration-200
+                  p-1 md:p-3 rounded-xl md:rounded-2xl border text-left flex flex-col justify-between h-16 md:h-28 transition-all duration-200
                   ${isPast
                     ? "bg-slate-950/10 border-slate-900/30 opacity-30 cursor-default"
                     : isToday
@@ -1580,31 +1580,34 @@ export default function SlotsPage() {
                 `}
               >
                 <div className="flex justify-between items-center">
-                  <span className={`text-sm font-black ${isToday ? "text-indigo-400" : isPast ? "text-slate-600" : "text-slate-300"}`}>
+                  <span className={`text-xs md:text-sm font-black ${isToday ? "text-indigo-400" : isPast ? "text-slate-600" : "text-slate-300"}`}>
                     {parseInt(dayNum, 10)}
                   </span>
                   {isToday && (
-                    <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/20">Hoje</span>
+                    <span className="hidden md:inline text-[9px] font-black text-indigo-400 uppercase tracking-widest bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/20">Hoje</span>
                   )}
                 </div>
 
-                <div className="space-y-1 mt-2 text-[10px] font-bold">
+                <div className="space-y-0.5 md:space-y-1 mt-1 md:mt-2 text-[8px] md:text-[10px] font-bold">
                   {!isPast && availableCount > 0 && (
-                    <div className="flex items-center gap-1" style={{ color: styleLivre.bg }}>
-                      <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: styleLivre.bg }} />
-                      <span>{availableCount} {styleLivre.label}</span>
+                    <div className="flex items-center gap-0.5 md:gap-1" style={{ color: styleLivre.bg }}>
+                      <span className="h-1 w-1 md:h-1.5 md:w-1.5 rounded-full shrink-0" style={{ backgroundColor: styleLivre.bg }} />
+                      <span className="hidden md:inline">{availableCount} {styleLivre.label}</span>
+                      <span className="md:hidden">{availableCount}</span>
                     </div>
                   )}
                   {!isPast && reservedCount > 0 && (
-                    <div className="flex items-center gap-1" style={{ color: styleAgendado.bg }}>
-                      <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: styleAgendado.bg }} />
-                      <span>{reservedCount} Ocupados</span>
+                    <div className="flex items-center gap-0.5 md:gap-1" style={{ color: styleAgendado.bg }}>
+                      <span className="h-1 w-1 md:h-1.5 md:w-1.5 rounded-full shrink-0" style={{ backgroundColor: styleAgendado.bg }} />
+                      <span className="hidden md:inline">{reservedCount} Ocupados</span>
+                      <span className="md:hidden">{reservedCount}</span>
                     </div>
                   )}
                   {!isPast && cancelledCount > 0 && (
-                    <div className="flex items-center gap-1" style={{ color: styleCancelado.bg }}>
-                      <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: styleCancelado.bg }} />
-                      <span>{cancelledCount} Cancelados</span>
+                    <div className="flex items-center gap-0.5 md:gap-1" style={{ color: styleCancelado.bg }}>
+                      <span className="h-1 w-1 md:h-1.5 md:w-1.5 rounded-full shrink-0" style={{ backgroundColor: styleCancelado.bg }} />
+                      <span className="hidden md:inline">{cancelledCount} Cancelados</span>
+                      <span className="md:hidden">{cancelledCount}</span>
                     </div>
                   )}
                 </div>
