@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useEffect, useState, use } from "react";
-import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
+import { collection, query, orderBy, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { getSaoPauloToday, addDaysSaoPaulo } from "@/lib/timezone";
 import { Loader2, AlertCircle } from "lucide-react";
-import { getDefaultThemeConfig, normalizeThemeConfig, ThemeConfig } from "@/lib/themeUtils";
+import { normalizeThemeConfig, ThemeConfig } from "@/lib/themeUtils";
 import PublicBookingExperience, {
   Professional,
   Service,
@@ -52,29 +52,6 @@ export default function PublicBookingPage({ params }: PageProps) {
       setServices(data);
     } catch (e) {
       console.error("Error loading services:", e);
-    }
-  };
-
-  const fetchTeamMembers = async (ownerId: string, ownerData: any): Promise<{ members: TeamMemberPublic[]; wMode: "single" | "per_member" }> => {
-    try {
-      const q = query(
-        collection(db, "professionals"),
-        where("parentProfessionalId", "==", ownerId),
-        where("role", "==", "team_member"),
-        where("professionalStatus", "==", "active"),
-      );
-      const snap = await getDocs(q);
-      const members = snap.docs.map((d) => ({
-        id: d.id,
-        nome: d.data().nome ?? "",
-        especialidade: d.data().teamConfig?.especialidade ?? d.data().especialidade ?? "",
-        fotoLogoUrl: d.data().fotoLogoUrl ?? null,
-        whatsapp: d.data().teamConfig?.whatsapp ?? null,
-      }));
-      const wMode: "single" | "per_member" = ownerData?.teamSettings?.whatsappMode ?? "single";
-      return { members, wMode };
-    } catch {
-      return { members: [], wMode: "single" };
     }
   };
 
@@ -128,43 +105,35 @@ export default function PublicBookingPage({ params }: PageProps) {
   useEffect(() => {
     const fetchProfessional = async () => {
       try {
-        const professionalsRef = collection(db, "professionals");
-        const q = query(professionalsRef, where("slugPublico", "==", slug));
-        const querySnapshot = await getDocs(q);
+        // SEC-004: dados do profissional via endpoint server-side com DTO filtrado.
+        // Evita expor campos privados (email, plan, status) ao client SDK.
+        const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "";
+        const res = await fetch(`${APP_URL}/api/p/${encodeURIComponent(slug)}`);
+        if (res.status === 404) { setNotFound(true); setLoading(false); return; }
+        if (!res.ok) throw new Error(`api/p error ${res.status}`);
 
-        if (querySnapshot.empty) { setNotFound(true); setLoading(false); return; }
-
-        const docSnap = querySnapshot.docs[0];
-        const profData = { id: docSnap.id, ...docSnap.data() } as Professional;
-        console.log("PUBLIC PAGE LOADED PROFILE DATA:", {
-          id: profData.id,
-          nomeNegocio: profData.nomeNegocio,
-          corPrincipal: profData.corPrincipal,
-          themeConfig: profData.themeConfig
-        });
+        const json = await res.json();
+        const profData = json.professional as Professional;
 
         const rawTheme = (profData.themeConfig || {}) as Partial<ThemeConfig>;
         profData.themeConfig = normalizeThemeConfig({
           ...rawTheme,
-          primaryColor: rawTheme.primaryColor || profData.corPrincipal
+          primaryColor: rawTheme.primaryColor || profData.corPrincipal,
         });
 
         setProfessional(profData);
         const windowDays = profData.agendaConfig?.janelaAgendamentoDias || 30;
 
-        // Fetch team members; if owner has team don't pre-load services (user picks member first)
-        const rawData = querySnapshot.docs[0].data();
-        const { members, wMode } = await fetchTeamMembers(docSnap.id, rawData);
+        const members: TeamMemberPublic[] = json.teamMembers ?? [];
+        const wMode: "single" | "per_member" = json.whatsappMode ?? "single";
         setTeamMembers(members);
         setWhatsappMode(wMode);
 
         if (members.length === 0) {
-          // No team — load owner's services/slots immediately (existing flow)
-          setActiveProfessionalId(docSnap.id);
+          setActiveProfessionalId(profData.id);
           setActiveWhatsapp(profData.telefoneWhatsapp);
-          await Promise.all([fetchServices(docSnap.id), fetchAvailableSlots(docSnap.id, windowDays)]);
+          await Promise.all([fetchServices(profData.id), fetchAvailableSlots(profData.id, windowDays)]);
         }
-        // If team exists, activeProfessionalId stays undefined until user picks
       } catch (err) {
         console.error("Error loading booking page:", err);
         setError("Erro ao carregar dados. Tente novamente mais tarde.");

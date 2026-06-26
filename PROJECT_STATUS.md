@@ -13,18 +13,28 @@ Este arquivo serve como referência rápida para o status atual e progresso do d
 
 ## Resultados das Validações
 
-* **Next.js Build**: **Aprovado** (`npm run build` executado com sucesso).
-* **Testes de Temas**: **Aprovado** (`npm run test:themes` passou 13/13 testes).
-* **Testes de Regras (Firebase)**: **Aprovado** (53/53 testes passaram com sucesso sob o `Microsoft OpenJDK 21.0.11`).
-* **Deploy**: **Concluído** (deploy automático acionado após push na branch `main`).
+* **Next.js Build**: **Aprovado** (`npm run build` executado com sucesso em 26/06/2026).
+* **Testes de Temas**: **Aprovado** (`npm run test:themes` — 13/13).
+* **Testes de Regras (Firebase)**: **Aprovado** (`npm run test:rules` — 73/73, inclui 20 testes de segurança adicionados em 26/06/2026).
+* **Deploy**: Aguardando revisão (nenhum deploy executado desde a auditoria de segurança).
 * **Homologação pós-deploy**: **Não testada** (pendente de execução de jornadas críticas).
-* **Gate Atual**: Gate A: GO | Gate B: NO-GO
-* **Bloqueadores**: Homologação pós-deploy das jornadas críticas ainda não executada.
+* **Gate Atual**: Gate A: GO | Gate B: **NO-GO** (Security Gate pendente)
+* **Bloqueadores**:
+  1. Homologação pós-deploy das jornadas críticas ainda não executada.
+  2. **SEC-004**: `professionals` expõe campos privados (email, telefone, plan, status) para visitantes anônimos — confirmado em emulador. Requer correção ou aceite formal.
+  3. **SEC-005**: `availableSlots` expõe `bookingId` para visitantes — confirmado em emulador. Requer correção ou aceite formal.
+
+---
+
+## Auditoria de Segurança AppSec (26/06/2026)
+
+19 achados identificados (SEC-001 a SEC-019). 8 corrigidos (todos os P0 + P1 aplicáveis). 2 bloqueadores de pilot abertos (SEC-004, SEC-005). Ver `docs/SECURITY_AUDIT.md` e `docs/SECURITY_BACKLOG.md`.
 
 ---
 
 ## Próximos Passos Obrigatórios
-1. Executar homologação pós-deploy controlada do MVP Individual e registrar evidências no [docs/PROJECT_CONTROL.md](file:///C:/Users/Usuario/Desktop/Retoria/docs/PROJECT_CONTROL.md).
-2. Somente após a homologação acima: Iniciar a **Fase 1: Aplicação Global dos Modais** (substituição de alertas nativos).
+1. Decidir sobre SEC-004 e SEC-005: corrigir (ver alternativas no SECURITY_AUDIT.md) ou aceitar formalmente com justificativa documentada no RELEASE_GATES.md.
+2. Executar homologação pós-deploy controlada do MVP Individual e registrar evidências no [docs/PROJECT_CONTROL.md](file:///C:/Users/Usuario/Desktop/Retoria/docs/PROJECT_CONTROL.md).
+3. Somente após os itens acima: atualizar Security Gate para GO e fazer deploy.
 
 Para documentações completas e detalhadas, acesse a pasta [/docs](file:///C:/Users/Usuario/Desktop/Retoria/docs/README.md).

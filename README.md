@@ -1,6 +1,6 @@
-# AgendaZap 🚀
+# Retoria
 
-**AgendaZap** é um sistema piloto de pré-atendimento e pré-agendamento web projetado para profissionais autônomos que atendem e recebem clientes através do WhatsApp.
+**Retoria** é um sistema de pré-atendimento e agendamento web projetado para profissionais autônomos que atendem e recebem clientes através do WhatsApp.
 
 O objetivo principal é evitar que profissionais percam clientes por demora no atendimento inicial, oferecendo uma página simples onde o cliente escolhe o serviço, seleciona a data/hora disponível, informa os dados de contato e é redirecionado para o WhatsApp do profissional com uma mensagem pré-formatada.
 

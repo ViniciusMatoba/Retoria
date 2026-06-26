@@ -1,20 +1,51 @@
 import { NextRequest, NextResponse } from "next/server";
-import { dbAdmin } from "@/lib/firebaseAdmin";
+import { dbAdmin, authAdmin } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
+import { isRateLimited } from "@/lib/rateLimit";
+
+const ADMIN_UIDS = (process.env.ADMIN_UIDS ?? "").split(",").map(s => s.trim()).filter(Boolean);
+
+async function verifyAdmin(req: NextRequest): Promise<string | null> {
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) return null;
+  try {
+    const decoded = await authAdmin!.verifyIdToken(authHeader.slice(7));
+    return ADMIN_UIDS.includes(decoded.uid) ? decoded.uid : null;
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(req: NextRequest) {
   if (!dbAdmin) return NextResponse.json({ error: "Servidor indisponível." }, { status: 500 });
 
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim()
+    ?? req.headers.get("x-real-ip")
+    ?? "unknown";
+  if (isRateLimited(`accessreq:${ip}`, 3, 3_600_000)) {
+    return NextResponse.json({ error: "Muitas tentativas. Tente novamente mais tarde." }, { status: 429 });
+  }
+
   try {
-    const { nome, email, plano } = await req.json();
-    if (!nome?.trim() || !email?.trim()) {
+    const body = await req.json();
+    const nome = (body?.nome ?? "").trim();
+    const email = (body?.email ?? "").trim().toLowerCase();
+    const plano = body?.plano ?? "professional";
+
+    if (!nome || !email) {
       return NextResponse.json({ error: "Nome e e-mail são obrigatórios." }, { status: 400 });
+    }
+    if (nome.length > 120 || email.length > 200) {
+      return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
+    }
+    if (!["individual", "professional", "enterprise"].includes(plano)) {
+      return NextResponse.json({ error: "Plano inválido." }, { status: 400 });
     }
 
     await dbAdmin.collection("accessRequests").add({
-      nome: nome.trim(),
-      email: email.trim().toLowerCase(),
-      plano: plano ?? "professional",
+      nome,
+      email,
+      plano,
       status: "pending",
       createdAt: FieldValue.serverTimestamp(),
     });
@@ -26,13 +57,10 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  if (!dbAdmin) return NextResponse.json({ error: "Servidor indisponível." }, { status: 500 });
+  if (!dbAdmin || !authAdmin) return NextResponse.json({ error: "Servidor indisponível." }, { status: 500 });
 
-  // Verificação de admin via header
-  const adminKey = req.headers.get("x-admin-key");
-  if (adminKey !== process.env.ADMIN_SECRET_KEY && adminKey !== "Br8CTpvxb9eZvz92kytZ2AKX6tJ3") {
-    return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
-  }
+  const adminUid = await verifyAdmin(req);
+  if (!adminUid) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
 
   try {
     const snap = await dbAdmin
@@ -57,15 +85,16 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  if (!dbAdmin) return NextResponse.json({ error: "Servidor indisponível." }, { status: 500 });
+  if (!dbAdmin || !authAdmin) return NextResponse.json({ error: "Servidor indisponível." }, { status: 500 });
 
-  const adminKey = req.headers.get("x-admin-key");
-  if (adminKey !== process.env.ADMIN_SECRET_KEY && adminKey !== "Br8CTpvxb9eZvz92kytZ2AKX6tJ3") {
-    return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
-  }
+  const adminUid = await verifyAdmin(req);
+  if (!adminUid) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
 
   try {
     const { id, status } = await req.json();
+    if (!id || !["pending", "attended"].includes(status)) {
+      return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
+    }
     await dbAdmin.collection("accessRequests").doc(id).update({ status });
     return NextResponse.json({ ok: true });
   } catch (err: any) {

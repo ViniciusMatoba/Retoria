@@ -405,9 +405,10 @@ async function main() {
   // ── professionals (público) ───────────────────────────────────────────────
   console.log("\nprofessionals (coleção pública)");
 
-  await test("público lê profissional", async () => {
+  // SEC-004: leitura pública bloqueada — visitantes usam /api/p/[slug] (DTO via Admin SDK)
+  await test("visitante não lê professionals diretamente (SEC-004)", async () => {
     const ctx = testEnv.unauthenticatedContext();
-    await assertSucceeds(
+    await assertFails(
       getDoc(doc(ctx.firestore(), "professionals", PROF_UID))
     );
   });
@@ -512,6 +513,261 @@ async function main() {
       ctx.storage().ref(`backgrounds/${PROF_UID}/main`).put(
         new Uint8Array(3 * 1024 * 1024 + 1), { contentType: "image/png" }
       )
+    );
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TESTES DE SEGURANÇA — SEC-*
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ── SEC-001/002: endpoints de diagnóstico não têm regras Firestore ────────
+  // (cobertos por testes de API separados — não aplicável aqui)
+
+  // ── SEC-004: campos sensíveis expostos em professionals ───────────────────
+  console.log("\n[SEC-004] professionals — campos sensíveis acessíveis anonimamente");
+
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "professionals", PROF_UID), {
+      nome: "Prof A",
+      slugPublico: "prof-a",
+      email: "prof@secret.com",
+      telefoneWhatsapp: "11999999999",
+      plan: "professional",
+      professionalStatus: "active",
+      trialEndsAt: new Date(),
+    });
+  });
+
+  await test("SEC-004 corrigido: visitante não lê professionals via client SDK", async () => {
+    const ctx = testEnv.unauthenticatedContext();
+    // Após SEC-004: allow read: if isAuth() — visitantes bloqueados.
+    // Dados públicos servidos via /api/p/[slug] com DTO filtrado (Admin SDK).
+    await assertFails(getDoc(doc(ctx.firestore(), "professionals", PROF_UID)));
+  });
+
+  await test("SEC-004: usuário autenticado pode ler professionals", async () => {
+    const ctx = testEnv.authenticatedContext(OTHER_PROF);
+    await assertSucceeds(getDoc(doc(ctx.firestore(), "professionals", PROF_UID)));
+  });
+
+  // ── SEC-005: slots sem bookingId; slotBookings privado ────────────────────
+  console.log("\n[SEC-005] availableSlots — bookingId removido; slotBookings privado");
+
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    // Slot sem bookingId/ocupacaoTipo (correto após SEC-005)
+    await setDoc(doc(ctx.firestore(), "professionals", PROF_UID, "availableSlots", "slot-001"), {
+      data: "2026-07-01", horario: "10:00", disponivel: false,
+    });
+    // Índice privado no slotBookings
+    await setDoc(doc(ctx.firestore(), "professionals", PROF_UID, "slotBookings", LEAD_ID), {
+      slotIds: ["slot-001"], updatedAt: new Date(),
+    });
+  });
+
+  await test("SEC-005 corrigido: slot não contém bookingId nem ocupacaoTipo", async () => {
+    const ctx = testEnv.unauthenticatedContext();
+    const snap = await assertSucceeds(
+      getDoc(doc(ctx.firestore(), "professionals", PROF_UID, "availableSlots", "slot-001"))
+    );
+    const data = snap.data() ?? {};
+    if ("bookingId" in data || "ocupacaoTipo" in data) {
+      throw new Error("slot ainda expõe bookingId ou ocupacaoTipo");
+    }
+  });
+
+  await test("SEC-005: visitante não lê slotBookings (índice privado)", async () => {
+    const ctx = testEnv.unauthenticatedContext();
+    await assertFails(
+      getDoc(doc(ctx.firestore(), "professionals", PROF_UID, "slotBookings", LEAD_ID))
+    );
+  });
+
+  await test("SEC-005: profissional dono pode ler slotBookings", async () => {
+    const ctx = testEnv.authenticatedContext(PROF_UID);
+    await assertSucceeds(
+      getDoc(doc(ctx.firestore(), "professionals", PROF_UID, "slotBookings", LEAD_ID))
+    );
+  });
+
+  // ── SEC-007: isolamento de leads entre profissionais ──────────────────────
+  console.log("\n[SEC-007] leads — isolamento entre profissionais");
+
+  await test("profissional não lê leads de outro profissional", async () => {
+    const ctx = testEnv.authenticatedContext(OTHER_PROF);
+    await assertFails(
+      getDoc(doc(ctx.firestore(), "professionals", PROF_UID, "leads", LEAD_ID))
+    );
+  });
+
+  await test("cliente não lê leads de profissional", async () => {
+    const ctx = testEnv.authenticatedContext(CUST_UID);
+    await assertFails(
+      getDoc(doc(ctx.firestore(), "professionals", PROF_UID, "leads", LEAD_ID))
+    );
+  });
+
+  // ── SEC-015: accessRequests — validação de plano nas regras ──────────────
+  console.log("\n[SEC-015] accessRequests — validação de plano");
+
+  await test("visitante cria accessRequest com plano válido", async () => {
+    const ctx = testEnv.unauthenticatedContext();
+    await assertSucceeds(
+      setDoc(doc(ctx.firestore(), "accessRequests", "req-valid"), {
+        nome: "Teste", email: "t@t.com",
+        plano: "professional", status: "pending",
+        createdAt: new Date(),
+      })
+    );
+  });
+
+  await test("visitante não cria accessRequest com plano inválido", async () => {
+    const ctx = testEnv.unauthenticatedContext();
+    await assertFails(
+      setDoc(doc(ctx.firestore(), "accessRequests", "req-invalid"), {
+        nome: "Hacker", email: "h@h.com",
+        plano: "admin", status: "pending",
+        createdAt: new Date(),
+      })
+    );
+  });
+
+  await test("visitante não cria accessRequest com status diferente de pending", async () => {
+    const ctx = testEnv.unauthenticatedContext();
+    await assertFails(
+      setDoc(doc(ctx.firestore(), "accessRequests", "req-status"), {
+        nome: "Hacker", email: "h@h.com",
+        plano: "professional", status: "attended",
+        createdAt: new Date(),
+      })
+    );
+  });
+
+  await test("ninguém atualiza accessRequest via client SDK", async () => {
+    const ctx = testEnv.authenticatedContext(PROF_UID);
+    await testEnv.withSecurityRulesDisabled(async (ctx2) => {
+      await setDoc(doc(ctx2.firestore(), "accessRequests", "req-update-test"), {
+        nome: "X", email: "x@x.com", plano: "professional",
+        status: "pending", createdAt: new Date(),
+      });
+    });
+    await assertFails(
+      updateDoc(doc(ctx.firestore(), "accessRequests", "req-update-test"), { status: "attended" })
+    );
+  });
+
+  // ── SEC (licenças protegidas) ─────────────────────────────────────────────
+  console.log("\n[SEC] licenses / licenseTokens / teamInvites — Admin SDK only");
+
+  await test("ninguém lê licenses via client SDK", async () => {
+    const ctx = testEnv.authenticatedContext(PROF_UID);
+    await assertFails(
+      getDoc(doc(ctx.firestore(), "licenses", PROF_UID))
+    );
+  });
+
+  await test("ninguém lê licenseTokens via client SDK", async () => {
+    const ctx = testEnv.authenticatedContext(PROF_UID);
+    await assertFails(
+      getDoc(doc(ctx.firestore(), "licenseTokens", "some-token"))
+    );
+  });
+
+  await test("ninguém lê teamInvites via client SDK", async () => {
+    const ctx = testEnv.authenticatedContext(PROF_UID);
+    await assertFails(
+      getDoc(doc(ctx.firestore(), "teamInvites", "some-invite"))
+    );
+  });
+
+  await test("ninguém escreve em licenseTokens via client SDK", async () => {
+    const ctx = testEnv.authenticatedContext(PROF_UID);
+    await assertFails(
+      setDoc(doc(ctx.firestore(), "licenseTokens", "forged-token"), { plan: "enterprise" })
+    );
+  });
+
+  // ── SEC: professionals — campos de licença imutáveis pelo cliente ─────────
+  console.log("\n[SEC] professionals — campos de licença/status bloqueados");
+
+  await test("profissional não altera professionalStatus via client SDK (active → trial)", async () => {
+    // O documento tem professionalStatus:"active" (criado pelo bloco SEC-004 acima).
+    // O ataque real é tentar MUDAR o valor — não setar o mesmo valor existente.
+    // A regra usa diff(), que só detecta mudança quando o valor é diferente.
+    const ctx = testEnv.authenticatedContext(PROF_UID);
+    await assertFails(
+      updateDoc(doc(ctx.firestore(), "professionals", PROF_UID), {
+        professionalStatus: "trial",
+      })
+    );
+  });
+
+  await test("profissional não altera plan via client SDK", async () => {
+    const ctx = testEnv.authenticatedContext(PROF_UID);
+    await assertFails(
+      updateDoc(doc(ctx.firestore(), "professionals", PROF_UID), {
+        plan: "enterprise",
+      })
+    );
+  });
+
+  await test("profissional não altera trialEndsAt via client SDK", async () => {
+    const ctx = testEnv.authenticatedContext(PROF_UID);
+    await assertFails(
+      updateDoc(doc(ctx.firestore(), "professionals", PROF_UID), {
+        trialEndsAt: new Date(Date.now() + 365 * 24 * 3600 * 1000),
+      })
+    );
+  });
+
+  await test("profissional não altera id/userId/createdAt via client SDK", async () => {
+    const ctx = testEnv.authenticatedContext(PROF_UID);
+    await assertFails(
+      updateDoc(doc(ctx.firestore(), "professionals", PROF_UID), {
+        id: "outro-uid",
+      })
+    );
+  });
+
+  // ── SEC-017: accountTypes — cliente não escalona privilégio ──────────────
+  console.log("\n[SEC-017] accounts — escalação de privilégio via accountTypes");
+
+  await test("cliente pode atualizar displayName e accountTypes no próprio account", async () => {
+    const ctx = testEnv.authenticatedContext(CUST_UID);
+    await assertSucceeds(
+      updateDoc(doc(ctx.firestore(), "accounts", CUST_UID), {
+        displayName: "João Updated",
+        accountTypes: ["customer", "professional"],
+        updatedAt: new Date(),
+      })
+    );
+    // Nota: Esta operação sucede pois a regra atual permite alterar accountTypes.
+    // SEC-017 documenta que isso deve ser revisado — accountTypes não é controle de acesso real.
+  });
+
+  await test("cliente não altera uid no próprio account", async () => {
+    const ctx = testEnv.authenticatedContext(CUST_UID);
+    await assertFails(
+      updateDoc(doc(ctx.firestore(), "accounts", CUST_UID), {
+        uid: "escalated-uid",
+        updatedAt: new Date(),
+      })
+    );
+  });
+
+  // ── SEC: cruzamento entre clientes ───────────────────────────────────────
+  console.log("\n[SEC] isolamento entre clientes");
+
+  await test("cliente A não lê dados de cliente B", async () => {
+    const ctx = testEnv.authenticatedContext(OTHER_CUST);
+    await assertFails(
+      getDoc(doc(ctx.firestore(), "customerAccounts", CUST_UID))
+    );
+  });
+
+  await test("cliente não acessa bookings de outro cliente", async () => {
+    const ctx = testEnv.authenticatedContext(OTHER_CUST);
+    await assertFails(
+      getDoc(doc(ctx.firestore(), "customerAccounts", CUST_UID, "bookings", LEAD_ID))
     );
   });
 

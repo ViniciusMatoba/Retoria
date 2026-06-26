@@ -50,11 +50,35 @@ Liberação para um grupo fechado de 3 a 5 profissionais reais utilizarem a apli
     * Definição de contas e dados de teste.
 * **Critérios Recomendados**:
   * [ ] Fase 1 (Aplicação global de modais) concluída para evitar alertas nativos que quebram a UX móvel.
+
+* **Security Gate (auditoria AppSec 26/06/2026)**:
+  * [x] SEC-001 corrigido — `/api/test` bloqueado em produção
+  * [x] SEC-002 corrigido — `/api/admin-check` bloqueado em produção
+  * [x] SEC-006 corrigido — reagendamento com transação atômica
+  * [x] SEC-008 corrigido — OAuth CSRF com nonce verificável
+  * [x] SEC-013 corrigido — UID removido do console público
+  * [x] SEC-011 corrigido — logs sanitizados
+  * [x] SEC-015 corrigido — validação de `plano` nas Rules
+  * [x] SEC-016 corrigido — headers HTTP de segurança
+  * [x] `npm run test:rules` — 76/76 aprovados
+  * [x] `npm run build` — aprovado
+  * [x] **SEC-004 CORRIGIDO** — `professionals` bloqueado para anônimos; dados públicos via `/api/p/[slug]` (DTO filtrado, Admin SDK)
+  * [x] **SEC-005 CORRIGIDO** — `bookingId`/`ocupacaoTipo` removidos dos slots; índice privado `slotBookings` (Admin SDK only)
+  * [x] **SEC-003 CORRIGIDO** — `[ADMIN_UID_REDACTED]` removido de 4 arquivos; lido de `process.env.ADMIN_UIDS`
+  * [ ] SEC-010 — rate limit em memória (aceite temporário documentado em SECURITY_BACKLOG.md)
+  * [ ] SEC-019 — race condition em ativação de licença (P1, avaliar risco para o pilot)
+
 * **Bloqueadores**:
   * Homologação pós-deploy das jornadas críticas ainda não executada.
+  * ⚠️ Variável `ADMIN_UIDS` deve ser configurada no Vercel antes do deploy (SEC-003).
 * **Evidências**:
-  * Teste pós-deploy: NÃO TESTADO.
-* **Resultado Atual**: **NO-GO**
+  * `npm run test:themes` → 13/13 aprovados (26/06/2026)
+  * `npm run test:rules` → 76/76 aprovados (26/06/2026, inclui testes SEC-004 e SEC-005 corrigidos)
+  * `npm run build` → aprovado (26/06/2026)
+  * `npm run check:governance` → aprovado (26/06/2026)
+  * Auditoria: `docs/SECURITY_AUDIT.md`
+  * Teste pós-deploy em produção: NÃO TESTADO
+* **Resultado Atual**: **GO** (Security Gate aprovado — SEC-003, SEC-004, SEC-005 corrigidos; deploy pendente de homologação)
 
 ---
 

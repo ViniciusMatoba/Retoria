@@ -2,16 +2,17 @@
 
 import React, { useEffect, useState } from "react";
 import GoogleCalendarIntegration from "../components/GoogleCalendarIntegration";
-import { 
-  collection, 
-  query, 
-  orderBy, 
-  onSnapshot, 
-  doc, 
-  setDoc, 
-  deleteDoc, 
-  updateDoc, 
-  getDocs, 
+import {
+  collection,
+  query,
+  orderBy,
+  onSnapshot,
+  doc,
+  getDoc,
+  setDoc,
+  deleteDoc,
+  updateDoc,
+  getDocs,
   where,
   writeBatch,
   runTransaction
@@ -64,8 +65,7 @@ interface AvailableSlot {
   createdAt: any;
   updatedAt: any;
   source?: string;
-  bookingId?: string;
-  ocupacaoTipo?: "principal" | "continuacao";
+  // bookingId e ocupacaoTipo removidos — SEC-005: índice privado em slotBookings
 }
 
 interface Service {
@@ -286,6 +286,7 @@ export default function SlotsPage() {
   // --- EDIT BOOKING MODAL STATES ---
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingLead, setEditingLead] = useState<any | null>(null);
+  const [editingLeadSlotIds, setEditingLeadSlotIds] = useState<Set<string>>(new Set());
   const [editNome, setEditNome] = useState("");
   const [editTelefone, setEditTelefone] = useState("");
   const [editObservacao, setEditObservacao] = useState("");
@@ -1285,8 +1286,13 @@ export default function SlotsPage() {
   };
 
   // --- EDIT BOOKING HANDLERS ---
-  const handleOpenEditModal = (lead: any) => {
+  const handleOpenEditModal = async (lead: any) => {
     setEditingLead(lead);
+    // Carregar IDs dos slots deste agendamento do índice privado (SEC-005)
+    try {
+      const sbSnap = await getDoc(doc(db, "professionals", activeProfId, "slotBookings", lead.id));
+      setEditingLeadSlotIds(new Set(sbSnap.exists() ? (sbSnap.data()?.slotIds ?? []) : []));
+    } catch { setEditingLeadSlotIds(new Set()); }
     setEditNome(lead.nome || "");
     setEditTelefone(lead.telefone || "");
     setEditObservacao(lead.observacao || "");
@@ -1355,9 +1361,16 @@ export default function SlotsPage() {
         const leadDocRef = doc(db, "professionals", activeProfId, "leads", editingLead.id);
         const service = services.find(s => s.id === editServicoId);
 
-        // 1. Fetch old slots associated with this booking
+        // 1. Fetch old slots via private index (SEC-005 — bookingId not in slot docs)
         const slotsRef = collection(db, "professionals", activeProfId, "availableSlots");
-        const oldSlotsSnap = await getDocs(query(slotsRef, where("bookingId", "==", editingLead.id)));
+        const slotBookingsRef = doc(db, "professionals", activeProfId, "slotBookings", editingLead.id);
+        const slotBookingsSnap = await getDoc(slotBookingsRef);
+        const oldSlotIds: string[] = slotBookingsSnap.exists()
+          ? (slotBookingsSnap.data()?.slotIds ?? [])
+          : [];
+        const oldSlotsSnaps = await Promise.all(
+          oldSlotIds.map(id => getDoc(doc(db, "professionals", activeProfId, "availableSlots", id)))
+        );
 
         const willBeInactive = editStatus === "Cancelado";
         let newOverlappingRefs: any[] = [];
@@ -1403,8 +1416,9 @@ export default function SlotsPage() {
             throw new Error("slot-not-found");
           }
 
-          // Check if any slot is booked (ignoring those owned by this booking)
-          const isOccupiedByOther = overlapping.some(s => !s.disponivel && s.bookingId !== editingLead.id);
+          // Check if any slot is booked by another booking (SEC-005 — use index, not bookingId field)
+          const oldSlotIdSet = new Set(oldSlotIds);
+          const isOccupiedByOther = overlapping.some(s => !s.disponivel && !oldSlotIdSet.has(s.id));
           if (isOccupiedByOther) {
             throw new Error("slot-already-booked");
           }
@@ -1412,27 +1426,23 @@ export default function SlotsPage() {
           newOverlappingRefs = overlapping.map(s => ({ ref: s.ref, id: s.id }));
         }
 
-        // Release old slots
-        oldSlotsSnap.forEach(d => {
-          transaction.update(d.ref, {
-            disponivel: true,
-            bookingId: null,
-            ocupacaoTipo: null,
-            updatedAt: new Date()
-          });
+        // Release old slots — SEC-005: sem bookingId no slot
+        oldSlotsSnaps.forEach(snap => {
+          if (snap.exists()) {
+            transaction.update(snap.ref, { disponivel: true, updatedAt: new Date() });
+          }
         });
 
-        // Reserve new slots if not Cancelled
+        // Reserve new slots — SEC-005: sem bookingId no slot
         if (!willBeInactive) {
-          newOverlappingRefs.forEach((s, index) => {
-            transaction.update(s.ref, {
-              disponivel: false,
-              bookingId: editingLead.id,
-              ocupacaoTipo: index === 0 ? "principal" : "continuacao",
-              updatedAt: new Date()
-            });
+          newOverlappingRefs.forEach((s) => {
+            transaction.update(s.ref, { disponivel: false, updatedAt: new Date() });
           });
         }
+
+        // Update slotBookings index
+        const newSlotIds = willBeInactive ? [] : newOverlappingRefs.map((s: any) => s.id);
+        transaction.set(slotBookingsRef, { slotIds: newSlotIds, updatedAt: new Date() });
 
         // Update lead payload
         transaction.update(leadDocRef, {
@@ -3097,7 +3107,7 @@ export default function SlotsPage() {
                   >
                     <option value={editingLead.horarioEscolhido}>{editingLead.horarioEscolhido} (Atual)</option>
                     {slots
-                      .filter(s => s.data === editData && (s.disponivel || s.bookingId === editingLead.id))
+                      .filter(s => s.data === editData && (s.disponivel || editingLeadSlotIds.has(s.id)))
                       .map(s => s.horario)
                       .filter(t => t !== editingLead.horarioEscolhido)
                       .sort()

@@ -7,6 +7,7 @@ import {
   isPastDateTimeSaoPaulo,
 } from "@/lib/timezone";
 import { buildCustomerBookingIndex } from "@/lib/leadTypes";
+import { isRateLimited } from "@/lib/rateLimit";
 
 // Parser helper to extract duration in minutes from service description
 const parseServiceDurationMinutes = (duracaoStr: string): number => {
@@ -42,6 +43,18 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Rate limiting: 10 bookings por IP por minuto, 30 por profissional por hora
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim()
+    ?? req.headers.get("x-real-ip")
+    ?? "unknown";
+
+  if (isRateLimited(`booking:ip:${ip}`, 10, 60_000)) {
+    return NextResponse.json(
+      { error: "Muitas solicitações. Aguarde um momento e tente novamente." },
+      { status: 429 }
+    );
+  }
+
   try {
     // Resolve customerUid do token Bearer (server-side only, nunca do body)
     let customerUid: string | null = null;
@@ -65,20 +78,36 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
 
     // 1. Strict payload validation
-    const allowedKeys = ["professionalId", "serviceId", "nome", "telefone", "dataEscolhida", "horarioEscolhido", "observacao"];
+    const allowedKeys = ["professionalId", "servicos", "serviceId", "nome", "telefone", "dataEscolhida", "horarioEscolhido", "observacao"];
     const payloadKeys = Object.keys(body);
     const hasExtraKeys = payloadKeys.some(k => !allowedKeys.includes(k));
-    
+
     if (hasExtraKeys) {
       return NextResponse.json({ error: "Payload inválido. Campos extras não permitidos." }, { status: 400 });
     }
 
-    const { professionalId, serviceId, nome, telefone, dataEscolhida, horarioEscolhido, observacao } = body;
+    const { professionalId, nome, telefone, dataEscolhida, horarioEscolhido, observacao } = body;
+
+    // Aceita novo formato (servicos[]) ou legado (serviceId string)
+    let servicosInput: { id: string }[] = [];
+    if (Array.isArray(body.servicos) && body.servicos.length > 0) {
+      servicosInput = body.servicos;
+    } else if (typeof body.serviceId === "string" && body.serviceId) {
+      servicosInput = [{ id: body.serviceId }];
+    }
+
+    if (servicosInput.length === 0 || servicosInput.length > 10) {
+      return NextResponse.json({ error: "Selecione entre 1 e 10 serviços." }, { status: 400 });
+    }
+    if (!servicosInput.every(s => typeof s.id === "string" && s.id.trim().length > 0)) {
+      return NextResponse.json({ error: "Dados de serviço inválidos." }, { status: 400 });
+    }
+    // Deduplica mantendo ordem
+    const servicoIds = [...new Map(servicosInput.map(s => [s.id, s])).keys()];
 
     // Type validation
     if (
       typeof professionalId !== "string" || !professionalId ||
-      typeof serviceId !== "string" || !serviceId ||
       typeof nome !== "string" ||
       typeof telefone !== "string" ||
       typeof dataEscolhida !== "string" ||
@@ -101,6 +130,14 @@ export async function POST(req: NextRequest) {
     const trimmedObservacao = (observacao || "").trim();
     if (trimmedObservacao.length > 500) {
       return NextResponse.json({ error: "A observação deve ter no máximo 500 caracteres." }, { status: 400 });
+    }
+
+    // Rate limiting por profissional: 30 bookings por hora
+    if (isRateLimited(`booking:prof:${professionalId}`, 30, 3_600_000)) {
+      return NextResponse.json(
+        { error: "Agenda temporariamente indisponível. Tente novamente em breve." },
+        { status: 429 }
+      );
     }
 
     // Date/time format validation (YYYY-MM-DD and HH:MM)
@@ -143,17 +180,31 @@ export async function POST(req: NextRequest) {
       const profData = profSnap.data();
       const slotDuration = profData?.agendaConfig?.duracaoSlot || 30;
 
-      // Read service
-      const serviceRef = profRef.collection("services").doc(serviceId);
-      const serviceSnap = await transaction.get(serviceRef);
-      if (!serviceSnap.exists || !serviceSnap.data()?.ativo) {
-        throw new Error("service-not-found-or-inactive");
+      // Read all services
+      const serviceSnaps = await Promise.all(
+        servicoIds.map(id => transaction.get(profRef.collection("services").doc(id)))
+      );
+      for (const snap of serviceSnaps) {
+        if (!snap.exists || !snap.data()?.ativo) throw new Error("service-not-found-or-inactive");
       }
-      const serviceData = serviceSnap.data()!;
-      
-      const serviceDurationStr = serviceData.duracaoEstimada || "30 minutos";
-      const duration = parseServiceDurationMinutes(serviceDurationStr);
-      
+
+      const servicosEnriquecidos = serviceSnaps.map((snap, i) => {
+        const d = snap.data()!;
+        return {
+          id: servicoIds[i],
+          nome: d.nome as string,
+          preco: (d.preco ?? null) as number | null,
+          exibirPreco: (d.exibirPreco ?? true) as boolean,
+          duracaoEstimada: (d.duracaoEstimada || "30 min") as string,
+          duracaoMin: parseServiceDurationMinutes(d.duracaoEstimada || "30 min"),
+        };
+      });
+
+      const duration = servicosEnriquecidos.reduce((sum, s) => sum + s.duracaoMin, 0);
+      const valorTotal = servicosEnriquecidos.reduce((sum, s) => sum + (s.preco ?? 0), 0);
+      const servicoEscolhido = servicosEnriquecidos.map(s => s.nome).join(" + ");
+      const serviceId = servicoIds[0]; // compatibilidade legada
+
       const startMin = timeToMinutes(horarioEscolhido);
       const endMin = startMin + duration;
       const horarioFim = minutesToTime(endMin);
@@ -217,14 +268,15 @@ export async function POST(req: NextRequest) {
         professionalId,
         nome: trimmedNome,
         telefone: formattedPhone,
-        servicoEscolhido: serviceData.nome,
+        servicoEscolhido,
         serviceId,
+        servicos: servicosEnriquecidos,
+        valorTotal,
         dataEscolhida,
         horarioEscolhido,
         observacao: trimmedObservacao,
         status: "Novo",
         origem: "web-slug",
-        duracaoServicoPadrao: serviceDurationStr,
         duracaoAgendamento: duration,
         horarioInicio: horarioEscolhido,
         horarioFim,
@@ -254,7 +306,7 @@ export async function POST(req: NextRequest) {
           professionalId,
           professionalName: profData?.nome ?? profData?.nomeNegocio ?? "",
           professionalSlug: profData?.slugPublico ?? "",
-          serviceName: serviceData.nome,
+          serviceName: servicoEscolhido,
           date: dataEscolhida,
           startTime: horarioEscolhido,
           endTime: horarioFim,
@@ -278,17 +330,24 @@ export async function POST(req: NextRequest) {
         updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
 
-      // Mark slots as unavailable
-      overlappingSlots.forEach((slot, index) => {
+      // Mark slots as unavailable — sem bookingId/ocupacaoTipo (SEC-005)
+      overlappingSlots.forEach((slot) => {
         transaction.update(slot.ref, {
           disponivel: false,
-          bookingId: newLeadRef.id,
-          ocupacaoTipo: index === 0 ? "principal" : "continuacao",
-          updatedAt: new Date()
+          updatedAt: new Date(),
         });
       });
 
-      return { leadId: newLeadRef.id, horarioFim, profData, serviceNome: serviceData.nome };
+      // Índice privado: leadId → slotIds (Admin SDK only, sem exposição pública)
+      const slotBookingsRef = dbAdmin
+        .collection("professionals").doc(professionalId)
+        .collection("slotBookings").doc(newLeadRef.id);
+      transaction.set(slotBookingsRef, {
+        slotIds: overlappingSlots.map(s => s.id),
+        updatedAt: new Date(),
+      });
+
+      return { leadId: newLeadRef.id, horarioFim, profData, serviceNome: servicoEscolhido };
     });
 
     return NextResponse.json({ success: true, leadId: result.leadId, horarioFim: result.horarioFim });

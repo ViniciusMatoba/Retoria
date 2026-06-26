@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { dbAdmin, authAdmin } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 
-const ADMIN_UIDS = ["Br8CTpvxb9eZvz92kytZ2AKX6tJ3"];
+const ADMIN_UIDS = (process.env.ADMIN_UIDS ?? "").split(",").map(s => s.trim()).filter(Boolean);
 
 async function verifyAdmin(req: NextRequest): Promise<string | null> {
   const header = req.headers.get("Authorization");

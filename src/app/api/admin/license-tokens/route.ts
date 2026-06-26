@@ -4,7 +4,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import crypto from "crypto";
 import { PLANS, type PlanId } from "@/lib/licenseTypes";
 
-const ADMIN_UIDS = ["Br8CTpvxb9eZvz92kytZ2AKX6tJ3"];
+const ADMIN_UIDS = (process.env.ADMIN_UIDS ?? "").split(",").map(s => s.trim()).filter(Boolean);
 
 async function verifyAdmin(req: NextRequest): Promise<string | null> {
   const header = req.headers.get("Authorization");
