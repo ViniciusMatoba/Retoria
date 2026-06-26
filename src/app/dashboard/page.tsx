@@ -8,8 +8,8 @@ import { formatPhoneFriendly, getWhatsAppLink } from "@/lib/whatsapp";
 import { LEAD_STATUSES, type LeadStatus } from "@/lib/leadTypes";
 import {
   Search, Filter, MessageSquare, Trash2, Clock, CalendarCheck,
-  TrendingUp, Inbox, AlertCircle, Loader2, CalendarClock, X,
-  Building2, User, Users,
+  DollarSign, Inbox, AlertCircle, Loader2, CalendarClock, X,
+  Building2, User, Users, CheckCircle2,
 } from "lucide-react";
 
 interface Lead {
@@ -25,6 +25,7 @@ interface Lead {
   status: LeadStatus;
   customerUid?: string;
   origem: string;
+  valorTotal?: number;
   createdAt: any;
   updatedAt: any;
   // runtime only
@@ -226,11 +227,41 @@ export default function DashboardHome() {
   };
 
   // ── Metrics ────────────────────────────────────────────────────────────────
-  const totalLeads = leads.length;
   const newLeads = leads.filter(l => l.status === "Novo").length;
   const scheduledLeads = leads.filter(l => l.status === "Agendado").length;
-  const convertedLeads = leads.filter(l => l.status === "Agendado" || l.status === "Atendido").length;
-  const conversionRate = totalLeads > 0 ? Math.round((convertedLeads / totalLeads) * 100) : 0;
+
+  const thisMonthStr = new Date().toISOString().slice(0, 7); // "YYYY-MM"
+  const attendedThisMonth = leads.filter(
+    l => l.status === "Atendido" && l.dataEscolhida?.startsWith(thisMonthStr)
+  ).length;
+
+  const projectedRevenue = leads
+    .filter(l => l.status === "Agendado")
+    .reduce((sum, l) => sum + (l.valorTotal ?? 0), 0);
+
+  const realRevenueThisMonth = leads
+    .filter(l => l.status === "Atendido" && l.dataEscolhida?.startsWith(thisMonthStr))
+    .reduce((sum, l) => sum + (l.valorTotal ?? 0), 0);
+
+  // Histórico mensal — últimos 4 meses
+  const monthlyHistory = (() => {
+    const now = new Date();
+    return Array.from({ length: 4 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - (3 - i), 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = d.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" });
+      const atendidos = leads.filter(l => l.status === "Atendido" && l.dataEscolhida?.startsWith(key));
+      return {
+        key,
+        label: label.charAt(0).toUpperCase() + label.slice(1),
+        count: atendidos.length,
+        real: atendidos.reduce((s, l) => s + (l.valorTotal ?? 0), 0),
+      };
+    });
+  })();
+
+  const formatBRL = (v: number) =>
+    v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
   // ── Filtered leads ─────────────────────────────────────────────────────────
   const filteredLeads = leads.filter(lead => {
@@ -292,39 +323,78 @@ export default function DashboardHome() {
 
       {/* Metrics */}
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 animate-pulse">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-28 bg-slate-900/50 border border-slate-800 rounded-2xl" />
-          ))}
+        <div className="space-y-4">
+          <div className="grid grid-cols-3 gap-4 animate-pulse">
+            {[...Array(3)].map((_, i) => <div key={i} className="h-24 bg-slate-900/50 border border-slate-800 rounded-2xl" />)}
+          </div>
+          <div className="grid grid-cols-2 gap-4 animate-pulse">
+            {[...Array(2)].map((_, i) => <div key={i} className="h-24 bg-slate-900/50 border border-slate-800 rounded-2xl" />)}
+          </div>
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-4 flex items-center gap-4">
-            <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400"><Inbox className="h-6 w-6" /></div>
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Leads</p>
-              <h3 className="text-xl md:text-2xl font-extrabold text-white mt-0.5">{totalLeads}</h3>
+        <div className="space-y-4">
+          {/* Linha 1 — agendamentos */}
+          <div className="grid grid-cols-3 gap-4">
+            <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-4 flex items-center gap-3">
+              <div className="p-2.5 bg-blue-500/10 rounded-xl text-blue-400 shrink-0"><Inbox className="h-5 w-5" /></div>
+              <div>
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Novos pedidos</p>
+                <h3 className="text-xl font-extrabold text-white mt-0.5">{newLeads}</h3>
+              </div>
+            </div>
+            <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-4 flex items-center gap-3">
+              <div className="p-2.5 bg-purple-500/10 rounded-xl text-purple-400 shrink-0"><CalendarCheck className="h-5 w-5" /></div>
+              <div>
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Agendados</p>
+                <h3 className="text-xl font-extrabold text-white mt-0.5">{scheduledLeads}</h3>
+              </div>
+            </div>
+            <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-4 flex items-center gap-3">
+              <div className="p-2.5 bg-emerald-500/10 rounded-xl text-emerald-400 shrink-0"><CheckCircle2 className="h-5 w-5" /></div>
+              <div>
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Atendidos no mês</p>
+                <h3 className="text-xl font-extrabold text-white mt-0.5">{attendedThisMonth}</h3>
+              </div>
             </div>
           </div>
-          <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-4 flex items-center gap-4">
-            <div className="p-3 bg-blue-500/10 rounded-xl text-blue-400"><Clock className="h-6 w-6" /></div>
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Novos</p>
-              <h3 className="text-xl md:text-2xl font-extrabold text-white mt-0.5">{newLeads}</h3>
+
+          {/* Linha 2 — faturamento */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-emerald-950/30 border border-emerald-800/40 rounded-2xl p-4 flex items-center gap-3">
+              <div className="p-2.5 bg-emerald-500/10 rounded-xl text-emerald-400 shrink-0"><DollarSign className="h-5 w-5" /></div>
+              <div>
+                <p className="text-[10px] font-semibold text-emerald-400/70 uppercase tracking-wider">Faturamento real — {new Date().toLocaleDateString("pt-BR", { month: "long" })}</p>
+                <h3 className="text-lg font-extrabold text-emerald-300 mt-0.5">{formatBRL(realRevenueThisMonth)}</h3>
+                <p className="text-[10px] text-slate-500 mt-0.5">{attendedThisMonth} atendimento{attendedThisMonth !== 1 ? "s" : ""} concluído{attendedThisMonth !== 1 ? "s" : ""}</p>
+              </div>
+            </div>
+            <div className="bg-amber-950/20 border border-amber-800/30 rounded-2xl p-4 flex items-center gap-3">
+              <div className="p-2.5 bg-amber-500/10 rounded-xl text-amber-400 shrink-0"><CalendarClock className="h-5 w-5" /></div>
+              <div>
+                <p className="text-[10px] font-semibold text-amber-400/70 uppercase tracking-wider">Faturamento previsto</p>
+                <h3 className="text-lg font-extrabold text-amber-300 mt-0.5">{formatBRL(projectedRevenue)}</h3>
+                <p className="text-[10px] text-slate-500 mt-0.5">{scheduledLeads} agendamento{scheduledLeads !== 1 ? "s" : ""} confirmado{scheduledLeads !== 1 ? "s" : ""}</p>
+              </div>
             </div>
           </div>
-          <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-4 flex items-center gap-4">
-            <div className="p-3 bg-purple-500/10 rounded-xl text-purple-400"><CalendarCheck className="h-6 w-6" /></div>
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Agendados</p>
-              <h3 className="text-xl md:text-2xl font-extrabold text-white mt-0.5">{scheduledLeads}</h3>
-            </div>
-          </div>
-          <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-4 flex items-center gap-4">
-            <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-400"><TrendingUp className="h-6 w-6" /></div>
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Conversão</p>
-              <h3 className="text-xl md:text-2xl font-extrabold text-white mt-0.5">{conversionRate}%</h3>
+
+          {/* Histórico mensal */}
+          <div className="bg-slate-900/40 border border-slate-800/60 rounded-2xl p-4">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Histórico — últimos 4 meses</p>
+            <div className="grid grid-cols-4 gap-3">
+              {monthlyHistory.map(m => (
+                <div key={m.key} className={`rounded-xl p-3 text-center ${m.key === thisMonthStr ? "bg-indigo-500/10 border border-indigo-500/20" : "bg-slate-900/60 border border-slate-800/40"}`}>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{m.label}</p>
+                  <p className="text-base font-extrabold text-white mt-1">{m.count}</p>
+                  <p className="text-[10px] text-slate-500">atend.</p>
+                  {m.real > 0 && (
+                    <p className="text-[10px] font-semibold text-emerald-400 mt-1">{formatBRL(m.real)}</p>
+                  )}
+                  {m.real === 0 && (
+                    <p className="text-[10px] text-slate-600 mt-1">—</p>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -478,10 +548,11 @@ export default function DashboardHome() {
                               fim: (lead as any).horarioFim ?? lead.horarioEscolhido,
                               profId: lead.professionalId || user!.uid,
                             })}
-                            className="p-2 bg-slate-900 hover:bg-indigo-500/10 text-slate-500 hover:text-indigo-400 rounded-lg border border-slate-800/80 hover:border-indigo-500/20 transition-all opacity-40 group-hover:opacity-100"
+                            className="inline-flex items-center gap-1 px-3 py-2 bg-indigo-600/15 hover:bg-indigo-600 text-indigo-400 hover:text-white font-semibold text-xs rounded-lg border border-indigo-500/30 hover:border-indigo-600 transition-all"
                             title="Reagendar"
                           >
-                            <CalendarClock className="h-4 w-4" />
+                            <CalendarClock className="h-3.5 w-3.5" />
+                            <span>Reagendar</span>
                           </button>
                           <button
                             onClick={() => handleDeleteLead(lead)}
