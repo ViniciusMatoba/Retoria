@@ -96,9 +96,10 @@ export default function AdminPage() {
   const router = useRouter();
   const { user, logout } = useAuth();
 
-  const [tab, setTab] = useState<"professionals" | "tokens">("professionals");
+  const [tab, setTab] = useState<"professionals" | "tokens" | "requests">("professionals");
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [tokens, setTokens] = useState<Token[]>([]);
+  const [accessRequests, setAccessRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -137,14 +138,16 @@ export default function AdminPage() {
     try {
       const token = await user.getIdToken();
       const headers = { Authorization: `Bearer ${token}` };
-      const [profRes, tokRes] = await Promise.all([
+      const [profRes, tokRes, reqRes] = await Promise.all([
         fetch("/api/admin/professionals", { headers }),
         fetch("/api/admin/license-tokens", { headers }),
+        fetch("/api/access-requests", { headers: { ...headers, "x-admin-key": user.uid } }),
       ]);
-      const [profData, tokData] = await Promise.all([profRes.json(), tokRes.json()]);
+      const [profData, tokData, reqData] = await Promise.all([profRes.json(), tokRes.json(), reqRes.json()]);
       if (!profRes.ok) { setError(profData.error ?? "Erro ao carregar clientes."); }
       else setProfessionals(profData.professionals ?? []);
       setTokens(tokData.tokens ?? []);
+      setAccessRequests(reqData.requests ?? []);
     } catch {
       setError("Erro de conexão.");
     } finally {
@@ -309,10 +312,19 @@ export default function AdminPage() {
             {/* Tabs + generate button */}
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 p-1 rounded-xl w-fit">
-                {(["professionals", "tokens"] as const).map((t) => (
+                {(["professionals", "tokens", "requests"] as const).map((t) => (
                   <button key={t} onClick={() => setTab(t)}
-                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${tab === t ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-slate-200"}`}>
-                    {t === "professionals" ? `Clientes (${total})` : `Links (${tokens.length})`}
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all relative ${tab === t ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-slate-200"}`}>
+                    {t === "professionals" ? `Clientes (${total})` : t === "tokens" ? `Links (${tokens.length})` : (
+                      <span className="flex items-center gap-1.5">
+                        Solicitações
+                        {accessRequests.filter((r) => r.status === "pending").length > 0 && (
+                          <span className="h-4 w-4 rounded-full bg-amber-500 text-[10px] font-black text-white flex items-center justify-center">
+                            {accessRequests.filter((r) => r.status === "pending").length}
+                          </span>
+                        )}
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -439,7 +451,7 @@ export default function AdminPage() {
                   </table>
                 )}
               </div>
-            ) : (
+            ) : tab === "tokens" ? (
               <div className="space-y-3">
                 {tokens.length === 0 ? (
                   <div className="text-center py-16 text-slate-500">Nenhum link gerado ainda.</div>
@@ -470,7 +482,49 @@ export default function AdminPage() {
                   );
                 })}
               </div>
-            )}
+            ) : tab === "requests" ? (
+              <div className="space-y-3">
+                {accessRequests.length === 0 ? (
+                  <div className="text-center py-16 text-slate-500">Nenhuma solicitação ainda.</div>
+                ) : accessRequests.map((req) => (
+                  <div key={req.id} className={`bg-slate-900/50 border rounded-2xl p-4 flex flex-wrap items-center gap-4 ${req.status === "pending" ? "border-amber-500/30" : "border-slate-800 opacity-60"}`}>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="font-semibold text-slate-200 text-sm">{req.nome}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-lg border font-semibold ${req.status === "pending" ? "bg-amber-500/10 border-amber-500/20 text-amber-400" : "bg-slate-800 border-slate-700 text-slate-500"}`}>
+                          {req.status === "pending" ? "Pendente" : "Atendido"}
+                        </span>
+                        <span className="text-xs text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-lg capitalize">{req.plano}</span>
+                      </div>
+                      <p className="text-xs text-slate-400 font-mono">{req.email}</p>
+                      {req.createdAt && <p className="text-[10px] text-slate-600 mt-0.5">{new Date(req.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {req.status === "pending" && (
+                        <>
+                          <button
+                            onClick={async () => {
+                              const token = await user?.getIdToken();
+                              await fetch("/api/access-requests", { method: "PATCH", headers: { "Content-Type": "application/json", "x-admin-key": user?.uid ?? "" }, body: JSON.stringify({ id: req.id, status: "attended" }) });
+                              setAccessRequests((prev) => prev.map((r) => r.id === req.id ? { ...r, status: "attended" } : r));
+                            }}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/20 text-emerald-400 rounded-lg text-xs font-semibold transition-all"
+                          >
+                            <Check className="h-3.5 w-3.5" /> Atendido
+                          </button>
+                          <button
+                            onClick={() => { setShowForm(true); setFormLabel(req.email); setTab("professionals"); }}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/20 text-indigo-400 rounded-lg text-xs font-semibold transition-all"
+                          >
+                            <Plus className="h-3.5 w-3.5" /> Gerar link
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
         </main>
 

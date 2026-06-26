@@ -168,10 +168,16 @@ function LoginForm() {
               />
             </div>
 
+            <div className="flex justify-end mt-1">
+              <Link href="/esqueci-senha" className="text-xs text-slate-500 hover:text-indigo-400 transition-all">
+                Esqueceu sua senha?
+              </Link>
+            </div>
+
             <button
               type="submit"
               disabled={formLoading || success}
-              className="w-full flex items-center justify-center gap-2 py-3.5 px-4 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-700/50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 active:scale-[0.98] mt-6"
+              className="w-full flex items-center justify-center gap-2 py-3.5 px-4 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-700/50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 active:scale-[0.98] mt-4"
             >
               {formLoading ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -183,8 +189,8 @@ function LoginForm() {
 
           <p className="mt-6 text-center text-sm text-slate-400">
             Ainda não tem conta?{" "}
-            <Link href="/register" className="text-indigo-400 hover:text-indigo-300 font-semibold transition-all">
-              Criar conta grátis
+            <Link href="/planos" className="text-indigo-400 hover:text-indigo-300 font-semibold transition-all">
+              Ver planos
             </Link>
           </p>
         </div>

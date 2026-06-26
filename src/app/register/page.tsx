@@ -72,6 +72,14 @@ function RegisterForm() {
     if (!loading && user) router.push("/portal");
   }, [user, loading, router]);
 
+  // Bloquear registro profissional sem token de ativação
+  useEffect(() => {
+    if (loading) return;
+    if (mode === "professional" && !searchParams.get("token")) {
+      router.replace("/planos?aviso=registro");
+    }
+  }, [loading, mode, searchParams, router]);
+
   const handleSubmitCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
