@@ -170,7 +170,7 @@ export default function PublicProfessionalHeader({
           >
             {profile.fotoLogoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={profile.fotoLogoUrl} alt={`Logo de ${profile.nomeNegocio}`} className="h-full w-full object-cover" />
+              <img src={profile.fotoLogoUrl} alt={`Logo de ${profile.nomeNegocio}`} className="h-full w-full object-cover object-center" />
             ) : (
               <span className={`font-black ${{ sm: "text-xl", md: "text-2xl", lg: "text-3xl", xl: "text-4xl" }[theme.profileImageSize ?? "md"]}`} style={{ color: corBrand }}>{initials}</span>
             )}

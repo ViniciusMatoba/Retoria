@@ -132,10 +132,17 @@ const defaultDays: Record<string, DayConfig> = {
 };
 
 const durationOptions = [
-  { value: 15, label: "15 minutos" },
-  { value: 30, label: "30 minutos" },
-  { value: 45, label: "45 minutos" },
-  { value: 60, label: "60 minutos" }
+  { value: 15,  label: "15 min" },
+  { value: 30,  label: "30 min" },
+  { value: 45,  label: "45 min" },
+  { value: 60,  label: "1h" },
+  { value: 90,  label: "1h 30min" },
+  { value: 120, label: "2h" },
+  { value: 150, label: "2h 30min" },
+  { value: 180, label: "3h" },
+  { value: 240, label: "4h" },
+  { value: 300, label: "5h" },
+  { value: 0,   label: "Personalizado..." },
 ];
 
 const defaultCalendarColors = {
@@ -226,6 +233,7 @@ export default function SlotsPage() {
   // --- SMART GENERATOR STATES ---
   const [agendaConfig, setAgendaConfig] = useState<Record<string, DayConfig>>(defaultDays);
   const [slotDuration, setSlotDuration] = useState(30);
+  const [slotDurationCustom, setSlotDurationCustom] = useState("");
   const [periodDays, setPeriodDays] = useState(15);
   const [windowDays, setWindowDays] = useState(30);
   
@@ -2074,8 +2082,19 @@ export default function SlotsPage() {
         </div>
       )}
 
-      {/* Integração Google Calendar */}
-      <GoogleCalendarIntegration />
+      {/* Integração Google Calendar — destaque especial */}
+      <div className="relative rounded-3xl overflow-hidden border-2 border-blue-500/40 shadow-xl shadow-blue-500/10 bg-gradient-to-r from-blue-950/40 via-slate-900/80 to-indigo-950/40 p-1">
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-indigo-500/5 pointer-events-none" />
+        <div className="relative flex items-center gap-2 px-4 pt-3 pb-1">
+          <span className="flex items-center gap-1.5 text-[11px] font-black text-blue-400 uppercase tracking-widest bg-blue-500/10 border border-blue-500/20 px-2.5 py-1 rounded-full">
+            <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse" />
+            Funcionalidade Importante
+          </span>
+        </div>
+        <div className="relative px-2 pb-2">
+          <GoogleCalendarIntegration />
+        </div>
+      </div>
 
       {error && (
         <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex gap-3 items-center">
@@ -2162,14 +2181,35 @@ export default function SlotsPage() {
               <div className="space-y-2">
                 <label className="block text-xs font-semibold text-slate-350 uppercase tracking-wider">Duração de cada Atendimento</label>
                 <select
-                  value={slotDuration}
-                  onChange={(e) => setSlotDuration(Number(e.target.value))}
+                  value={durationOptions.find(o => o.value === slotDuration) ? slotDuration : 0}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    if (v === 0) { setSlotDurationCustom(""); }
+                    else { setSlotDuration(v); setSlotDurationCustom(""); }
+                  }}
                   className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500 font-semibold"
                 >
                   {durationOptions.map(opt => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
+                {(slotDuration === 0 || !durationOptions.find(o => o.value === slotDuration && o.value !== 0)) && (
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="number"
+                      min={5} max={600} step={5}
+                      placeholder="Minutos (ex: 110)"
+                      value={slotDurationCustom}
+                      onChange={(e) => {
+                        setSlotDurationCustom(e.target.value);
+                        const v = parseInt(e.target.value, 10);
+                        if (!isNaN(v) && v > 0) setSlotDuration(v);
+                      }}
+                      className="flex-1 px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500"
+                    />
+                    <span className="text-xs text-slate-500 shrink-0">min</span>
+                  </div>
+                )}
               </div>
 
               {/* Generation Period */}
@@ -2204,9 +2244,34 @@ export default function SlotsPage() {
 
           {/* Subsection: Rotina de Funcionamento Semanal */}
           <div className="space-y-4">
-            <div>
-              <h2 className="text-xl font-bold text-white mb-1">Rotina de Funcionamento Semanal</h2>
-              <p className="text-xs text-slate-400">Configure detalhadamente quais dias da semana você atende e quais os horários de expediente e almoço.</p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-bold text-white mb-1">Rotina de Funcionamento Semanal</h2>
+                <p className="text-xs text-slate-400">Configure quais dias da semana você atende e os horários de expediente e almoço.</p>
+              </div>
+              {/* Aplicar horário do primeiro dia ativo para todos */}
+              <button
+                type="button"
+                onClick={() => {
+                  const firstActive = uiDisplayDays.find(k => agendaConfig[k]?.ativo);
+                  if (!firstActive) return;
+                  const ref = agendaConfig[firstActive];
+                  setAgendaConfig(prev => {
+                    const next = { ...prev };
+                    uiDisplayDays.forEach(k => {
+                      if (next[k]?.ativo && k !== firstActive) {
+                        next[k] = { ...next[k], inicio: ref.inicio, fim: ref.fim, intervaloInicio: ref.intervaloInicio, intervaloFim: ref.intervaloFim };
+                      }
+                    });
+                    return next;
+                  });
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600/15 hover:bg-indigo-600 text-indigo-400 hover:text-white border border-indigo-500/30 hover:border-indigo-600 text-xs font-bold rounded-xl transition-all shrink-0"
+                title="Copia os horários do primeiro dia ativo para todos os outros dias ativos"
+              >
+                <ToggleRight className="h-4 w-4" />
+                Replicar para todos os dias ativos
+              </button>
             </div>
 
             {/* Loop weekdays in grid (spacious & highly readable) */}
@@ -2839,6 +2904,7 @@ export default function SlotsPage() {
                     type="text"
                     required
                     value={bookingNome}
+                    maxLength={80}
                     onChange={(e) => setBookingNome(e.target.value)}
                     placeholder="Ex: João Silva"
                     className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500"
@@ -2850,6 +2916,7 @@ export default function SlotsPage() {
                     type="text"
                     required
                     value={bookingTelefone}
+                    maxLength={20}
                     onChange={(e) => setBookingTelefone(e.target.value)}
                     placeholder="Ex: (11) 99999-9999"
                     className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500"
@@ -2972,6 +3039,7 @@ export default function SlotsPage() {
                 <label className="block text-[11px] font-bold text-slate-355 uppercase tracking-wider">Observações (Opcional)</label>
                 <textarea
                   value={bookingObservacao}
+                  maxLength={300}
                   onChange={(e) => setBookingObservacao(e.target.value)}
                   placeholder="Informações adicionais sobre o agendamento (opcional)"
                   rows={2}

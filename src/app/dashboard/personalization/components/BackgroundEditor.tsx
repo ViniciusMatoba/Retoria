@@ -195,7 +195,7 @@ export default function BackgroundEditor({
                   <img
                     src={currentConfig.backgroundImageUrl + "?v=" + currentConfig.backgroundUpdatedAt}
                     alt="Fundo"
-                    className="h-full w-full object-cover"
+                    className="h-full w-full object-cover object-center"
                   />
                   {uploadLoading && (
                     <div className="absolute inset-0 bg-black/60 flex items-center justify-center">

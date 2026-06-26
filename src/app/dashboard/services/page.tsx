@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
+import ImageCropModal from "@/components/ImageCropModal";
 import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, query, orderBy, getDocs, where } from "firebase/firestore";
 import { db, storage } from "@/lib/firebase";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
@@ -59,6 +60,8 @@ export default function ServicesPage() {
   const [nome, setNome] = useState("");
   const [descricaoCurta, setDescricaoCurta] = useState("");
   const [duracaoEstimada, setDuracaoEstimada] = useState("30 min");
+  const [duracaoOption, setDuracaoOption] = useState("30");
+  const [duracaoCustomMin, setDuracaoCustomMin] = useState("");
   const [ativo, setAtivo] = useState(true);
   const [preco, setPreco] = useState<string>("");
   const [exibirPreco, setExibirPreco] = useState(true);
@@ -69,9 +72,25 @@ export default function ServicesPage() {
   const [existingImageStoragePath, setExistingImageStoragePath] = useState("");
   const [removeImageMarked, setRemoveImageMarked] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
 
   const [formLoading, setFormLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const handleImageFileSelected = (file: File) => {
+    const res = validateImageFile(file, 2);
+    if (!res.valid) { alert(res.error); return; }
+    const objectUrl = URL.createObjectURL(file);
+    setCropSrc(objectUrl);
+  };
+
+  const handleServiceCropConfirm = (blob: Blob, dataUrl: string) => {
+    setCropSrc(prev => { if (prev) URL.revokeObjectURL(prev); return null; });
+    const croppedFile = new File([blob], "service-image.jpg", { type: "image/jpeg" });
+    setImageFile(croppedFile);
+    setImagePreview(dataUrl);
+    setRemoveImageMarked(false);
+  };
 
   const hasTeam = teamMembers.length > 0;
 
@@ -137,8 +156,60 @@ export default function ServicesPage() {
   }, [loadAllServices, user]);
 
   // ── Modal helpers ──────────────────────────────────────────────────────────
+  // helpers for duration select
+  const DURATION_PRESETS = [
+    { value: "15",     label: "15 min" },
+    { value: "30",     label: "30 min" },
+    { value: "45",     label: "45 min" },
+    { value: "60",     label: "1h" },
+    { value: "90",     label: "1h 30min" },
+    { value: "120",    label: "2h" },
+    { value: "150",    label: "2h 30min" },
+    { value: "180",    label: "3h" },
+    { value: "240",    label: "4h" },
+    { value: "300",    label: "5h" },
+    { value: "custom", label: "Personalizado..." },
+  ];
+
+  const applyDuracaoOption = (option: string, customMin: string) => {
+    if (option === "custom") {
+      const m = parseInt(customMin, 10);
+      if (!isNaN(m) && m > 0) {
+        const h = Math.floor(m / 60);
+        const rem = m % 60;
+        setDuracaoEstimada(h > 0 ? (rem > 0 ? `${h}h ${rem}min` : `${h}h`) : `${rem} min`);
+      }
+    } else {
+      const m = parseInt(option, 10);
+      const h = Math.floor(m / 60);
+      const rem = m % 60;
+      setDuracaoEstimada(h > 0 ? (rem > 0 ? `${h}h ${rem}min` : `${h}h`) : `${rem} min`);
+    }
+  };
+
+  const parseDuracaoToOption = (dur: string): { option: string; customMin: string } => {
+    const lower = dur.toLowerCase().trim();
+    let totalMin = 0;
+    const hMatch = lower.match(/(\d+)\s*h/);
+    const mMatch = lower.match(/(\d+)\s*min/);
+    if (hMatch) totalMin += parseInt(hMatch[1], 10) * 60;
+    if (mMatch) totalMin += parseInt(mMatch[1], 10);
+    if (!hMatch && !mMatch) { const n = parseInt(lower.replace(/\D/g, ""), 10); if (!isNaN(n)) totalMin = n; }
+    const preset = DURATION_PRESETS.find(p => p.value !== "custom" && parseInt(p.value, 10) === totalMin);
+    return preset ? { option: preset.value, customMin: "" } : { option: "custom", customMin: String(totalMin) };
+  };
+
+  const formatPrecoInput = (raw: string) => {
+    const digits = raw.replace(/\D/g, "");
+    if (!digits) return "";
+    const num = parseInt(digits, 10) / 100;
+    return num.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
   const resetForm = () => {
-    setNome(""); setDescricaoCurta(""); setDuracaoEstimada("30 min"); setAtivo(true);
+    setNome(""); setDescricaoCurta(""); setDuracaoEstimada("30 min");
+    setDuracaoOption("30"); setDuracaoCustomMin("");
+    setAtivo(true);
     setPreco(""); setExibirPreco(true); setImageFile(null); setImagePreview(""); setImageAlt("");
     setExistingImageUrl(""); setExistingImageStoragePath(""); setRemoveImageMarked(false);
     setError("");
@@ -161,8 +232,11 @@ export default function ServicesPage() {
     setNome(service.nome);
     setDescricaoCurta(service.descricaoCurta);
     setDuracaoEstimada(service.duracaoEstimada);
+    const parsed = parseDuracaoToOption(service.duracaoEstimada);
+    setDuracaoOption(parsed.option);
+    setDuracaoCustomMin(parsed.customMin);
     setAtivo(service.ativo);
-    setPreco(service.preco != null ? String(service.preco) : "");
+    setPreco(service.preco != null ? formatPrecoInput(String(Math.round(service.preco * 100))) : "");
     setExibirPreco(service.exibirPreco ?? true);
     setImageFile(null);
     setImagePreview(service.imagemUrl ? buildVersionedImageUrl(service.imagemUrl, service.imagemUpdatedAt) : "");
@@ -201,7 +275,7 @@ export default function ServicesPage() {
         // Gera o ID uma vez; todas as cópias compartilham o mesmo ID
         const tempRef = doc(collection(db, "professionals", profId, "services"));
         serviceId = tempRef.id;
-        const precoNum = preco.trim() !== "" ? parseFloat(preco.replace(",", ".")) : null;
+        const precoNum = preco.trim() !== "" ? parseFloat(preco.replace(/\./g, "").replace(",", ".")) : null;
 
         for (const pid of targetProfIds) {
           const newDocRef = doc(db, "professionals", pid, "services", serviceId);
@@ -224,7 +298,7 @@ export default function ServicesPage() {
           });
         }
       } else {
-        const precoNum = preco.trim() !== "" ? parseFloat(preco.replace(",", ".")) : null;
+        const precoNum = preco.trim() !== "" ? parseFloat(preco.replace(/\./g, "").replace(",", ".")) : null;
         await updateDoc(doc(db, "professionals", profId, "services", serviceId), {
           nome: nome.trim(), descricaoCurta: descricaoCurta.trim(),
           duracaoEstimada: duracaoEstimada.trim(), ativo, preco: precoNum, exibirPreco,
@@ -312,6 +386,16 @@ export default function ServicesPage() {
   const isOwner = (id: string) => id === user?.uid;
 
   return (
+    <>
+    {cropSrc && (
+      <ImageCropModal
+        src={cropSrc}
+        aspect={16 / 9}
+        title="Ajustar imagem do serviço"
+        onConfirm={handleServiceCropConfirm}
+        onClose={() => { URL.revokeObjectURL(cropSrc); setCropSrc(null); }}
+      />
+    )}
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -367,7 +451,7 @@ export default function ServicesPage() {
               <div className={`relative aspect-[16/9] w-full rounded-xl overflow-hidden bg-slate-950 border border-slate-850 mb-4 shrink-0 ${hasTeam ? "mt-6" : ""}`}>
                 {service.imagemUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={buildVersionedImageUrl(service.imagemUrl, service.imagemUpdatedAt)} alt={service.imagemAlt || service.nome} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                  <img src={buildVersionedImageUrl(service.imagemUrl, service.imagemUpdatedAt)} alt={service.imagemAlt || service.nome} className="h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-105" />
                 ) : (
                   <div className="h-full w-full flex flex-col items-center justify-center text-slate-650 bg-slate-900/40">
                     <Briefcase className="h-8 w-8 text-slate-600 opacity-40 mb-1" />
@@ -477,32 +561,70 @@ export default function ServicesPage() {
 
               {/* Nome */}
               <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Nome do Serviço *</label>
-                <input type="text" required value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: Corte Degradê, Manicure, Consultoria"
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Nome do Serviço *</label>
+                  <span className={`text-[10px] font-mono ${nome.length > 70 ? "text-red-400" : "text-slate-600"}`}>{nome.length}/80</span>
+                </div>
+                <input type="text" required maxLength={80} value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: Corte Degradê, Manicure, Consultoria"
                   className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800/80 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-100 text-sm transition-all" />
               </div>
 
               {/* Descrição */}
               <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Descrição Curta</label>
-                <textarea value={descricaoCurta} onChange={(e) => setDescricaoCurta(e.target.value)} placeholder="Explique o que está incluído..." rows={3}
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Descrição Curta</label>
+                  <span className={`text-[10px] font-mono ${descricaoCurta.length > 220 ? "text-red-400" : "text-slate-600"}`}>{descricaoCurta.length}/250</span>
+                </div>
+                <textarea value={descricaoCurta} maxLength={250} onChange={(e) => setDescricaoCurta(e.target.value)} placeholder="Explique o que está incluído..." rows={3}
                   className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800/80 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-100 text-sm transition-all resize-none" />
               </div>
 
               {/* Duração */}
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Duração Estimada *</label>
-                <input type="text" required value={duracaoEstimada} onChange={(e) => setDuracaoEstimada(e.target.value)} placeholder="Ex: 30 min, 1h, 1h 30min"
-                  className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800/80 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-100 text-sm transition-all" />
+                <select
+                  value={duracaoOption}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setDuracaoOption(v);
+                    if (v !== "custom") { setDuracaoCustomMin(""); applyDuracaoOption(v, ""); }
+                  }}
+                  className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800/80 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-100 text-sm transition-all"
+                >
+                  {DURATION_PRESETS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                </select>
+                {duracaoOption === "custom" && (
+                  <div className="flex gap-2 items-center mt-2">
+                    <input
+                      type="number" min={5} max={600} step={5}
+                      placeholder="Minutos (ex: 110)"
+                      value={duracaoCustomMin}
+                      onChange={(e) => {
+                        setDuracaoCustomMin(e.target.value);
+                        applyDuracaoOption("custom", e.target.value);
+                      }}
+                      className="flex-1 px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500"
+                    />
+                    <span className="text-xs text-slate-500 shrink-0">min {duracaoEstimada ? `→ ${duracaoEstimada}` : ""}</span>
+                  </div>
+                )}
+                {duracaoOption !== "custom" && (
+                  <p className="text-[10px] text-slate-500 mt-1">Salvo como: <span className="font-mono text-slate-400">{duracaoEstimada}</span></p>
+                )}
               </div>
 
               {/* Preço */}
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Preço (Opcional)</label>
                 <div className="relative">
-                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 text-sm font-semibold pointer-events-none">R$</span>
-                  <input type="text" inputMode="decimal" value={preco} onChange={(e) => setPreco(e.target.value.replace(/[^0-9,.]/g, ""))} placeholder="0,00"
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800/80 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-100 text-sm transition-all" />
+                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-emerald-500 text-sm font-bold pointer-events-none">R$</span>
+                  <input
+                    type="text" inputMode="numeric"
+                    value={preco}
+                    onChange={(e) => setPreco(formatPrecoInput(e.target.value))}
+                    placeholder="0,00"
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800/80 rounded-xl focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30 text-emerald-300 text-sm font-semibold transition-all"
+                  />
                 </div>
               </div>
 
@@ -533,16 +655,15 @@ export default function ServicesPage() {
                 {imagePreview ? (
                   <div className="relative aspect-[16/9] w-full rounded-xl overflow-hidden bg-slate-955 border border-slate-800 group">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={imagePreview} alt="Preview" className="h-full w-full object-cover" />
+                    <img src={imagePreview} alt="Preview" className="h-full w-full object-cover object-center" />
                     <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition-all duration-200">
                       <label className="cursor-pointer px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold rounded-lg text-slate-200 transition-all flex items-center gap-1">
                         Alterar
                         <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => {
                           const file = e.target.files?.[0];
+                          e.target.value = "";
                           if (!file) return;
-                          const res = validateImageFile(file, 2);
-                          if (!res.valid) { alert(res.error); return; }
-                          setImageFile(file); setImagePreview(URL.createObjectURL(file)); setRemoveImageMarked(false);
+                          handleImageFileSelected(file);
                         }} />
                       </label>
                       <button type="button" onClick={() => {
@@ -568,10 +689,9 @@ export default function ServicesPage() {
                     </div>
                     <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => {
                       const file = e.target.files?.[0];
+                      e.target.value = "";
                       if (!file) return;
-                      const res = validateImageFile(file, 2);
-                      if (!res.valid) { alert(res.error); return; }
-                      setImageFile(file); setImagePreview(URL.createObjectURL(file)); setRemoveImageMarked(false);
+                      handleImageFileSelected(file);
                     }} />
                   </label>
                 )}
@@ -599,5 +719,6 @@ export default function ServicesPage() {
         </div>
       )}
     </div>
+    </>
   );
 }

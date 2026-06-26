@@ -411,7 +411,7 @@ export default function TeamPage() {
                     <div className="h-12 w-12 rounded-xl bg-indigo-600/20 border border-indigo-500/20 flex items-center justify-center shrink-0 overflow-hidden">
                       {m.fotoLogoUrl
                         // eslint-disable-next-line @next/next/no-img-element
-                        ? <img src={m.fotoLogoUrl} alt={m.nome} className="h-full w-full object-cover" />
+                        ? <img src={m.fotoLogoUrl} alt={m.nome} className="h-full w-full object-cover object-center" />
                         : <span className="text-lg font-bold text-indigo-400">{m.nome[0]}</span>
                       }
                     </div>

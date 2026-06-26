@@ -92,7 +92,7 @@ export default function PublicServiceCard({
               fill
               sizes="(max-width: 640px) 100vw, 112px"
               loading="lazy"
-              className="object-cover transition-transform duration-300 hover:scale-105"
+              className="object-cover object-center transition-transform duration-300 hover:scale-105"
               onError={() => setImageError(true)}
             />
           ) : (

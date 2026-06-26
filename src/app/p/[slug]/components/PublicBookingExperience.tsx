@@ -25,6 +25,24 @@ import { isPastDateTimeSaoPaulo, getSaoPauloToday } from "@/lib/timezone";
 import type { PublicAddress, ServiceLocationType } from "@/lib/contactUtils";
 import { auth } from "@/lib/firebase";
 
+// ── Duration helpers ──────────────────────────────────────────────────────────
+function parseDuracaoMin(str: string): number {
+  if (!str) return 30;
+  let total = 0;
+  const h = str.match(/(\d+)\s*h/i);
+  const m = str.match(/(\d+)\s*min/i);
+  if (h) total += parseInt(h[1]) * 60;
+  if (m) total += parseInt(m[1]);
+  return total || 30;
+}
+
+function formatDuracao(min: number): string {
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m > 0 ? `${h}h ${m}min` : `${h}h`;
+}
+
 export interface Professional {
   id: string;
   nome: string;
@@ -125,7 +143,7 @@ export default function PublicBookingExperience({
 
   const hasTeam = teamMembers.length > 0;
   const [step, setStep] = useState(hasTeam ? 0 : 1);
-  const [selectedService, setSelectedService] = useState<Service | null>(null);
+  const [selectedServices, setSelectedServices] = useState<Service[]>([]);
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null);
   const [clientNome, setClientNome] = useState("");
@@ -134,6 +152,19 @@ export default function PublicBookingExperience({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [whatsappUrl, setWhatsappUrl] = useState("");
+
+  const toggleService = (service: Service) => {
+    setSelectedServices(prev =>
+      prev.some(s => s.id === service.id)
+        ? prev.filter(s => s.id !== service.id)
+        : [...prev, service]
+    );
+    setError("");
+  };
+
+  const totalPreco = selectedServices.reduce((sum, s) => sum + (s.preco ?? 0), 0);
+  const totalDuracaoMin = selectedServices.reduce((sum, s) => sum + parseDuracaoMin(s.duracaoEstimada), 0);
+  const hasPrecoVisivel = selectedServices.some(s => s.preco != null && (s.exibirPreco ?? true));
 
   const corBrand = theme.primaryColor;
 
@@ -224,7 +255,7 @@ export default function PublicBookingExperience({
 
   const handleNextStep = () => {
     if (step === 0 && !activeProfessionalId) { setError("Por favor, selecione um profissional para prosseguir."); return; }
-    if (step === 1 && !selectedService) { setError("Por favor, selecione um serviço para prosseguir."); return; }
+    if (step === 1 && selectedServices.length === 0) { setError("Por favor, selecione ao menos um serviço para prosseguir."); return; }
     if (step === 2 && (!selectedDate || !selectedSlot)) { setError("Por favor, escolha uma data e horário."); return; }
     setError("");
     setStep(step + 1);
@@ -234,7 +265,7 @@ export default function PublicBookingExperience({
 
   const handleBookAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedService || !selectedSlot) return;
+    if (selectedServices.length === 0 || !selectedSlot) return;
     setError("");
 
     // Preview mode: block all real operations
@@ -286,7 +317,7 @@ export default function PublicBookingExperience({
         headers,
         body: JSON.stringify({
           professionalId: activeProfessionalId ?? professional.id,
-          serviceId: selectedService.id,
+          servicos: selectedServices.map(s => ({ id: s.id })),
           nome: trimmedNome,
           telefone: formattedClientPhone,
           dataEscolhida: selectedSlot.data,
@@ -322,7 +353,19 @@ export default function PublicBookingExperience({
 
       const [year, month, day] = selectedSlot.data.split("-");
       const friendlyDate = `${day}/${month}/${year}`;
-      const message = `Olá, meu nome é ${trimmedNome}. Tenho interesse em ${selectedService.nome} e gostaria de verificar a disponibilidade para ${friendlyDate} às ${selectedSlot.horario}.`;
+
+      const linhasServicos = selectedServices.map(s => {
+        const temPreco = s.preco != null && (s.exibirPreco ?? true);
+        return temPreco
+          ? `• ${s.nome} — ${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(s.preco!)}`
+          : `• ${s.nome}`;
+      }).join("\n");
+
+      const totalLine = hasPrecoVisivel
+        ? `\n\nTotal: ${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalPreco)} · Duração estimada: ~${formatDuracao(totalDuracaoMin)}`
+        : `\n\nDuração estimada: ~${formatDuracao(totalDuracaoMin)}`;
+
+      const message = `Olá, meu nome é ${trimmedNome}. Gostaria de verificar disponibilidade para ${friendlyDate} às ${selectedSlot.horario}:\n\n${linhasServicos}${totalLine}`;
       const redirectUrl = getWhatsAppLink(activeWhatsapp ?? professional.telefoneWhatsapp, message);
       setWhatsappUrl(redirectUrl);
       setStep(4);
@@ -452,7 +495,7 @@ export default function PublicBookingExperience({
                       <button
                         key={member.id}
                         type="button"
-                        onClick={() => { onSelectMember?.(member.id); setError(""); setSelectedService(null); setSelectedDate(""); setSelectedSlot(null); }}
+                        onClick={() => { onSelectMember?.(member.id); setError(""); setSelectedServices([]); setSelectedDate(""); setSelectedSlot(null); }}
                         style={{
                           borderRadius: `${theme.cardRadius}px`,
                           borderColor: isSelected ? corBrand : undefined,
@@ -466,7 +509,7 @@ export default function PublicBookingExperience({
                         >
                           {member.fotoLogoUrl
                             // eslint-disable-next-line @next/next/no-img-element
-                            ? <img src={member.fotoLogoUrl} alt={member.nome} className="h-full w-full object-cover" />
+                            ? <img src={member.fotoLogoUrl} alt={member.nome} className="h-full w-full object-cover object-center" />
                             : <span className="text-xl font-black" style={{ color: corBrand }}>{member.nome[0]}</span>
                           }
                         </div>
@@ -510,8 +553,8 @@ export default function PublicBookingExperience({
             {step === 1 && (
               <div className="space-y-4">
                 <div>
-                  <h2 className="text-lg font-bold text-[var(--theme-text)] mb-1" style={{ fontFamily: "var(--theme-heading-font)" }}>Escolha o serviço desejado</h2>
-                  <p className="text-xs text-[var(--theme-muted-text)]">Selecione uma das opções abaixo para ver os horários correspondentes.</p>
+                  <h2 className="text-lg font-bold text-[var(--theme-text)] mb-1" style={{ fontFamily: "var(--theme-heading-font)" }}>Escolha os serviços desejados</h2>
+                  <p className="text-xs text-[var(--theme-muted-text)]">Você pode selecionar mais de um serviço. Os valores e tempo serão somados automaticamente.</p>
                 </div>
                 {services.length === 0 ? (
                   <div style={cardRadiusStyle} className="text-center py-10 text-[var(--theme-muted-text)] text-sm border border-dashed border-[rgba(128,128,128,0.2)]">
@@ -523,8 +566,8 @@ export default function PublicBookingExperience({
                       <PublicServiceCard
                         key={service.id}
                         service={service}
-                        isSelected={selectedService?.id === service.id}
-                        onSelect={() => { setSelectedService(service); setError(""); }}
+                        isSelected={selectedServices.some(s => s.id === service.id)}
+                        onSelect={() => toggleService(service)}
                         showServiceImages={theme.showServiceImages}
                         cardStyle={theme.cardStyle}
                         cardRadius={theme.cardRadius}
@@ -533,7 +576,29 @@ export default function PublicBookingExperience({
                     ))}
                   </div>
                 )}
-                <div className={`pt-4 flex gap-3 ${hasTeam ? "justify-between" : ""}`}>
+
+                {/* Barra de totais — aparece quando há ao menos 1 serviço selecionado */}
+                {selectedServices.length > 0 && (
+                  <div style={{ ...cardRadiusStyle, borderColor: `${theme.primaryColor}30`, backgroundColor: `${theme.primaryColor}08` }} className="border px-4 py-3 flex items-center justify-between gap-3 text-sm">
+                    <div className="flex items-center gap-2 text-[var(--theme-muted-text)]">
+                      <Check className="h-3.5 w-3.5" style={{ color: theme.primaryColor }} />
+                      <span>{selectedServices.length} serviço{selectedServices.length > 1 ? "s" : ""} selecionado{selectedServices.length > 1 ? "s" : ""}</span>
+                    </div>
+                    <div className="flex items-center gap-3 font-semibold">
+                      {hasPrecoVisivel && (
+                        <span style={{ color: theme.primaryColor }}>
+                          {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalPreco)}
+                        </span>
+                      )}
+                      <span className="text-[var(--theme-muted-text)] text-xs flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        ~{formatDuracao(totalDuracaoMin)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                <div className={`pt-2 flex gap-3 ${hasTeam ? "justify-between" : ""}`}>
                   {hasTeam && (
                     <button
                       type="button"
@@ -546,9 +611,9 @@ export default function PublicBookingExperience({
                   )}
                   <button
                     onClick={handleNextStep}
-                    disabled={!selectedService}
-                    style={selectedService ? { backgroundColor: theme.primaryColor, color: getBestTextColor(theme.primaryColor), fontFamily: "var(--theme-body-font)" } : {}}
-                    className={`${hasTeam ? "" : "w-full"} flex-1 py-3.5 px-4 font-semibold text-sm transition-all shadow-lg flex items-center justify-center gap-2 active:scale-[0.98] ${btnRadiusClass} ${!selectedService ? "bg-slate-800 text-slate-500 cursor-not-allowed shadow-none" : "hover:brightness-110"}`}
+                    disabled={selectedServices.length === 0}
+                    style={selectedServices.length > 0 ? { backgroundColor: theme.primaryColor, color: getBestTextColor(theme.primaryColor), fontFamily: "var(--theme-body-font)" } : {}}
+                    className={`${hasTeam ? "" : "w-full"} flex-1 py-3.5 px-4 font-semibold text-sm transition-all shadow-lg flex items-center justify-center gap-2 active:scale-[0.98] ${btnRadiusClass} ${selectedServices.length === 0 ? "bg-slate-800 text-slate-500 cursor-not-allowed shadow-none" : "hover:brightness-110"}`}
                   >
                     <span>Escolher Data & Horário</span>
                     <ChevronRight className="h-4 w-4" />
@@ -698,9 +763,35 @@ export default function PublicBookingExperience({
                   <p className="text-xs text-[var(--theme-muted-text)]">Suas informações serão salvas no sistema de pré-agendamento.</p>
                 </div>
                 <div style={cardRadiusStyle} className="bg-[var(--theme-surface)]/60 border border-[rgba(255,255,255,0.08)] p-4 text-xs space-y-2 text-[var(--theme-text)]">
-                  <p className="flex justify-between items-center"><span className="text-[var(--theme-muted-text)]">Serviço:</span><span className="font-bold">{selectedService?.nome}</span></p>
                   {selectedSlot && (
-                    <p className="flex justify-between items-center"><span className="text-[var(--theme-muted-text)]">Data e Horário:</span><span className="font-bold">{formatDateTitle(selectedSlot.data)} às {selectedSlot.horario}</span></p>
+                    <p className="flex justify-between items-center pb-2 border-b border-[rgba(255,255,255,0.06)]">
+                      <span className="text-[var(--theme-muted-text)]">Data e Horário:</span>
+                      <span className="font-bold">{formatDateTitle(selectedSlot.data)} às {selectedSlot.horario}</span>
+                    </p>
+                  )}
+                  <div className="space-y-1.5 pt-1">
+                    {selectedServices.map(s => (
+                      <p key={s.id} className="flex justify-between items-center">
+                        <span className="text-[var(--theme-muted-text)] flex items-center gap-1"><Check className="h-3 w-3" />{s.nome}</span>
+                        {s.preco != null && (s.exibirPreco ?? true) && (
+                          <span className="font-semibold" style={{ color: theme.primaryColor }}>
+                            {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(s.preco)}
+                          </span>
+                        )}
+                      </p>
+                    ))}
+                  </div>
+                  {(hasPrecoVisivel || selectedServices.length > 1) && (
+                    <div className="flex justify-between items-center pt-2 border-t border-[rgba(255,255,255,0.06)]">
+                      <span className="text-[var(--theme-muted-text)] flex items-center gap-1">
+                        <Clock className="h-3 w-3" />~{formatDuracao(totalDuracaoMin)}
+                      </span>
+                      {hasPrecoVisivel && (
+                        <span className="font-bold text-sm" style={{ color: theme.primaryColor }}>
+                          Total: {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalPreco)}
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
                 <div style={cardRadiusStyle} className="flex items-start gap-2.5 px-3 py-2.5 bg-amber-500/8 border border-amber-500/20 text-amber-300/80 text-xs">
@@ -712,21 +803,21 @@ export default function PublicBookingExperience({
                     <label className="block text-xs font-semibold text-[var(--theme-muted-text)] uppercase tracking-wider mb-2">Seu Nome *</label>
                     <div className="relative">
                       <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-[var(--theme-muted-text)]/60"><User className="h-4 w-4" /></span>
-                      <input type="text" required value={clientNome} onChange={(e) => setClientNome(e.target.value)} placeholder="Insira seu nome completo" style={cardRadiusStyle} className="w-full pl-9 pr-4 py-2.5 bg-[var(--theme-surface)] border border-[rgba(255,255,255,0.08)] focus:outline-none focus:border-[var(--theme-primary)] text-[var(--theme-text)] text-sm transition-all" />
+                      <input type="text" required maxLength={80} value={clientNome} onChange={(e) => setClientNome(e.target.value)} placeholder="Insira seu nome completo" style={cardRadiusStyle} className="w-full pl-9 pr-4 py-2.5 bg-[var(--theme-surface)] border border-[rgba(255,255,255,0.08)] focus:outline-none focus:border-[var(--theme-primary)] text-[var(--theme-text)] text-sm transition-all" />
                     </div>
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-[var(--theme-muted-text)] uppercase tracking-wider mb-2">Telefone com WhatsApp *</label>
                     <div className="relative">
                       <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-[var(--theme-muted-text)]/60"><Phone className="h-4 w-4" /></span>
-                      <input type="text" required value={clientTelefone} onChange={handlePhoneInputChange} placeholder="Ex: (11) 99999-9999" style={cardRadiusStyle} className="w-full pl-9 pr-4 py-2.5 bg-[var(--theme-surface)] border border-[rgba(255,255,255,0.08)] focus:outline-none focus:border-[var(--theme-primary)] text-[var(--theme-text)] text-sm transition-all" />
+                      <input type="text" required maxLength={20} value={clientTelefone} onChange={handlePhoneInputChange} placeholder="Ex: (11) 99999-9999" style={cardRadiusStyle} className="w-full pl-9 pr-4 py-2.5 bg-[var(--theme-surface)] border border-[rgba(255,255,255,0.08)] focus:outline-none focus:border-[var(--theme-primary)] text-[var(--theme-text)] text-sm transition-all" />
                     </div>
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-[var(--theme-muted-text)] uppercase tracking-wider mb-2">Observações (Opcional)</label>
                     <div className="relative">
                       <span className="absolute top-3 left-3 text-[var(--theme-muted-text)]/60"><FileText className="h-4 w-4" /></span>
-                      <textarea value={clientObservacao} onChange={(e) => setClientObservacao(e.target.value)} placeholder="Gostaria de detalhar alguma necessidade ou preferência? (Opcional)" rows={2} style={cardRadiusStyle} className="w-full pl-9 pr-4 py-2.5 bg-[var(--theme-surface)] border border-[rgba(255,255,255,0.08)] focus:outline-none focus:border-[var(--theme-primary)] text-[var(--theme-text)] text-sm transition-all resize-none" />
+                      <textarea value={clientObservacao} onChange={(e) => setClientObservacao(e.target.value)} maxLength={300} placeholder="Gostaria de detalhar alguma necessidade ou preferência? (Opcional)" rows={2} style={cardRadiusStyle} className="w-full pl-9 pr-4 py-2.5 bg-[var(--theme-surface)] border border-[rgba(255,255,255,0.08)] focus:outline-none focus:border-[var(--theme-primary)] text-[var(--theme-text)] text-sm transition-all resize-none" />
                     </div>
                   </div>
                   <div className="flex gap-3 pt-4">
