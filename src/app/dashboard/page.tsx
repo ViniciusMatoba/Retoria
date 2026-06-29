@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { collection, query, orderBy, onSnapshot, getDocs, doc, deleteDoc, where } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, getDocs, doc, deleteDoc, where, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "../providers";
 import { formatPhoneFriendly, getWhatsAppLink } from "@/lib/whatsapp";
@@ -60,6 +60,7 @@ export default function DashboardHome() {
   const [initialized, setInitialized] = useState(false);
 
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [leadsLimit, setLeadsLimit] = useState(50);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("Todos");
@@ -138,7 +139,7 @@ export default function DashboardHome() {
       };
 
       for (const pid of allProfIds) {
-        const q = query(collection(db, "professionals", pid, "leads"), orderBy("createdAt", "desc"));
+        const q = query(collection(db, "professionals", pid, "leads"), orderBy("createdAt", "desc"), limit(leadsLimit));
         const unsub = onSnapshot(q, (snap) => {
           snap.docs.forEach((d) => {
             leadsMap.set(`${pid}:${d.id}`, {
@@ -160,14 +161,14 @@ export default function DashboardHome() {
     } else {
       // Único profissional
       const pid = activeProfId ?? user.uid;
-      const q = query(collection(db, "professionals", pid, "leads"), orderBy("createdAt", "desc"));
+      const q = query(collection(db, "professionals", pid, "leads"), orderBy("createdAt", "desc"), limit(leadsLimit));
       const unsub = onSnapshot(q, (snap) => {
         setLeads(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Lead)));
         setLoading(false);
       }, () => { setLoading(false); });
       return () => unsub();
     }
-  }, [user, activeProfId, initialized, teamMembers]);
+  }, [user, activeProfId, initialized, teamMembers, leadsLimit]);
 
   // ── Update status ──────────────────────────────────────────────────────────
   const handleUpdateStatus = async (lead: Lead, newStatus: LeadStatus) => {
@@ -185,6 +186,15 @@ export default function DashboardHome() {
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? `Erro HTTP ${res.status}`);
+      }
+      // Cleanup silencioso quando lead passa para status inativo
+      if (["Cancelado", "Perdido", "Não compareceu"].includes(newStatus)) {
+        user.getIdToken().then(t =>
+          fetch(`/api/professionals/${profId}/slots/cleanup`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${t}` },
+          }).catch(() => {})
+        );
       }
     } catch (e: any) {
       setStatusError(e.message ?? "Erro ao atualizar status.");
@@ -418,24 +428,25 @@ export default function DashboardHome() {
           {/* Linha 2 — faturamento */}
           <div className="grid grid-cols-2 gap-4 items-stretch">
             {/* Faturamento Real */}
-            <div style={{ background: "linear-gradient(135deg,#052e16 0%,#064e3b 100%)", border: "1px solid #065f46" }} className="rounded-2xl p-4 flex flex-col gap-3">
+            <div className="rounded-2xl p-4 flex flex-col gap-3 bg-emerald-50 border border-emerald-200 dark:bg-emerald-950/60 dark:border-emerald-800/60">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl shrink-0" style={{ background: "rgba(16,185,129,0.15)", color: "#34d399" }}>
+                <div className="p-2.5 rounded-xl shrink-0 bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400">
                   <DollarSign className="h-5 w-5" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "#6ee7b7" }}>Faturamento Real</p>
-                  <h3 className="text-lg font-extrabold mt-0.5" style={{ color: "#ecfdf5" }}>{formatBRL(realRevenue)}</h3>
-                  <p className="text-[10px] mt-0.5" style={{ color: "#6ee7b7" }}>{revenueAtendidos.length} atendimento{revenueAtendidos.length !== 1 ? "s" : ""}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Faturamento Real</p>
+                  <h3 className="text-lg font-extrabold mt-0.5 text-emerald-900 dark:text-emerald-50">{formatBRL(realRevenue)}</h3>
+                  <p className="text-[10px] mt-0.5 text-emerald-600 dark:text-emerald-400">{revenueAtendidos.length} atendimento{revenueAtendidos.length !== 1 ? "s" : ""}</p>
                 </div>
               </div>
               <div className="flex gap-1 flex-wrap">
                 {(["hoje", "semana", "mes", "ano"] as const).map(f => (
                   <button key={f} onClick={() => setRevenueFilter(f)}
-                    style={revenueFilter === f
-                      ? { background: "#059669", border: "1px solid #047857", color: "#fff" }
-                      : { background: "transparent", border: "1px solid rgba(16,185,129,0.25)", color: "#6ee7b7" }}
-                    className="px-2 py-1 rounded-lg text-[10px] font-bold transition-all hover:opacity-80">
+                    className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all border ${
+                      revenueFilter === f
+                        ? "bg-emerald-600 border-emerald-700 text-white dark:bg-emerald-600 dark:border-emerald-700"
+                        : "bg-transparent border-emerald-300 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700/50 dark:text-emerald-400 dark:hover:bg-emerald-900/40"
+                    }`}>
                     {f === "hoje" ? "Hoje" : f === "semana" ? "Semana" : f === "mes" ? "Mês" : "Ano"}
                   </button>
                 ))}
@@ -443,24 +454,25 @@ export default function DashboardHome() {
             </div>
 
             {/* Faturamento Previsto */}
-            <div style={{ background: "linear-gradient(135deg,#1c1002 0%,#2d1f00 100%)", border: "1px solid #92400e" }} className="rounded-2xl p-4 flex flex-col gap-3">
+            <div className="rounded-2xl p-4 flex flex-col gap-3 bg-amber-50 border border-amber-200 dark:bg-amber-950/60 dark:border-amber-800/60">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl shrink-0" style={{ background: "rgba(245,158,11,0.15)", color: "#fbbf24" }}>
+                <div className="p-2.5 rounded-xl shrink-0 bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">
                   <CalendarClock className="h-5 w-5" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "#fcd34d" }}>Faturamento Previsto</p>
-                  <h3 className="text-lg font-extrabold mt-0.5" style={{ color: "#fffbeb" }}>{formatBRL(projectedRevenue)}</h3>
-                  <p className="text-[10px] mt-0.5" style={{ color: "#fcd34d" }}>{projectedCount} agendamento{projectedCount !== 1 ? "s" : ""} confirmado{projectedCount !== 1 ? "s" : ""}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">Faturamento Previsto</p>
+                  <h3 className="text-lg font-extrabold mt-0.5 text-amber-900 dark:text-amber-50">{formatBRL(projectedRevenue)}</h3>
+                  <p className="text-[10px] mt-0.5 text-amber-600 dark:text-amber-400">{projectedCount} agendamento{projectedCount !== 1 ? "s" : ""} confirmado{projectedCount !== 1 ? "s" : ""}</p>
                 </div>
               </div>
               <div className="flex gap-1 flex-wrap">
                 {(["amanha", "7d", "30d", "todos"] as const).map(f => (
                   <button key={f} onClick={() => setProjectionFilter(f)}
-                    style={projectionFilter === f
-                      ? { background: "#d97706", border: "1px solid #b45309", color: "#fff" }
-                      : { background: "transparent", border: "1px solid rgba(245,158,11,0.25)", color: "#fcd34d" }}
-                    className="px-2 py-1 rounded-lg text-[10px] font-bold transition-all hover:opacity-80">
+                    className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all border ${
+                      projectionFilter === f
+                        ? "bg-amber-600 border-amber-700 text-white dark:bg-amber-600 dark:border-amber-700"
+                        : "bg-transparent border-amber-300 text-amber-700 hover:bg-amber-100 dark:border-amber-700/50 dark:text-amber-400 dark:hover:bg-amber-900/40"
+                    }`}>
                     {f === "amanha" ? "Amanhã" : f === "7d" ? "7 dias" : f === "30d" ? "30 dias" : "Todos"}
                   </button>
                 ))}
@@ -564,6 +576,7 @@ export default function DashboardHome() {
             </p>
           </div>
         ) : (
+          <>
           <div className="overflow-x-auto rounded-xl border border-slate-800/80 bg-slate-950/20">
             <table className="w-full text-left border-collapse min-w-[700px]">
               <thead>
@@ -582,6 +595,8 @@ export default function DashboardHome() {
                 {filteredLeads.map((lead) => {
                   const msgText = `Olá ${lead.nome}, recebi seu pedido para o serviço "${lead.servicoEscolhido}" em ${formatDate(lead.dataEscolhida)} às ${lead.horarioEscolhido}. Vamos confirmar?`;
                   const whatsappChatUrl = getWhatsAppLink(lead.telefone, msgText);
+                  const cancelMsgText = `Olá ${lead.nome}, precisamos cancelar o agendamento de "${lead.servicoEscolhido}" previsto para ${formatDate(lead.dataEscolhida)} às ${lead.horarioEscolhido}. Lamentamos o inconveniente. Entre em contato para remarcar!`;
+                  const whatsappCancelUrl = getWhatsAppLink(lead.telefone, cancelMsgText);
                   const currentStatus = statusOptions.find(o => o.value === lead.status) || statusOptions[0];
                   const isOwnerLead = lead.professionalId === user?.uid;
 
@@ -649,6 +664,18 @@ export default function DashboardHome() {
                             <MessageSquare className="h-3.5 w-3.5" />
                             <span>Conversar</span>
                           </a>
+                          {lead.status === "Cancelado" && (
+                            <a
+                              href={whatsappCancelUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-3 py-2 bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white font-semibold text-xs rounded-lg border border-red-500/30 hover:border-red-500 transition-all"
+                              title="Notificar cancelamento via WhatsApp"
+                            >
+                              <MessageSquare className="h-3.5 w-3.5" />
+                              <span>Notificar</span>
+                            </a>
+                          )}
                           <button
                             onClick={() => setRescheduleModal({
                               leadId: lead.id,
@@ -679,6 +706,18 @@ export default function DashboardHome() {
               </tbody>
             </table>
           </div>
+          {/* Carregar mais — aparece se o número de leads retornados atingiu o limite */}
+          {leads.length >= leadsLimit && (
+            <div className="flex justify-center pt-2 pb-1">
+              <button
+                onClick={() => setLeadsLimit(l => l + 50)}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-400 hover:text-slate-200 bg-slate-900/60 hover:bg-slate-800 border border-slate-800 rounded-xl transition-all"
+              >
+                Carregar mais leads
+              </button>
+            </div>
+          )}
+          </>
         )}
       </div>
     </div>
