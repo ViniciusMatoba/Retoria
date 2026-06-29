@@ -18,6 +18,8 @@ import {
   Palette,
   LayoutGrid,
   UserCog,
+  BookUser,
+  QrCode,
 } from "lucide-react";
 import {
   normalizeThemeConfig,
@@ -134,12 +136,14 @@ export default function DashboardLayout({
 
   const navItems = [
     { name: "Leads / Contatos", href: "/dashboard", icon: Users },
+    { name: "Clientes", href: "/dashboard/clientes", icon: BookUser },
     { name: "Serviços", href: "/dashboard/services", icon: Briefcase },
     { name: "Horários", href: "/dashboard/slots", icon: Calendar },
     ...(!isTeamMember ? [
       { name: "Equipe", href: "/dashboard/team", icon: UserCog },
       { name: "Personalização da Página", href: "/dashboard/personalization", icon: Palette },
     ] : []),
+    { name: "QR Code", href: "/dashboard/qrcode", icon: QrCode },
     { name: "Editar Perfil", href: "/dashboard/profile", icon: Settings },
   ];
 
