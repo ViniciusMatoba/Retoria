@@ -387,8 +387,8 @@ export default function SlotsPage() {
         headers: { Authorization: `Bearer ${token}` },
       })
         .then(r => r.json())
-        .then(({ fixed, checked }) => {
-          if (fixed > 0) console.log(`[slots/cleanup] ${fixed}/${checked} slots liberados`);
+        .then(() => {
+          // cleanup silencioso — slots de leads inativos liberados automaticamente
         })
         .catch(() => {});
     });

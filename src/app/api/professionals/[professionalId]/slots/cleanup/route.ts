@@ -8,11 +8,15 @@ type Params = { params: Promise<{ professionalId: string }> };
 /**
  * POST /api/professionals/[professionalId]/slots/cleanup
  *
- * Varre todos os slots com disponivel=false e bookingId preenchido.
- * Para cada um, verifica se o lead associado está Cancelado, Perdido ou
- * não existe mais. Se sim, libera o slot (disponivel=true, bookingId=null).
+ * SEC-005: slots não armazenam bookingId. O índice de quais slots pertencem
+ * a cada lead fica em slotBookings/{leadId}.
  *
- * Retorna { fixed, checked } com contadores para auditoria.
+ * Algoritmo:
+ * 1. Lê todos os documentos em slotBookings (um por lead)
+ * 2. Para cada lead, verifica se está Cancelado, Perdido ou não existe
+ * 3. Se sim, libera os slots listados e remove o documento slotBookings
+ *
+ * Retorna { fixed, checked } para auditoria.
  */
 export async function POST(req: NextRequest, { params }: Params) {
   if (!dbAdmin || !authAdmin) {
@@ -37,61 +41,62 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
   }
 
-  const slotsRef = dbAdmin.collection("professionals").doc(professionalId).collection("availableSlots");
-  const leadsRef = dbAdmin.collection("professionals").doc(professionalId).collection("leads");
+  const profRef   = dbAdmin.collection("professionals").doc(professionalId);
+  const slotsRef  = profRef.collection("availableSlots");
+  const leadsRef  = profRef.collection("leads");
+  const sbRef     = profRef.collection("slotBookings");
 
-  // Busca todos slots bloqueados — filtra bookingId em JS para evitar índice composto
-  const blockedSnap = await slotsRef
-    .where("disponivel", "==", false)
-    .get();
-
-  if (blockedSnap.empty) {
+  // 1. Ler todos os índices slotBookings (um documento por lead ativo)
+  const sbSnap = await sbRef.get();
+  if (sbSnap.empty) {
     return NextResponse.json({ fixed: 0, checked: 0 });
   }
 
-  // Agrupa por bookingId para minimizar leituras
-  type QSnap = FirebaseFirestore.QueryDocumentSnapshot;
-  const rawIds = blockedSnap.docs
-    .map((d: QSnap) => d.data().bookingId as string | undefined)
-    .filter((id: string | undefined): id is string => !!id);
-  const bookingIds: string[] = [...new Set<string>(rawIds)];
-
   const INACTIVE_STATUSES = new Set(["Cancelado", "Perdido"]);
-  const shouldRelease = new Map<string, boolean>();
+  type SBDoc = FirebaseFirestore.QueryDocumentSnapshot;
 
-  await Promise.all(
-    bookingIds.map(async (bid) => {
-      const leadSnap = await leadsRef.doc(bid).get();
-      if (!leadSnap.exists) {
-        shouldRelease.set(bid, true);
-      } else {
-        const status = leadSnap.data()?.status;
-        shouldRelease.set(bid, INACTIVE_STATUSES.has(status));
-      }
+  // 2. Verificar status de cada lead em paralelo
+  const results = await Promise.all(
+    sbSnap.docs.map(async (sbDoc: SBDoc) => {
+      const leadId = sbDoc.id;
+      const slotIds: string[] = sbDoc.data().slotIds ?? [];
+
+      const leadSnap = await leadsRef.doc(leadId).get();
+      const shouldRelease =
+        !leadSnap.exists || INACTIVE_STATUSES.has(leadSnap.data()?.status);
+
+      return { leadId, slotIds, sbDocRef: sbDoc.ref, shouldRelease };
     })
   );
 
-  const toFree = blockedSnap.docs.filter((d: QSnap) => shouldRelease.get(d.data().bookingId));
+  const toRelease = results.filter((r) => r.shouldRelease);
 
-  if (toFree.length === 0) {
-    return NextResponse.json({ fixed: 0, checked: blockedSnap.size });
+  if (toRelease.length === 0) {
+    return NextResponse.json({ fixed: 0, checked: sbSnap.size });
   }
 
-  // Commit em batches de 500 (limite Firestore)
+  // 3. Liberar slots em batches de 500 (limite Firestore)
   const BATCH_SIZE = 500;
-  for (let i = 0; i < toFree.length; i += BATCH_SIZE) {
+  const now = FieldValue.serverTimestamp();
+
+  // Flatten: { slotId, sbDocRef (só do primeiro slot do lead para deletar depois) }
+  const allSlotIds = toRelease.flatMap((r) => r.slotIds);
+  const sbDocRefs  = toRelease.map((r) => r.sbDocRef);
+
+  for (let i = 0; i < allSlotIds.length; i += BATCH_SIZE) {
     const batch = dbAdmin.batch();
-    toFree.slice(i, i + BATCH_SIZE).forEach((d: FirebaseFirestore.QueryDocumentSnapshot) => {
-      batch.update(d.ref, {
-        disponivel: true,
-        bookingId: null,
-        ocupacaoTipo: null,
-        updatedAt: FieldValue.serverTimestamp(),
-      });
+    allSlotIds.slice(i, i + BATCH_SIZE).forEach((slotId) => {
+      batch.update(slotsRef.doc(slotId), { disponivel: true, updatedAt: now });
     });
     await batch.commit();
   }
 
-  console.log(`[slots/cleanup] prof=${professionalId} checked=${blockedSnap.size} fixed=${toFree.length}`);
-  return NextResponse.json({ fixed: toFree.length, checked: blockedSnap.size });
+  // 4. Remover documentos slotBookings dos leads liberados
+  for (let i = 0; i < sbDocRefs.length; i += BATCH_SIZE) {
+    const batch = dbAdmin.batch();
+    sbDocRefs.slice(i, i + BATCH_SIZE).forEach((ref) => batch.delete(ref));
+    await batch.commit();
+  }
+
+  return NextResponse.json({ fixed: allSlotIds.length, checked: sbSnap.size });
 }
