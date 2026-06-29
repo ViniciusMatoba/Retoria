@@ -63,6 +63,7 @@ export default function DashboardLayout({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [licenseStatus, setLicenseStatus] = useState<string | null>(null);
   const [licenseEnd, setLicenseEnd] = useState<Date | null>(null);
+  const [maxMembers, setMaxMembers] = useState<number>(0);
 
   const themeConfig = normalizeThemeConfig({
     ...(profile?.themeConfig || {}),
@@ -101,6 +102,7 @@ export default function DashboardLayout({
       if (!snap.exists()) return;
       const data = snap.data();
       setLicenseStatus(data.status ?? null);
+      setMaxMembers(data.maxMembers ?? 0);
       const end = data.currentPeriodEnd;
       setLicenseEnd(end ? (end.toDate ? end.toDate() : new Date(end)) : null);
     });
@@ -141,7 +143,7 @@ export default function DashboardLayout({
     { name: "Serviços", href: "/dashboard/services", icon: Briefcase },
     { name: "Horários", href: "/dashboard/slots", icon: Calendar },
     ...(!isTeamMember ? [
-      { name: "Equipe", href: "/dashboard/team", icon: UserCog },
+      ...(maxMembers !== 0 ? [{ name: "Equipe", href: "/dashboard/team", icon: UserCog }] : []),
       { name: "Personalização da Página", href: "/dashboard/personalization", icon: Palette },
     ] : []),
     { name: "QR Code", href: "/dashboard/qrcode", icon: QrCode },
@@ -326,7 +328,7 @@ export default function DashboardLayout({
             <div className="h-9 w-9 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
               <Calendar className="h-5 w-5 text-white" />
             </div>
-            <span className="font-extrabold tracking-tight text-xl bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">Retoria</span>
+            <span className="font-extrabold tracking-tight text-xl text-white" style={{ textShadow: "0 1px 3px rgba(0,0,0,0.4)" }}>Retoria</span>
           </div>
           <button 
             onClick={() => setMobileMenuOpen(false)}

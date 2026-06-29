@@ -1,6 +1,9 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { doc, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { useAuth } from "../../providers";
 import {
   UserPlus, Users, Loader2, AlertCircle, Check, Copy, Trash2,
@@ -66,6 +69,18 @@ function ToggleRow({ label, hint, checked, onChange }: { label: string; hint?: s
 
 export default function TeamPage() {
   const { user, profile } = useAuth();
+  const router = useRouter();
+
+  // Guard: individual plan (maxMembers = 0) has no team feature
+  useEffect(() => {
+    if (!user || profile?.role === "team_member") return;
+    const unsub = onSnapshot(doc(db, "licenses", user.uid), (snap) => {
+      if (!snap.exists()) return;
+      const maxM = snap.data().maxMembers ?? 0;
+      if (maxM === 0) router.replace("/dashboard");
+    });
+    return unsub;
+  }, [user, profile, router]);
 
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [invites, setInvites] = useState<PendingInvite[]>([]);
@@ -458,10 +473,12 @@ export default function TeamPage() {
             )}
 
             {members.length === 0 && invites.length === 0 && (
-              <div className="text-center py-12 space-y-3">
-                <Users className="h-10 w-10 text-slate-700 mx-auto" />
-                <p className="text-slate-500 font-medium">Nenhum profissional na equipe ainda.</p>
-                <p className="text-slate-600 text-sm">Clique em "Convidar profissional" para começar.</p>
+              <div className="flex flex-col items-center justify-center min-h-[320px] gap-3">
+                <div className="p-4 bg-slate-800/50 rounded-2xl">
+                  <Users className="h-10 w-10 text-slate-600" />
+                </div>
+                <p className="text-slate-400 font-semibold">Nenhum profissional na equipe ainda.</p>
+                <p className="text-slate-500 text-sm">Clique em "Convidar profissional" para começar.</p>
               </div>
             )}
           </div>
