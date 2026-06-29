@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { collection, query, orderBy, onSnapshot, getDocs, doc, deleteDoc, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "../providers";
@@ -9,7 +9,7 @@ import { LEAD_STATUSES, type LeadStatus } from "@/lib/leadTypes";
 import {
   Search, Filter, MessageSquare, Trash2, Clock, CalendarCheck,
   DollarSign, Inbox, AlertCircle, Loader2, CalendarClock, X,
-  Building2, User, Users, CheckCircle2,
+  Building2, User, Users, CheckCircle2, ChevronDown,
 } from "lucide-react";
 import { useAppModal } from "@/components/ModalProvider";
 
@@ -66,6 +66,14 @@ export default function DashboardHome() {
 
   const [updatingLeadId, setUpdatingLeadId] = useState<string | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
+
+  // Filters for revenue cards
+  const [revenueFilter, setRevenueFilter] = useState<"hoje" | "semana" | "mes" | "ano">("mes");
+  const [projectionFilter, setProjectionFilter] = useState<"amanha" | "7d" | "30d" | "todos">("todos");
+
+  // Search autocomplete
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
 
   const [rescheduleModal, setRescheduleModal] = useState<{
     leadId: string; nome: string; data: string; inicio: string; fim: string;
@@ -237,18 +245,44 @@ export default function DashboardHome() {
   const newLeads = leads.filter(l => l.status === "Novo").length;
   const scheduledLeads = leads.filter(l => l.status === "Agendado").length;
 
-  const thisMonthStr = new Date().toISOString().slice(0, 7); // "YYYY-MM"
+  const todayStr = new Date().toISOString().split("T")[0];
+  const thisMonthStr = new Date().toISOString().slice(0, 7);
+  const thisWeekStart = (() => {
+    const d = new Date(); d.setDate(d.getDate() - d.getDay()); return d.toISOString().split("T")[0];
+  })();
+  const thisYearStr = new Date().getFullYear().toString();
+
   const attendedThisMonth = leads.filter(
     l => l.status === "Atendido" && l.dataEscolhida?.startsWith(thisMonthStr)
   ).length;
 
-  const projectedRevenue = leads
-    .filter(l => l.status === "Agendado")
-    .reduce((sum, l) => sum + (l.valorTotal ?? 0), 0);
+  // Revenue filtered by revenueFilter
+  const revenueAtendidos = leads.filter(l => {
+    if (l.status !== "Atendido") return false;
+    const d = l.dataEscolhida ?? "";
+    if (revenueFilter === "hoje") return d === todayStr;
+    if (revenueFilter === "semana") return d >= thisWeekStart && d <= todayStr;
+    if (revenueFilter === "mes") return d.startsWith(thisMonthStr);
+    if (revenueFilter === "ano") return d.startsWith(thisYearStr);
+    return true;
+  });
+  const realRevenue = revenueAtendidos.reduce((s, l) => s + (l.valorTotal ?? 0), 0);
 
-  const realRevenueThisMonth = leads
-    .filter(l => l.status === "Atendido" && l.dataEscolhida?.startsWith(thisMonthStr))
-    .reduce((sum, l) => sum + (l.valorTotal ?? 0), 0);
+  // Projection filtered by projectionFilter
+  const tomorrowStr = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split("T")[0]; })();
+  const in7dStr = (() => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().split("T")[0]; })();
+  const in30dStr = (() => { const d = new Date(); d.setDate(d.getDate() + 30); return d.toISOString().split("T")[0]; })();
+
+  const projectionLeads = leads.filter(l => {
+    if (l.status !== "Agendado") return false;
+    const d = l.dataEscolhida ?? "";
+    if (projectionFilter === "amanha") return d === tomorrowStr;
+    if (projectionFilter === "7d") return d >= todayStr && d <= in7dStr;
+    if (projectionFilter === "30d") return d >= todayStr && d <= in30dStr;
+    return true; // "todos"
+  });
+  const projectedRevenue = projectionLeads.reduce((s, l) => s + (l.valorTotal ?? 0), 0);
+  const projectedCount = projectionLeads.length;
 
   // Histórico mensal — últimos 4 meses
   const monthlyHistory = (() => {
@@ -269,6 +303,22 @@ export default function DashboardHome() {
 
   const formatBRL = (v: number) =>
     v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+  // ── Search autocomplete ────────────────────────────────────────────────────
+  const searchSuggestions = searchTerm.length >= 2
+    ? Array.from(
+        new Map(
+          leads
+            .filter(l =>
+              l.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              l.telefone.includes(searchTerm) ||
+              l.servicoEscolhido.toLowerCase().includes(searchTerm.toLowerCase())
+            )
+            .slice(0, 6)
+            .map(l => [l.nome, l])
+        ).values()
+      )
+    : [];
 
   // ── Filtered leads ─────────────────────────────────────────────────────────
   const filteredLeads = leads.filter(lead => {
@@ -366,21 +416,54 @@ export default function DashboardHome() {
           </div>
 
           {/* Linha 2 — faturamento */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-emerald-950/30 border border-emerald-800/40 rounded-2xl p-4 flex items-center gap-3">
-              <div className="p-2.5 bg-emerald-500/10 rounded-xl text-emerald-400 shrink-0"><DollarSign className="h-5 w-5" /></div>
-              <div>
-                <p className="text-[10px] font-semibold text-emerald-400/70 uppercase tracking-wider">Faturamento real — {new Date().toLocaleDateString("pt-BR", { month: "long" })}</p>
-                <h3 className="text-lg font-extrabold text-emerald-300 mt-0.5">{formatBRL(realRevenueThisMonth)}</h3>
-                <p className="text-[10px] text-slate-500 mt-0.5">{attendedThisMonth} atendimento{attendedThisMonth !== 1 ? "s" : ""} concluído{attendedThisMonth !== 1 ? "s" : ""}</p>
+          <div className="grid grid-cols-2 gap-4 items-stretch">
+            {/* Faturamento Real */}
+            <div style={{ background: "linear-gradient(135deg,#052e16 0%,#064e3b 100%)", border: "1px solid #065f46" }} className="rounded-2xl p-4 flex flex-col gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl shrink-0" style={{ background: "rgba(16,185,129,0.15)", color: "#34d399" }}>
+                  <DollarSign className="h-5 w-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "#6ee7b7" }}>Faturamento Real</p>
+                  <h3 className="text-lg font-extrabold mt-0.5" style={{ color: "#ecfdf5" }}>{formatBRL(realRevenue)}</h3>
+                  <p className="text-[10px] mt-0.5" style={{ color: "#6ee7b7" }}>{revenueAtendidos.length} atendimento{revenueAtendidos.length !== 1 ? "s" : ""}</p>
+                </div>
+              </div>
+              <div className="flex gap-1 flex-wrap">
+                {(["hoje", "semana", "mes", "ano"] as const).map(f => (
+                  <button key={f} onClick={() => setRevenueFilter(f)}
+                    style={revenueFilter === f
+                      ? { background: "#059669", border: "1px solid #047857", color: "#fff" }
+                      : { background: "transparent", border: "1px solid rgba(16,185,129,0.25)", color: "#6ee7b7" }}
+                    className="px-2 py-1 rounded-lg text-[10px] font-bold transition-all hover:opacity-80">
+                    {f === "hoje" ? "Hoje" : f === "semana" ? "Semana" : f === "mes" ? "Mês" : "Ano"}
+                  </button>
+                ))}
               </div>
             </div>
-            <div className="bg-amber-950/20 border border-amber-800/30 rounded-2xl p-4 flex items-center gap-3">
-              <div className="p-2.5 bg-amber-500/10 rounded-xl text-amber-400 shrink-0"><CalendarClock className="h-5 w-5" /></div>
-              <div>
-                <p className="text-[10px] font-semibold text-amber-400/70 uppercase tracking-wider">Faturamento previsto</p>
-                <h3 className="text-lg font-extrabold text-amber-300 mt-0.5">{formatBRL(projectedRevenue)}</h3>
-                <p className="text-[10px] text-slate-500 mt-0.5">{scheduledLeads} agendamento{scheduledLeads !== 1 ? "s" : ""} confirmado{scheduledLeads !== 1 ? "s" : ""}</p>
+
+            {/* Faturamento Previsto */}
+            <div style={{ background: "linear-gradient(135deg,#1c1002 0%,#2d1f00 100%)", border: "1px solid #92400e" }} className="rounded-2xl p-4 flex flex-col gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl shrink-0" style={{ background: "rgba(245,158,11,0.15)", color: "#fbbf24" }}>
+                  <CalendarClock className="h-5 w-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "#fcd34d" }}>Faturamento Previsto</p>
+                  <h3 className="text-lg font-extrabold mt-0.5" style={{ color: "#fffbeb" }}>{formatBRL(projectedRevenue)}</h3>
+                  <p className="text-[10px] mt-0.5" style={{ color: "#fcd34d" }}>{projectedCount} agendamento{projectedCount !== 1 ? "s" : ""} confirmado{projectedCount !== 1 ? "s" : ""}</p>
+                </div>
+              </div>
+              <div className="flex gap-1 flex-wrap">
+                {(["amanha", "7d", "30d", "todos"] as const).map(f => (
+                  <button key={f} onClick={() => setProjectionFilter(f)}
+                    style={projectionFilter === f
+                      ? { background: "#d97706", border: "1px solid #b45309", color: "#fff" }
+                      : { background: "transparent", border: "1px solid rgba(245,158,11,0.25)", color: "#fcd34d" }}
+                    className="px-2 py-1 rounded-lg text-[10px] font-bold transition-all hover:opacity-80">
+                    {f === "amanha" ? "Amanhã" : f === "7d" ? "7 dias" : f === "30d" ? "30 dias" : "Todos"}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -418,7 +501,7 @@ export default function DashboardHome() {
       {/* Table */}
       <div className="bg-slate-900/30 border border-slate-800/80 rounded-2xl p-4 md:p-6 backdrop-blur-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-          <div className="relative flex-1 max-w-md">
+          <div className="relative flex-1 max-w-md" ref={searchRef}>
             <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
               <Search className="h-5 w-5" />
             </span>
@@ -426,9 +509,29 @@ export default function DashboardHome() {
               type="text"
               placeholder="Buscar por nome, telefone ou serviço..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => { setSearchTerm(e.target.value); setShowSuggestions(true); }}
+              onFocus={() => setShowSuggestions(true)}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
               className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800/80 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-100 text-sm transition-all"
             />
+            {showSuggestions && searchSuggestions.length > 0 && (
+              <div className="absolute z-30 left-0 right-0 top-full mt-1 bg-slate-900 border border-slate-700 rounded-xl shadow-xl overflow-hidden">
+                {searchSuggestions.map((lead) => (
+                  <button
+                    key={lead.id}
+                    type="button"
+                    onMouseDown={() => { setSearchTerm(lead.nome); setShowSuggestions(false); }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-slate-800 transition-colors text-left"
+                  >
+                    <Search className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-200 truncate">{lead.nome}</p>
+                      <p className="text-xs text-slate-500 truncate">{lead.servicoEscolhido} · {lead.telefone}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Filter className="h-4 w-4 text-slate-500" />
@@ -555,7 +658,7 @@ export default function DashboardHome() {
                               fim: (lead as any).horarioFim ?? lead.horarioEscolhido,
                               profId: lead.professionalId || user!.uid,
                             })}
-                            className="inline-flex items-center gap-1 px-3 py-2 bg-indigo-600/15 hover:bg-indigo-600 text-indigo-400 hover:text-white font-semibold text-xs rounded-lg border border-indigo-500/30 hover:border-indigo-600 transition-all"
+                            className="inline-flex items-center gap-1 px-3 py-2 bg-amber-500/15 hover:bg-amber-500 text-amber-400 hover:text-white font-semibold text-xs rounded-lg border border-amber-500/30 hover:border-amber-500 transition-all"
                             title="Reagendar"
                           >
                             <CalendarClock className="h-3.5 w-3.5" />

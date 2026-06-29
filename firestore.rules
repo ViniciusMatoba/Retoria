@@ -114,6 +114,11 @@ service cloud.firestore {
         allow read: if isProfessional(profId);
         allow write: if false;
       }
+
+      // FCM tokens — o profissional escreve os próprios tokens de dispositivo
+      match /fcmTokens/{tokenId} {
+        allow read, write: if isProfessional(profId);
+      }
     }
 
     // ─── Licenças — Admin SDK only ────────────────────────────────────────────
