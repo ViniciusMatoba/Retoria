@@ -2083,15 +2083,14 @@ export default function SlotsPage() {
       )}
 
       {/* Integração Google Calendar — destaque especial */}
-      <div className="relative rounded-3xl overflow-hidden border-2 border-blue-500/40 shadow-xl shadow-blue-500/10 bg-gradient-to-r from-blue-950/40 via-slate-900/80 to-indigo-950/40 p-1">
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-indigo-500/5 pointer-events-none" />
-        <div className="relative flex items-center gap-2 px-4 pt-3 pb-1">
-          <span className="flex items-center gap-1.5 text-[11px] font-black text-blue-400 uppercase tracking-widest bg-blue-500/10 border border-blue-500/20 px-2.5 py-1 rounded-full">
-            <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse" />
+      <div className="relative rounded-3xl overflow-hidden shadow-xl" style={{ background: "linear-gradient(135deg,#1e3a5f 0%,#1e2d5a 60%,#2d1b6e 100%)", border: "2px solid #3b82f6" }}>
+        <div className="flex items-center gap-2 px-5 pt-4 pb-2">
+          <span className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest px-3 py-1 rounded-full" style={{ background: "#2563eb", color: "#fff", boxShadow: "0 0 12px rgba(59,130,246,0.5)" }}>
+            <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
             Funcionalidade Importante
           </span>
         </div>
-        <div className="relative px-2 pb-2">
+        <div className="px-3 pb-3">
           <GoogleCalendarIntegration />
         </div>
       </div>
