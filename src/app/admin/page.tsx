@@ -8,10 +8,9 @@ import {
   Users, Plus, Copy, Check, Loader2, AlertCircle, LogOut,
   RefreshCw, Ban, PlayCircle, ChevronRight, X, Trash2,
   Shield, TrendingUp, Clock, User,
-  RotateCcw, ArrowUpCircle,
+  RotateCcw, ArrowUpCircle, LayoutDashboard,
 } from "lucide-react";
 
-const ADMIN_UID = "Br8CTpvxb9eZvz92kytZ2AKX6tJ3";
 
 interface Professional {
   id: string;
@@ -96,6 +95,7 @@ export default function AdminPage() {
   const router = useRouter();
   const { user, logout } = useAuth();
 
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [tab, setTab] = useState<"professionals" | "tokens" | "requests">("professionals");
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [tokens, setTokens] = useState<Token[]>([]);
@@ -128,11 +128,19 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (!user) { router.push("/login"); return; }
-    if (user.uid !== ADMIN_UID) { router.push("/dashboard"); }
+    user.getIdToken().then((token) =>
+      fetch("/api/admin/me", { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => r.json())
+        .then((d) => {
+          if (!d.isAdmin) router.push("/dashboard");
+          else setIsAdmin(true);
+        })
+        .catch(() => router.push("/dashboard"))
+    );
   }, [user, router]);
 
   const fetchData = useCallback(async () => {
-    if (!user || user.uid !== ADMIN_UID) return;
+    if (!user || !isAdmin) return;
     setLoading(true);
     setError("");
     try {
@@ -141,7 +149,7 @@ export default function AdminPage() {
       const [profRes, tokRes, reqRes] = await Promise.all([
         fetch("/api/admin/professionals", { headers }),
         fetch("/api/admin/license-tokens", { headers }),
-        fetch("/api/access-requests", { headers: { ...headers, "x-admin-key": user.uid } }),
+        fetch("/api/access-requests", { headers }),
       ]);
       const [profData, tokData, reqData] = await Promise.all([profRes.json(), tokRes.json(), reqRes.json()]);
       if (!profRes.ok) { setError(profData.error ?? "Erro ao carregar clientes."); }
@@ -153,9 +161,9 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, isAdmin]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { if (isAdmin) fetchData(); }, [fetchData, isAdmin]);
 
   const openDetail = async (profId: string) => {
     if (!user) return;
@@ -253,7 +261,7 @@ export default function AdminPage() {
     return d !== null && d >= 0 && d <= 7;
   }).length;
 
-  if (!user || user.uid !== ADMIN_UID) return null;
+  if (!user || !isAdmin) return null;
 
   const isSuspended = detail && (detail.licenseStatus === "suspended" || detail.professionalStatus === "suspended");
 
@@ -267,9 +275,17 @@ export default function AdminPage() {
           </div>
           <span className="font-extrabold text-lg tracking-tight">Retoria Admin</span>
         </div>
-        <div className="flex items-center gap-3">
-          <button onClick={fetchData} className="p-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-all">
+        <div className="flex items-center gap-2">
+          <button onClick={fetchData} className="p-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-all" title="Atualizar dados">
             <RefreshCw className="h-4 w-4" />
+          </button>
+          <button onClick={() => router.push("/dashboard")}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-sm font-medium transition-all">
+            <LayoutDashboard className="h-4 w-4" /><span>Ir para Dashboard</span>
+          </button>
+          <button onClick={() => router.push("/portal")}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-indigo-300 hover:text-white bg-indigo-600/20 hover:bg-indigo-600 border border-indigo-500/40 rounded-lg text-sm font-medium transition-all">
+            <Users className="h-4 w-4" /><span>Portal</span>
           </button>
           <button onClick={async () => { await logout(); router.push("/login"); }}
             className="flex items-center gap-1.5 px-3 py-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg text-sm transition-all">
@@ -505,7 +521,8 @@ export default function AdminPage() {
                           <button
                             onClick={async () => {
                               const token = await user?.getIdToken();
-                              await fetch("/api/access-requests", { method: "PATCH", headers: { "Content-Type": "application/json", "x-admin-key": user?.uid ?? "" }, body: JSON.stringify({ id: req.id, status: "attended" }) });
+                              const adminToken = await user?.getIdToken();
+                              await fetch("/api/access-requests", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` }, body: JSON.stringify({ id: req.id, status: "attended" }) });
                               setAccessRequests((prev) => prev.map((r) => r.id === req.id ? { ...r, status: "attended" } : r));
                             }}
                             className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/20 text-emerald-400 rounded-lg text-xs font-semibold transition-all"
