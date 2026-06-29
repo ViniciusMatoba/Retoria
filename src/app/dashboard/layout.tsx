@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../providers";
+import PushNotificationBanner from "@/components/PushNotificationBanner";
 import {
   Calendar,
   Users,
@@ -439,6 +440,7 @@ export default function DashboardLayout({
             </div>
           );
         })()}
+        <PushNotificationBanner userId={user?.uid} />
         <div className="flex-1 p-4 md:p-8 max-w-7xl w-full mx-auto">
           {children}
         </div>

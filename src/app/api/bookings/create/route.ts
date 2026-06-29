@@ -5,9 +5,11 @@ import {
   timeToMinutes,
   minutesToTime,
   isPastDateTimeSaoPaulo,
+  formatDateFriendlySaoPaulo,
 } from "@/lib/timezone";
 import { buildCustomerBookingIndex } from "@/lib/leadTypes";
 import { isRateLimited } from "@/lib/rateLimit";
+import { sendPushToProf } from "@/lib/sendPush";
 
 // Parser helper to extract duration in minutes from service description
 const parseServiceDurationMinutes = (duracaoStr: string): number => {
@@ -349,6 +351,14 @@ export async function POST(req: NextRequest) {
 
       return { leadId: newLeadRef.id, horarioFim, profData, serviceNome: servicoEscolhido };
     });
+
+    // Notificação push — falha silenciosa, não bloqueia a resposta
+    const dataFriendly = formatDateFriendlySaoPaulo(dataEscolhida);
+    sendPushToProf(professionalId, {
+      title: `📅 Novo agendamento — ${trimmedNome}`,
+      body: `${result.serviceNome} · ${dataFriendly} às ${horarioEscolhido}`,
+      url: "/dashboard",
+    }).catch(() => {});
 
     return NextResponse.json({ success: true, leadId: result.leadId, horarioFim: result.horarioFim });
 
