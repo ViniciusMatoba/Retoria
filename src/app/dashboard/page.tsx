@@ -52,7 +52,7 @@ const statusOptions = [
 type ProfFilter = string | null;
 
 export default function DashboardHome() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { showConfirmationModal } = useAppModal();
 
   const [teamMembers, setTeamMembers] = useState<TeamMemberTab[]>([]);
@@ -593,9 +593,25 @@ export default function DashboardHome() {
               </thead>
               <tbody className="divide-y divide-slate-800/50">
                 {filteredLeads.map((lead) => {
-                  const msgText = `Olá ${lead.nome}, recebi seu pedido para o serviço "${lead.servicoEscolhido}" em ${formatDate(lead.dataEscolhida)} às ${lead.horarioEscolhido}. Vamos confirmar?`;
+                  const templates = profile?.messageTemplates ?? {};
+                  const isPresencial = profile?.serviceLocationType === "physical" || profile?.serviceLocationType === "both";
+                  const addr = isPresencial && profile?.publicAddress?.street
+                    ? [profile.publicAddress.street + (profile.publicAddress.number ? ", " + profile.publicAddress.number : ""), profile.publicAddress.city, profile.publicAddress.state].filter(Boolean).join(" - ")
+                    : undefined;
+                  const buildMsg = (status: string, fallback: string) => {
+                    const tpl = templates[status] || fallback;
+                    return tpl
+                      .replace(/{nome}/g, lead.nome)
+                      .replace(/{servico}/g, lead.servicoEscolhido)
+                      .replace(/{data}/g, formatDate(lead.dataEscolhida))
+                      .replace(/{horario}/g, lead.horarioEscolhido)
+                      .replace(/{profissional}/g, profile?.nomeNegocio || profile?.nome || "")
+                      .replace(addr ? /{endereco}/g : /,?\s*{endereco}/g, addr ?? "")
+                      .trim();
+                  };
+                  const msgText = buildMsg(lead.status, `Olá ${lead.nome}, recebi seu pedido para o serviço "${lead.servicoEscolhido}" em ${formatDate(lead.dataEscolhida)} às ${lead.horarioEscolhido}. Vamos confirmar?`);
                   const whatsappChatUrl = getWhatsAppLink(lead.telefone, msgText);
-                  const cancelMsgText = `Olá ${lead.nome}, precisamos cancelar o agendamento de "${lead.servicoEscolhido}" previsto para ${formatDate(lead.dataEscolhida)} às ${lead.horarioEscolhido}. Lamentamos o inconveniente. Entre em contato para remarcar!`;
+                  const cancelMsgText = buildMsg("Cancelado", `Olá ${lead.nome}, precisamos cancelar o agendamento de "${lead.servicoEscolhido}" previsto para ${formatDate(lead.dataEscolhida)} às ${lead.horarioEscolhido}. Lamentamos o inconveniente. Entre em contato para remarcar!`);
                   const whatsappCancelUrl = getWhatsAppLink(lead.telefone, cancelMsgText);
                   const currentStatus = statusOptions.find(o => o.value === lead.status) || statusOptions[0];
                   const isOwnerLead = lead.professionalId === user?.uid;

@@ -35,6 +35,7 @@ import {
   ChevronDown,
   ChevronUp,
   Info,
+  MessageSquare,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -115,6 +116,23 @@ export default function ProfilePage() {
   const [profileImageSize, setProfileImageSize] = useState<"sm" | "md" | "lg" | "xl">("md");
   const [showServiceImages, setShowServiceImages] = useState(true);
 
+  // ── Message templates ─────────────────────────────────────────────────────
+  const DEFAULT_TEMPLATES: Record<string, string> = {
+    "Novo":             "Olá {nome}! Recebi seu pedido de agendamento para {servico} em {data} às {horario}. Vou confirmar em breve! 😊",
+    "Em contato":       "Olá {nome}, estou entrando em contato sobre seu agendamento de {servico} em {data} às {horario}. Podemos conversar?",
+    "Confirmado":       "Olá {nome}! Seu agendamento de {servico} está confirmado para {data} às {horario}. Te esperamos! 🎉",
+    "Atendido":         "Olá {nome}, foi um prazer atendê-lo(a) hoje! Espero que tenha gostado do {servico}. Até a próxima! 😄",
+    "Cancelado":        "Olá {nome}, precisamos cancelar o agendamento de {servico} previsto para {data} às {horario}. Lamentamos o inconveniente. Entre em contato para remarcar!",
+    "Perdido":          "Olá {nome}, tentei contato mas não consegui confirmar seu agendamento de {servico} em {data}. Caso queira reagendar, estou à disposição!",
+    "Não compareceu":   "Olá {nome}, sentimos sua falta no agendamento de {servico} em {data} às {horario}. Caso queira remarcar, é só nos chamar!",
+  };
+  const [messageTemplates, setMessageTemplates] = useState<Record<string, string>>({ ...DEFAULT_TEMPLATES });
+  const [templatesSaving, setTemplatesSaving] = useState(false);
+  const [templatesSaved, setTemplatesSaved] = useState(false);
+
+  // ── Profile tab ───────────────────────────────────────────────────────────
+  const [activeProfileTab, setActiveProfileTab] = useState<"perfil" | "mensagens">("perfil");
+
   // ── UI state ──────────────────────────────────────────────────────────────
   const [formLoading, setFormLoading] = useState(false);
   const [uploadLoading, setUploadLoading] = useState(false);
@@ -170,6 +188,10 @@ export default function ProfilePage() {
     setShowProfileImage(tc.showProfileImage ?? true);
     setProfileImageSize(tc.profileImageSize ?? "md");
     setShowServiceImages(tc.showServiceImages ?? true);
+
+    if (profile.messageTemplates) {
+      setMessageTemplates({ ...DEFAULT_TEMPLATES, ...profile.messageTemplates });
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile]);
 
@@ -251,6 +273,33 @@ export default function ProfilePage() {
 
   const handleAddressField = (key: keyof PublicAddress, value: string | number | null) => {
     setPublicAddress((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleSaveTemplates = async () => {
+    if (!user) return;
+    setTemplatesSaving(true);
+    try {
+      await updateDoc(doc(db, "professionals", user.uid), { messageTemplates });
+      setTemplatesSaved(true);
+      setTimeout(() => setTemplatesSaved(false), 3000);
+    } catch {
+      // silently ignore
+    } finally {
+      setTemplatesSaving(false);
+    }
+  };
+
+  // Substitui variáveis no template com dados reais
+  const applyTemplate = (status: string, data: { nome: string; servico: string; data: string; horario: string; profissional: string; endereco?: string }) => {
+    const tpl = messageTemplates[status] || DEFAULT_TEMPLATES[status] || "";
+    return tpl
+      .replace(/{nome}/g, data.nome)
+      .replace(/{servico}/g, data.servico)
+      .replace(/{data}/g, data.data)
+      .replace(/{horario}/g, data.horario)
+      .replace(/{profissional}/g, data.profissional)
+      .replace(data.endereco ? /{endereco}/g : /,?\s*{endereco}/g, data.endereco ?? "")
+      .trim();
   };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -384,6 +433,26 @@ export default function ProfilePage() {
         )}
       </div>
 
+      {/* ── Tabs ──────────────────────────────────────────────────────────── */}
+      <div className="flex bg-slate-900 border border-slate-800 p-1 rounded-xl w-fit gap-1">
+        <button
+          type="button"
+          onClick={() => setActiveProfileTab("perfil")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${activeProfileTab === "perfil" ? "bg-indigo-600 text-white shadow" : "text-slate-400 hover:text-slate-200"}`}
+        >
+          <User className="h-4 w-4" />
+          Perfil
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveProfileTab("mensagens")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${activeProfileTab === "mensagens" ? "bg-indigo-600 text-white shadow" : "text-slate-400 hover:text-slate-200"}`}
+        >
+          <MessageSquare className="h-4 w-4" />
+          Mensagens
+        </button>
+      </div>
+
       {error && (
         <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex gap-3 items-center">
           <AlertCircle className="h-5 w-5 shrink-0" /><p className="font-medium">{error}</p>
@@ -395,7 +464,7 @@ export default function ProfilePage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {activeProfileTab === "perfil" && <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
         {/* ── Editor Form ────────────────────────────────────────────────── */}
         <div className="lg:col-span-2 space-y-6">
@@ -782,9 +851,212 @@ export default function ProfilePage() {
           />
         </div>
 
-      </div>
+      </div>}
+
+      {/* ── Aba Mensagens ──────────────────────────────────────────────────── */}
+      {activeProfileTab === "mensagens" && (
+        <MessageTemplatesTab
+          templates={messageTemplates}
+          onChange={setMessageTemplates}
+          onSave={handleSaveTemplates}
+          saving={templatesSaving}
+          saved={templatesSaved}
+          hasAddress={
+            (serviceLocationType === "physical" || serviceLocationType === "both") &&
+            !!(publicAddress.street?.trim())
+          }
+          addressText={[
+            publicAddress.street && `${publicAddress.street}${publicAddress.number ? ", " + publicAddress.number : ""}`,
+            publicAddress.city,
+            publicAddress.state,
+          ].filter(Boolean).join(" - ")}
+          profissionalName={nomeNegocio || nome}
+        />
+      )}
+
     </div>
     </>
+  );
+}
+
+// ── Message Templates Tab ─────────────────────────────────────────────────────
+
+const TEMPLATE_VARS = ["{nome}", "{servico}", "{data}", "{horario}", "{profissional}", "{endereco}"];
+
+const TEMPLATE_CATEGORIES = [
+  {
+    label: "Confirmação",
+    statuses: ["Novo", "Confirmado"],
+  },
+  {
+    label: "Acompanhamento",
+    statuses: ["Em contato"],
+  },
+  {
+    label: "Encerramento",
+    statuses: ["Atendido", "Cancelado", "Perdido", "Não compareceu"],
+  },
+];
+
+interface MessageTemplatesTabProps {
+  templates: Record<string, string>;
+  onChange: (t: Record<string, string>) => void;
+  onSave: () => void;
+  saving: boolean;
+  saved: boolean;
+  hasAddress: boolean;
+  addressText: string;
+  profissionalName: string;
+}
+
+function MessageTemplatesTab({ templates, onChange, onSave, saving, saved, hasAddress, addressText, profissionalName }: MessageTemplatesTabProps) {
+  const PREVIEW_DATA = {
+    nome: "Maria Silva",
+    servico: "Corte + Escova",
+    data: "15/07/2026",
+    horario: "14:30",
+    profissional: profissionalName || "Seu Negócio",
+    endereco: hasAddress ? addressText : undefined,
+  };
+
+  const getPreview = (tpl: string) => {
+    return tpl
+      .replace(/{nome}/g, PREVIEW_DATA.nome)
+      .replace(/{servico}/g, PREVIEW_DATA.servico)
+      .replace(/{data}/g, PREVIEW_DATA.data)
+      .replace(/{horario}/g, PREVIEW_DATA.horario)
+      .replace(/{profissional}/g, PREVIEW_DATA.profissional)
+      .replace(PREVIEW_DATA.endereco ? /{endereco}/g : /,?\s*{endereco}/g, PREVIEW_DATA.endereco ?? "")
+      .trim();
+  };
+
+  const insertVar = (status: string, variable: string, ref: React.RefObject<HTMLTextAreaElement | null>) => {
+    const el = ref.current;
+    if (!el) {
+      onChange({ ...templates, [status]: (templates[status] || "") + variable });
+      return;
+    }
+    const start = el.selectionStart ?? (templates[status] || "").length;
+    const end = el.selectionEnd ?? start;
+    const current = templates[status] || "";
+    const next = current.slice(0, start) + variable + current.slice(end);
+    onChange({ ...templates, [status]: next });
+    setTimeout(() => {
+      el.focus();
+      el.setSelectionRange(start + variable.length, start + variable.length);
+    }, 0);
+  };
+
+  return (
+    <div className="space-y-6 max-w-3xl">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm text-slate-400">Configure o texto que aparecerá pré-preenchido no WhatsApp para cada status do agendamento.</p>
+          <p className="text-xs text-slate-500 mt-1">Clique nas variáveis para inserir no cursor. O preview mostra o resultado com dados de exemplo.</p>
+        </div>
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={saving}
+          className="shrink-0 flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-all shadow shadow-indigo-500/20"
+        >
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <Check className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}
+          {saved ? "Salvo!" : "Salvar Mensagens"}
+        </button>
+      </div>
+
+      {!hasAddress && (
+        <div className="flex items-start gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-400 text-xs">
+          <Info className="h-4 w-4 shrink-0 mt-0.5" />
+          <span>A variável <strong>{"{endereco}"}</strong> será removida automaticamente das mensagens pois você não tem atendimento presencial cadastrado. Para incluí-la, configure o endereço em <strong>Perfil → Local de Atendimento</strong>.</span>
+        </div>
+      )}
+
+      {TEMPLATE_CATEGORIES.map((cat) => (
+        <div key={cat.label} className="space-y-4">
+          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-800 pb-2">{cat.label}</h3>
+          {cat.statuses.map((status) => (
+            <TemplateEditor
+              key={status}
+              status={status}
+              value={templates[status] || ""}
+              onChange={(v) => onChange({ ...templates, [status]: v })}
+              preview={getPreview(templates[status] || "")}
+              onInsertVar={(v, ref) => insertVar(status, v, ref)}
+              showAddressVar={hasAddress}
+            />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+interface TemplateEditorProps {
+  status: string;
+  value: string;
+  onChange: (v: string) => void;
+  preview: string;
+  onInsertVar: (v: string, ref: React.RefObject<HTMLTextAreaElement | null>) => void;
+  showAddressVar: boolean;
+}
+
+const STATUS_COLORS: Record<string, string> = {
+  "Novo":           "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
+  "Em contato":     "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  "Confirmado":     "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  "Atendido":       "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  "Cancelado":      "bg-red-500/10 text-red-400 border-red-500/20",
+  "Perdido":        "bg-slate-500/10 text-slate-400 border-slate-500/20",
+  "Não compareceu": "bg-orange-500/10 text-orange-400 border-orange-500/20",
+};
+
+function TemplateEditor({ status, value, onChange, preview, onInsertVar, showAddressVar }: TemplateEditorProps) {
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const vars = showAddressVar ? TEMPLATE_VARS : TEMPLATE_VARS.filter(v => v !== "{endereco}");
+
+  return (
+    <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <span className={`text-xs font-bold px-2.5 py-1 rounded-lg border ${STATUS_COLORS[status] || "bg-slate-800 text-slate-400 border-slate-700"}`}>
+          {status}
+        </span>
+      </div>
+
+      {/* Chips de variáveis */}
+      <div className="flex flex-wrap gap-1.5">
+        {vars.map(v => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => onInsertVar(v, textareaRef)}
+            className="px-2 py-0.5 text-[11px] font-mono font-semibold bg-slate-800 hover:bg-indigo-600 text-slate-300 hover:text-white border border-slate-700 hover:border-indigo-500 rounded-md transition-all"
+          >
+            {v}
+          </button>
+        ))}
+      </div>
+
+      <textarea
+        ref={textareaRef}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        rows={3}
+        maxLength={500}
+        className="w-full bg-slate-950/60 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-slate-200 placeholder-slate-600 resize-none focus:outline-none focus:border-indigo-500 transition-colors"
+        placeholder={`Mensagem para status "${status}"...`}
+      />
+
+      {/* Preview */}
+      {preview && (
+        <div className="bg-emerald-950/20 border border-emerald-800/30 rounded-xl p-3">
+          <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider mb-1.5">Preview (dados de exemplo)</p>
+          <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{preview}</p>
+        </div>
+      )}
+
+      <p className="text-[10px] text-slate-600 text-right">{value.length}/500</p>
+    </div>
   );
 }
 

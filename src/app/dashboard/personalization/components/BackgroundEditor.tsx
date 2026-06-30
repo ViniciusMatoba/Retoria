@@ -321,23 +321,52 @@ export default function BackgroundEditor({
               </div>
             </div>
           ) : (
-            <label className="flex flex-col items-center justify-center aspect-[16/9] w-full border-2 border-dashed border-slate-800 rounded-2xl bg-slate-950/20 cursor-pointer hover:border-slate-700 transition-all">
-              <div className="flex flex-col items-center text-center p-6">
-                {uploadLoading ? (
-                  <>
-                    <Loader2 className="h-8 w-8 text-indigo-500 animate-spin mb-2" />
-                    <span className="text-xs font-bold text-slate-400">Enviando imagem...</span>
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-8 w-8 text-slate-500 mb-2" />
-                    <span className="text-xs font-bold text-slate-400">Upload de Imagem de Fundo</span>
-                    <span className="text-[10px] text-slate-550 mt-1">JPEG, PNG ou WEBP de até 3MB</span>
-                  </>
-                )}
+            <div className="space-y-4">
+              {/* Guia visual de dimensões */}
+              <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4 space-y-3">
+                <p className="text-xs font-bold text-slate-300">Guia de dimensões para o wallpaper</p>
+                <div className="relative w-full aspect-[16/9] rounded-xl border-2 border-dashed border-indigo-500/40 bg-slate-900/60 overflow-hidden flex items-center justify-center">
+                  {/* Indicação de área */}
+                  <span className="absolute top-2 left-1/2 -translate-x-1/2 text-[9px] font-bold text-slate-500 uppercase tracking-wider bg-slate-900/80 px-2 py-0.5 rounded">Área total da página (proporção 16:9)</span>
+                  {/* Logo placeholder */}
+                  <div className="absolute top-4 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1">
+                    <div className="h-10 w-10 rounded-full bg-indigo-500/20 border-2 border-indigo-500/40 flex items-center justify-center">
+                      <span className="text-[8px] font-black text-indigo-400">LOGO</span>
+                    </div>
+                    <div className="h-2 w-16 rounded bg-slate-700/60" />
+                    <div className="h-1.5 w-10 rounded bg-slate-700/40" />
+                  </div>
+                  {/* Setas indicativas */}
+                  <div className="absolute bottom-2 left-2 text-[9px] text-slate-600 font-mono">← 1920px →</div>
+                  <div className="absolute bottom-2 right-2 text-[9px] text-slate-600 font-mono">↕ 1080px</div>
+                </div>
+                <ul className="text-[10px] text-slate-500 space-y-0.5 list-none">
+                  <li>✅ <strong className="text-slate-400">Tamanho recomendado:</strong> 1920 × 1080px (Full HD)</li>
+                  <li>✅ <strong className="text-slate-400">Formatos aceitos:</strong> JPEG, PNG ou WEBP</li>
+                  <li>✅ <strong className="text-slate-400">Tamanho máximo:</strong> 3MB</li>
+                  <li>✅ <strong className="text-slate-400">Logo:</strong> sobreposto automaticamente sobre o wallpaper</li>
+                  <li>💡 Use o controle de <strong className="text-slate-400">Overlay</strong> para escurecer/clarear o fundo e melhorar a leitura do texto</li>
+                </ul>
               </div>
-              <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleBackgroundUpload} className="hidden" disabled={uploadLoading} />
-            </label>
+
+              <label className="flex flex-col items-center justify-center py-8 w-full border-2 border-dashed border-slate-800 rounded-2xl bg-slate-950/20 cursor-pointer hover:border-indigo-500/40 transition-all group">
+                <div className="flex flex-col items-center text-center px-6">
+                  {uploadLoading ? (
+                    <>
+                      <Loader2 className="h-8 w-8 text-indigo-500 animate-spin mb-2" />
+                      <span className="text-xs font-bold text-slate-400">Enviando imagem...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-8 w-8 text-slate-500 group-hover:text-indigo-400 transition-colors mb-2" />
+                      <span className="text-xs font-bold text-slate-300">Clique para fazer upload do wallpaper</span>
+                      <span className="text-[10px] text-slate-500 mt-1">JPEG, PNG ou WEBP · máx 3MB · recomendado 1920×1080px</span>
+                    </>
+                  )}
+                </div>
+                <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleBackgroundUpload} className="hidden" disabled={uploadLoading} />
+              </label>
+            </div>
           )}
         </div>
       )}

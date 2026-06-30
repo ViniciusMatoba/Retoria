@@ -24,3 +24,102 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ── Landing page animations ─────────────────────────────────────────────── */
+
+@keyframes gradient-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  33%       { transform: translateY(-18px) rotate(2deg); }
+  66%       { transform: translateY(-8px) rotate(-1deg); }
+}
+
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50%       { transform: translateY(-24px) rotate(3deg); }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.12; transform: scale(1); }
+  50%       { opacity: 0.22; transform: scale(1.08); }
+}
+
+.animate-gradient-bg {
+  background-size: 300% 300%;
+  animation: gradient-shift 8s ease infinite;
+}
+
+.animate-float       { animation: float 6s ease-in-out infinite; }
+.animate-float-slow  { animation: float-slow 9s ease-in-out infinite; }
+.animate-fade-up     { animation: fade-up 0.7s ease both; }
+.animate-fade-in     { animation: fade-in 0.6s ease both; }
+.animate-glow-pulse  { animation: glow-pulse 4s ease-in-out infinite; }
+
+.shimmer-text {
+  background: linear-gradient(90deg, #fff 20%, #a5b4fc 40%, #fff 60%);
+  background-size: 200% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 3.5s linear infinite;
+}
+
+/* Scroll-triggered reveal — JS adds .visible class */
+.reveal {
+  opacity: 0;
+  transform: translateY(32px);
+  transition: opacity 0.65s ease, transform 0.65s ease;
+}
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.reveal-delay-1 { transition-delay: 0.1s; }
+.reveal-delay-2 { transition-delay: 0.2s; }
+.reveal-delay-3 { transition-delay: 0.3s; }
+
+/* Card hover lift */
+.card-hover {
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+.card-hover:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 20px 40px -12px rgba(99,102,241,0.2);
+  border-color: rgba(99,102,241,0.3);
+}
+
+/* Button shine on hover */
+.btn-shine {
+  position: relative;
+  overflow: hidden;
+}
+.btn-shine::after {
+  content: "";
+  position: absolute;
+  top: 0; left: -100%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+  transition: left 0.45s ease;
+}
+.btn-shine:hover::after { left: 150%; }

@@ -50,6 +50,9 @@ export interface ProfessionalProfile {
     whatsappMode: "single" | "per_member";
   };
 
+  // Message templates per lead status
+  messageTemplates?: Record<string, string>;
+
   // Member-level config (set by owner, stored on member's doc)
   teamConfig?: {
     especialidade: string;
