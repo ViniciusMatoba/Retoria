@@ -437,32 +437,32 @@ export default function DashboardHome() {
       ) : (
         <div className="space-y-4">
           {/* Linha 1 — agendamentos */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-4 flex items-center gap-3">
-              <div className="p-2.5 bg-blue-500/10 rounded-xl text-blue-400 shrink-0"><Inbox className="h-5 w-5" /></div>
-              <div>
-                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Novos pedidos</p>
+          <div className="grid grid-cols-3 gap-2 sm:gap-4">
+            <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+              <div className="p-2 sm:p-2.5 bg-blue-500/10 rounded-xl text-blue-400 shrink-0 hidden sm:flex"><Inbox className="h-5 w-5" /></div>
+              <div className="min-w-0">
+                <p className="text-[9px] sm:text-[10px] font-semibold text-slate-400 uppercase tracking-normal sm:tracking-wider leading-tight">Novos pedidos</p>
                 <h3 className="text-xl font-extrabold text-white mt-0.5">{newLeads}</h3>
               </div>
             </div>
-            <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-4 flex items-center gap-3">
-              <div className="p-2.5 bg-purple-500/10 rounded-xl text-purple-400 shrink-0"><CalendarCheck className="h-5 w-5" /></div>
-              <div>
-                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Agendados</p>
+            <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+              <div className="p-2 sm:p-2.5 bg-purple-500/10 rounded-xl text-purple-400 shrink-0 hidden sm:flex"><CalendarCheck className="h-5 w-5" /></div>
+              <div className="min-w-0">
+                <p className="text-[9px] sm:text-[10px] font-semibold text-slate-400 uppercase tracking-normal sm:tracking-wider leading-tight">Agendados</p>
                 <h3 className="text-xl font-extrabold text-white mt-0.5">{scheduledLeads}</h3>
               </div>
             </div>
-            <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-4 flex items-center gap-3">
-              <div className="p-2.5 bg-emerald-500/10 rounded-xl text-emerald-400 shrink-0"><CheckCircle2 className="h-5 w-5" /></div>
-              <div>
-                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Atendidos no mês</p>
+            <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+              <div className="p-2 sm:p-2.5 bg-emerald-500/10 rounded-xl text-emerald-400 shrink-0 hidden sm:flex"><CheckCircle2 className="h-5 w-5" /></div>
+              <div className="min-w-0">
+                <p className="text-[9px] sm:text-[10px] font-semibold text-slate-400 uppercase tracking-normal sm:tracking-wider leading-tight">Atendidos no mês</p>
                 <h3 className="text-xl font-extrabold text-white mt-0.5">{attendedThisMonth}</h3>
               </div>
             </div>
           </div>
 
           {/* Linha 2 — faturamento */}
-          <div className="grid grid-cols-2 gap-4 items-stretch">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-stretch">
             {/* Faturamento Real */}
             <div className="rounded-2xl p-4 flex flex-col gap-3 bg-emerald-50 border border-emerald-200 dark:bg-emerald-950/60 dark:border-emerald-800/60">
               <div className="flex items-center gap-3">
@@ -621,8 +621,8 @@ export default function DashboardHome() {
                   {activeProfId === "all" && hasTeam && (
                     <th className="py-3.5 px-4 font-bold">Profissional</th>
                   )}
-                  <th className="py-3.5 px-4 font-bold">Serviço Solicitado</th>
-                  <th className="py-3.5 px-4 font-bold">Horário</th>
+                  <th className="py-3.5 px-4 font-bold hidden sm:table-cell">Serviço Solicitado</th>
+                  <th className="py-3.5 px-4 font-bold hidden sm:table-cell">Horário</th>
                   <th className="py-3.5 px-4 font-bold">Status</th>
                   <th className="py-3.5 px-4 font-bold text-center">Ações</th>
                 </tr>
@@ -658,6 +658,7 @@ export default function DashboardHome() {
                       <td className="py-4 px-4">
                         <div className="font-semibold text-slate-200">{lead.nome}</div>
                         <div className="text-xs text-slate-500 font-mono mt-0.5">{formatPhoneFriendly(lead.telefone)}</div>
+                        <div className="sm:hidden text-xs text-slate-400 mt-1">{lead.servicoEscolhido} · {formatDate(lead.dataEscolhida)} {lead.horarioEscolhido}</div>
                         {lead.observacao && (
                           <div className="mt-1 text-xs text-slate-400 bg-slate-900/60 p-2 rounded-lg max-w-xs border border-slate-800/30">
                             <span className="font-semibold text-[10px] text-slate-500 uppercase tracking-wide block mb-0.5">Obs:</span>
@@ -677,10 +678,10 @@ export default function DashboardHome() {
                       )}
 
                       {/* Serviço */}
-                      <td className="py-4 px-4 text-slate-300 font-medium">{lead.servicoEscolhido}</td>
+                      <td className="py-4 px-4 text-slate-300 font-medium hidden sm:table-cell">{lead.servicoEscolhido}</td>
 
                       {/* Horário */}
-                      <td className="py-4 px-4">
+                      <td className="py-4 px-4 hidden sm:table-cell">
                         <div className="font-semibold text-slate-200">{formatDate(lead.dataEscolhida)}</div>
                         <div className="text-xs text-slate-400 font-mono mt-0.5">{lead.horarioEscolhido}</div>
                       </td>
