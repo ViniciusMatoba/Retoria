@@ -263,7 +263,7 @@ export default function PublicBookingExperience({
     setStep(step + 1);
   };
 
-  // Próximos 3 horários livres. Em produção o servidor calcula (expediente + agendamentos ativos);
+  // Primeiros 3 horários livres de cada dia da janela de agendamento. Em produção o servidor calcula (expediente + agendamentos ativos);
   // no modo preview usa o cálculo local sobre os slots de demonstração.
   const slotStepMin = professional.agendaConfig?.duracaoSlot || 30;
   const slotSuggestionOn = professional.slotSuggestion?.enabled !== false;
@@ -297,7 +297,7 @@ export default function PublicBookingExperience({
       }
       return true;
     })
-    .slice(0, 3);
+    .filter((sl, _i, arr) => arr.filter(o => o.data === sl.data).indexOf(sl) < 3);
   const nextSlots = previewMode ? localNextSlots : (serverNextSlots ?? []);
 
   const handleRequestOtherTimes = () => {
@@ -678,7 +678,7 @@ export default function PublicBookingExperience({
               <div className="space-y-5">
                 <div>
                   <h2 className="text-lg font-bold text-[var(--theme-text)] mb-1" style={{ fontFamily: "var(--theme-heading-font)" }}>Selecione data e hora</h2>
-                  <p className="text-xs text-[var(--theme-muted-text)]">{slotSuggestionOn ? "Estes são os próximos horários livres do profissional." : "Veja a disponibilidade de nossa agenda em tempo real."}</p>
+                  <p className="text-xs text-[var(--theme-muted-text)]">{slotSuggestionOn ? "Veja os primeiros horários livres de cada dia." : "Veja a disponibilidade de nossa agenda em tempo real."}</p>
                 </div>
                 {slotSuggestionOn ? (
                 <>
@@ -697,23 +697,30 @@ export default function PublicBookingExperience({
                   </div>
                 ) : (
                   <div className="space-y-3 pt-1">
-                    <label className="block text-xs font-semibold text-[var(--theme-muted-text)] uppercase tracking-wider">Próximos horários livres</label>
-                    <div className="space-y-2">
-                      {nextSlots.map((slot) => {
-                        const isSelected = selectedSlot?.id === slot.id;
-                        return (
-                          <button
-                            key={slot.id}
-                            type="button"
-                            onClick={() => { setSelectedDate(slot.data); setSelectedSlot(slot); }}
-                            style={isSelected ? { backgroundColor: theme.primaryColor, borderColor: theme.primaryColor, color: getBestTextColor(theme.primaryColor) } : {}}
-                            className={`w-full py-3 px-4 border text-sm font-bold flex items-center justify-between gap-2 transition-all ${btnRadiusClass} ${isSelected ? "shadow-md" : "bg-[var(--theme-surface)]/60 border-[rgba(255,255,255,0.08)] text-[var(--theme-text)] hover:border-[rgba(255,255,255,0.2)]"}`}
-                          >
-                            <span className="capitalize">{formatDateTitle(slot.data)}</span>
-                            <span className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5 opacity-60" />{slot.horario}</span>
-                          </button>
-                        );
-                      })}
+                    <label className="block text-xs font-semibold text-[var(--theme-muted-text)] uppercase tracking-wider">Horários livres por dia</label>
+                    <div className="space-y-4">
+                      {Object.entries(nextSlots.reduce((acc: Record<string, AvailableSlot[]>, sl) => { (acc[sl.data] ||= []).push(sl); return acc; }, {})).map(([dateKey, daySlots]) => (
+                        <div key={dateKey} className="space-y-2">
+                          <div className="text-xs font-bold text-[var(--theme-text)] capitalize">{formatDateTitle(dateKey)}</div>
+                          <div className="grid grid-cols-3 gap-2">
+                            {daySlots.map((slot) => {
+                              const isSelected = selectedSlot?.id === slot.id;
+                              return (
+                                <button
+                                  key={slot.id}
+                                  type="button"
+                                  onClick={() => { setSelectedDate(slot.data); setSelectedSlot(slot); }}
+                                  style={isSelected ? { backgroundColor: theme.primaryColor, borderColor: theme.primaryColor, color: getBestTextColor(theme.primaryColor) } : {}}
+                                  className={`py-2.5 px-1.5 border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${btnRadiusClass} ${isSelected ? "shadow-md" : "bg-[var(--theme-surface)]/60 border-[rgba(255,255,255,0.08)] text-[var(--theme-text)] hover:border-[rgba(255,255,255,0.2)]"}`}
+                                >
+                                  <Clock className="h-3.5 w-3.5 opacity-60" />
+                                  <span>{slot.horario}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                     <p className="text-[11px] text-[var(--theme-muted-text)]">Nenhum desses horários serve para você?</p>
                     <button

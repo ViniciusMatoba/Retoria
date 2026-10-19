@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
 
     const next = computeNextSlots({
       agendaConfig: prof.agendaConfig,
-      slots, leads, durationMin, slotStepMin, count: 3,
+      slots, leads, durationMin, slotStepMin, perDay: 3,
       isPast: isPastDateTimeSaoPaulo,
     });
 

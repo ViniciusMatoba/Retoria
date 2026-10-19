@@ -98,7 +98,7 @@ export function overlapsActiveLead(
   });
 }
 
-// Próximos horários de início realmente livres para um atendimento de durationMin:
+// Primeiros `perDay` horários de início realmente livres de cada dia da janela para um atendimento de durationMin:
 // dentro do expediente, com slots contíguos livres e sem choque com agendamentos ativos.
 export function computeNextSlots(params: {
   agendaConfig?: Record<string, any>;
@@ -106,10 +106,10 @@ export function computeNextSlots(params: {
   leads: LeadLike[];
   durationMin: number;
   slotStepMin: number;
-  count: number;
+  perDay: number;
   isPast: (dateStr: string, timeStr: string) => boolean;
 }): SlotLike[] {
-  const { agendaConfig, slots, leads, durationMin, slotStepMin, count, isPast } = params;
+  const { agendaConfig, slots, leads, durationMin, slotStepMin, perDay, isPast } = params;
   const free = slots
     .filter(s => s.disponivel)
     .sort((a, b) => (a.data === b.data ? timeToMinutes(a.horario) - timeToMinutes(b.horario) : a.data < b.data ? -1 : 1));
@@ -117,8 +117,9 @@ export function computeNextSlots(params: {
   const needed = Math.max(1, Math.ceil(durationMin / slotStepMin));
 
   const result: SlotLike[] = [];
+  const perDayCount = new Map<string, number>();
   for (const slot of free) {
-    if (result.length >= count) break;
+    if ((perDayCount.get(slot.data) ?? 0) >= perDay) continue;
     if (isPast(slot.data, slot.horario)) continue;
 
     const start = timeToMinutes(slot.horario);
@@ -133,6 +134,7 @@ export function computeNextSlots(params: {
     if (overlapsActiveLead(leads, slot.data, start, end, slotStepMin)) continue;
 
     result.push(slot);
+    perDayCount.set(slot.data, (perDayCount.get(slot.data) ?? 0) + 1);
   }
   return result;
 }
