@@ -2,10 +2,11 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
-import { BookUser, ChevronDown, ChevronUp, MessageCircle, Search } from "lucide-react";
+import { BookUser, ChevronDown, ChevronUp, MessageCircle, Search, Trophy } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { useAuth } from "../../providers";
 import { formatPhoneFriendly, getWhatsAppLink } from "@/lib/whatsapp";
+import { addDaysSaoPaulo, getSaoPauloToday } from "@/lib/timezone";
 
 interface LeadRow {
   id: string;
@@ -50,6 +51,9 @@ export default function ClientesPage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
+  const [view, setView] = useState<"lista" | "ranking">("lista");
+  const [rankBy, setRankBy] = useState<"valor" | "atendimentos">("valor");
+  const [periodDays, setPeriodDays] = useState<0 | 30 | 90 | 365>(0);
 
   useEffect(() => {
     if (!user) return;
@@ -124,6 +128,29 @@ export default function ClientesPage() {
     return map;
   }, [leads]);
 
+  // Ranking: só atendimentos concluídos (status Atendido) dentro do período escolhido
+  const ranking = useMemo(() => {
+    const cutoff = periodDays > 0 ? addDaysSaoPaulo(getSaoPauloToday(), -periodDays) : "";
+    const stats = new Map<string, { telefone: string; nome: string; valor: number; atendimentos: number; ultimo: string }>();
+    leads.forEach((l) => {
+      if (l.status !== "Atendido" || !l.telefone) return;
+      if (cutoff && l.dataEscolhida < cutoff) return;
+      const cur = stats.get(l.telefone) ?? { telefone: l.telefone, nome: l.nome, valor: 0, atendimentos: 0, ultimo: "" };
+      cur.valor += l.valorTotal;
+      cur.atendimentos += 1;
+      if (l.dataEscolhida > cur.ultimo) { cur.ultimo = l.dataEscolhida; cur.nome = l.nome || cur.nome; }
+      stats.set(l.telefone, cur);
+    });
+    const nameByPhone = new Map(customers.map((c) => [c.telefone, c.nome]));
+    const rows = [...stats.values()].map((r) => ({ ...r, nome: nameByPhone.get(r.telefone) || r.nome }));
+    rows.sort((a, b) =>
+      rankBy === "valor"
+        ? b.valor - a.valor || b.atendimentos - a.atendimentos
+        : b.atendimentos - a.atendimentos || b.valor - a.valor
+    );
+    return rows.slice(0, 10);
+  }, [leads, customers, rankBy, periodDays]);
+
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
     const digits = term.replace(/\D/g, "");
@@ -143,6 +170,75 @@ export default function ClientesPage() {
         <p className="text-sm text-slate-400 mt-1">Toque em um cliente para ver o histórico de agendamentos e o valor gasto.</p>
       </div>
 
+      <div className="inline-flex rounded-xl border border-slate-800 p-1 bg-slate-900/50">
+        {(["lista", "ranking"] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => setView(v)}
+            className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${view === v ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-slate-200"}`}
+          >
+            {v === "lista" ? "Lista" : "Ranking"}
+          </button>
+        ))}
+      </div>
+
+      {view === "ranking" && !loading && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <select value={rankBy} onChange={(e) => setRankBy(e.target.value as "valor" | "atendimentos")} className="rounded-xl bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-slate-200">
+              <option value="valor">Quem mais gastou</option>
+              <option value="atendimentos">Quem mais contratou</option>
+            </select>
+            <select value={periodDays} onChange={(e) => setPeriodDays(Number(e.target.value) as 0 | 30 | 90 | 365)} className="rounded-xl bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-slate-200">
+              <option value={0}>Todo o período</option>
+              <option value={30}>Últimos 30 dias</option>
+              <option value={90}>Últimos 90 dias</option>
+              <option value={365}>Últimos 12 meses</option>
+            </select>
+          </div>
+
+          {ranking.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-800 p-10 text-center text-sm text-slate-400">
+              Ainda não há atendimentos concluídos neste período. O ranking considera agendamentos com status Atendido.
+            </div>
+          ) : (
+            <ol className="overflow-hidden rounded-2xl border border-slate-800 divide-y divide-slate-800/60">
+              {ranking.map((r, i) => {
+                const top = ranking[0];
+                const ratio = rankBy === "valor" ? (top.valor ? r.valor / top.valor : 0) : (top.atendimentos ? r.atendimentos / top.atendimentos : 0);
+                const medal = ["text-amber-400", "text-slate-300", "text-orange-400"][i];
+                return (
+                  <li key={r.telefone} className="p-4 bg-slate-900/30">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-8 text-center font-extrabold ${medal ?? "text-slate-500"}`}>
+                          {i < 3 ? <Trophy className="h-5 w-5 mx-auto" /> : i + 1}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-semibold text-slate-200 truncate">{i + 1}. {r.nome || "Sem nome"}</div>
+                          <div className="text-xs text-slate-500">
+                            {r.atendimentos} atendimento(s) · último em {formatDate(r.ultimo)}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="font-bold text-slate-100">{brl(r.valor)}</div>
+                        <a href={getWhatsAppLink(r.telefone, `Olá ${(r.nome || "").split(" ")[0]}!`)} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-400 hover:underline">WhatsApp</a>
+                      </div>
+                    </div>
+                    <div className="mt-3 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                      <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${Math.max(4, Math.round(ratio * 100))}%` }} />
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </div>
+      )}
+
+      {view === "lista" && (<>
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
         <input
@@ -262,6 +358,7 @@ export default function ClientesPage() {
           })}
         </div>
       )}
+      </>)}
     </div>
   );
 }
