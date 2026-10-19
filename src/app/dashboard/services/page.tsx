@@ -652,6 +652,10 @@ export default function ServicesPage() {
               {/* Imagem */}
               <div className="space-y-2 border-t border-slate-800/60 pt-4">
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Imagem do Serviço (Opcional)</label>
+                <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-3 text-[11px] leading-relaxed text-slate-400">
+                  <p><span className="font-bold text-slate-300">Tamanho ideal: 1200 × 675 px</span> (horizontal, proporção 16:9). Imagens maiores na mesma proporção, como 1920 × 1080, também funcionam.</p>
+                  <p className="mt-1">Deixe o assunto principal <span className="font-semibold text-slate-300">no centro</span>: no computador a foto aparece em formato quadrado e as laterais são cortadas.</p>
+                </div>
                 {imagePreview ? (
                   <div className="relative aspect-[16/9] w-full rounded-xl overflow-hidden bg-slate-955 border border-slate-800 group">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -685,7 +689,7 @@ export default function ServicesPage() {
                     <div className="flex flex-col items-center text-center p-4">
                       <Upload className="h-7 w-7 text-slate-500 mb-1.5" />
                       <span className="text-xs font-bold text-slate-400">Selecionar Imagem</span>
-                      <span className="text-[10px] text-slate-550 mt-1">JPEG, PNG ou WEBP de até 2MB</span>
+                      <span className="text-[10px] text-slate-550 mt-1">Recomendado 1200 × 675 px · JPEG, PNG ou WEBP até 2MB</span>
                     </div>
                     <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => {
                       const file = e.target.files?.[0];
