@@ -11,32 +11,7 @@ import { buildCustomerBookingIndex } from "@/lib/leadTypes";
 import { isRateLimited } from "@/lib/rateLimit";
 import { sendPushToProf } from "@/lib/sendPush";
 import { isFullName, normalizeName, FULL_NAME_ERROR } from "@/lib/nameUtils";
-
-// Parser helper to extract duration in minutes from service description
-const parseServiceDurationMinutes = (duracaoStr: string): number => {
-  if (!duracaoStr) return 30;
-  const lower = duracaoStr.toLowerCase();
-  let totalMinutes = 0;
-  if (lower.includes("h") || lower.includes("hora")) {
-    const parts = lower.split(/h|hora/);
-    const hours = parseInt(parts[0].replace(/\D/g, ""), 10);
-    if (!isNaN(hours)) {
-      totalMinutes += hours * 60;
-    }
-    if (parts[1]) {
-      const mins = parseInt(parts[1].replace(/\D/g, ""), 10);
-      if (!isNaN(mins)) {
-        totalMinutes += mins;
-      }
-    }
-  } else {
-    const mins = parseInt(lower.replace(/\D/g, ""), 10);
-    if (!isNaN(mins)) {
-      totalMinutes = mins;
-    }
-  }
-  return totalMinutes > 0 ? totalMinutes : 30;
-};
+import { parseServiceDurationMinutes, overlapsActiveLead, type LeadLike } from "@/lib/availability";
 
 export async function POST(req: NextRequest) {
   if (!dbAdmin || !authAdmin) {
@@ -227,6 +202,13 @@ export async function POST(req: NextRequest) {
       const slotsRef = profRef.collection("availableSlots");
       const slotsSnap = await transaction.get(slotsRef.where("data", "==", dataEscolhida));
       
+      // Agendamentos ativos do dia: protege contra slots desatualizados que ainda aparecem como livres
+      const dayLeadsSnap = await transaction.get(profRef.collection("leads").where("dataEscolhida", "==", dataEscolhida));
+      const dayLeads = dayLeadsSnap.docs.map((d: any) => d.data() as LeadLike);
+      if (overlapsActiveLead(dayLeads, dataEscolhida, startMin, endMin, slotDuration)) {
+        throw new Error("slot-already-booked");
+      }
+
       const allSlots = slotsSnap.docs.map((doc: any) => ({
         ref: doc.ref,
         id: doc.id,

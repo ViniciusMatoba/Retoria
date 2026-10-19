@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { isFullName, normalizeName, FULL_NAME_ERROR } from "@/lib/nameUtils";
 import {
   Calendar,
@@ -263,12 +263,32 @@ export default function PublicBookingExperience({
     setStep(step + 1);
   };
 
-// Próximos 3 horários livres que comportam a duração total dos serviços escolhidos
+  // Próximos 3 horários livres. Em produção o servidor calcula (expediente + agendamentos ativos);
+  // no modo preview usa o cálculo local sobre os slots de demonstração.
   const slotStepMin = professional.agendaConfig?.duracaoSlot || 30;
+  const slotSuggestionOn = professional.slotSuggestion?.enabled !== false;
+  const [serverNextSlots, setServerNextSlots] = useState<AvailableSlot[] | null>(null);
+  const [loadingNextSlots, setLoadingNextSlots] = useState(false);
+  const [nextSlotsError, setNextSlotsError] = useState(false);
+  const selectedServiceIdsKey = selectedServices.map(s => s.id).join(",");
+  const currentProfId = activeProfessionalId ?? professional.id;
+
+  useEffect(() => {
+    if (previewMode || !slotSuggestionOn || step !== 2 || !selectedServiceIdsKey) return;
+    let cancelled = false;
+    setLoadingNextSlots(true);
+    setNextSlotsError(false);
+    fetch(`/api/next-slots?professionalId=${encodeURIComponent(currentProfId)}&services=${encodeURIComponent(selectedServiceIdsKey)}`, { cache: "no-store" })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error("next-slots " + r.status)))
+      .then(data => { if (!cancelled) setServerNextSlots(data.slots ?? []); })
+      .catch(() => { if (!cancelled) { setServerNextSlots([]); setNextSlotsError(true); } })
+      .finally(() => { if (!cancelled) setLoadingNextSlots(false); });
+    return () => { cancelled = true; };
+  }, [previewMode, slotSuggestionOn, step, selectedServiceIdsKey, currentProfId]);
+
   const freeKeys = new Set(slots.map(sl => `${sl.data}|${sl.horario}`));
   const slotsNeeded = Math.max(1, Math.ceil((totalDuracaoMin || slotStepMin) / slotStepMin));
-  const slotSuggestionOn = professional.slotSuggestion?.enabled !== false;
-  const nextSlots = slots
+  const localNextSlots = slots
     .filter(sl => !isPastDateTimeSaoPaulo(sl.data, sl.horario))
     .filter(sl => {
       const start = timeToMinutes(sl.horario);
@@ -278,6 +298,7 @@ export default function PublicBookingExperience({
       return true;
     })
     .slice(0, 3);
+  const nextSlots = previewMode ? localNextSlots : (serverNextSlots ?? []);
 
   const handleRequestOtherTimes = () => {
     const servicos = selectedServices.map(s => s.nome).join(", ");
@@ -661,7 +682,9 @@ export default function PublicBookingExperience({
                 </div>
                 {slotSuggestionOn ? (
                 <>
-                {nextSlots.length === 0 ? (
+                {(loadingNextSlots && !previewMode) ? (
+                  <div style={cardRadiusStyle} className="text-center py-10 text-[var(--theme-muted-text)] text-sm">Buscando horários livres...</div>
+                ) : nextSlots.length === 0 ? (
                   <div style={cardRadiusStyle} className="text-center py-10 text-[var(--theme-muted-text)] text-sm border border-dashed border-[rgba(128,128,128,0.2)]">
                     <p>Nenhum horário disponível nos próximos dias.</p>
                     <button
