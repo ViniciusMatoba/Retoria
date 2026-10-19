@@ -2,13 +2,14 @@
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import ImageCropModal from "@/components/ImageCropModal";
-import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, query, orderBy, getDocs, where } from "firebase/firestore";
+import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, query, orderBy, getDocs, where, writeBatch } from "firebase/firestore";
 import { db, storage } from "@/lib/firebase";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { useAuth } from "../../providers";
 import {
   Plus, Edit2, Trash2, Clock, Check, X, Loader2, AlertCircle, Sparkles,
   ToggleLeft, ToggleRight, Upload, Briefcase, Building2, User,
+  ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { useAppModal } from "@/components/ModalProvider";
 import { validateImageFile, buildVersionedImageUrl } from "../../../lib/themeUtils";
@@ -22,6 +23,7 @@ interface Service {
   ativo: boolean;
   preco?: number | null;
   exibirPreco?: boolean;
+  ordem?: number | null;
   createdAt: any;
   updatedAt: any;
   imagemUrl?: string | null;
@@ -134,14 +136,18 @@ export default function ServicesPage() {
         const snap = await getDocs(
           query(collection(db, "professionals", prof.id, "services"), orderBy("nome", "asc"))
         );
+        const profServices: Service[] = [];
         snap.forEach((d) => {
-          allServices.push({
+          profServices.push({
             id: d.id,
             _profId: prof.id,
             _profNome: prof.nome,
             ...d.data(),
           } as Service);
         });
+        // Ordem escolhida pelo profissional; sem ordem (cadastros antigos) vêm antes, em ordem alfabética
+        profServices.sort((a, b) => (a.ordem ?? -1) - (b.ordem ?? -1));
+        allServices.push(...profServices);
       } catch {
         // skip if subcollection missing
       }
@@ -288,6 +294,7 @@ export default function ServicesPage() {
             ativo,
             preco: precoNum,
             exibirPreco,
+            ordem: Date.now(),
             createdAt: new Date(),
             updatedAt: new Date(),
             imagemUrl: null,
@@ -335,6 +342,42 @@ export default function ServicesPage() {
       setError("Erro ao salvar serviço: " + err.message);
     } finally {
       setFormLoading(false);
+    }
+  };
+
+  // ── Reordenar ──────────────────────────────────────────────────────────────
+  const [reordering, setReordering] = useState(false);
+
+  const handleMoveService = async (service: Service, direction: -1 | 1) => {
+    if (!user || reordering) return;
+    const profId = service._profId ?? user.uid;
+    const group = services.filter((s) => (s._profId ?? user.uid) === profId);
+    const from = group.findIndex((s) => s.id === service.id);
+    const to = from + direction;
+    if (from < 0 || to < 0 || to >= group.length) return;
+
+    const reordered = [...group];
+    [reordered[from], reordered[to]] = [reordered[to], reordered[from]];
+    const withOrdem = reordered.map((s, i) => ({ ...s, ordem: i }));
+
+    // Atualização otimista: troca o grupo do profissional mantendo a posição dos demais
+    const previous = services;
+    let k = 0;
+    setServices(services.map((s) => ((s._profId ?? user.uid) === profId ? withOrdem[k++] : s)));
+
+    setReordering(true);
+    try {
+      const batch = writeBatch(db);
+      withOrdem.forEach((s) => {
+        batch.update(doc(db, "professionals", profId, "services", s.id), { ordem: s.ordem });
+      });
+      await batch.commit();
+    } catch (err) {
+      console.error("Erro ao reordenar serviços:", err);
+      setServices(previous);
+      setError("Não foi possível salvar a nova ordem. Tente novamente.");
+    } finally {
+      setReordering(false);
     }
   };
 
@@ -404,7 +447,7 @@ export default function ServicesPage() {
           <p className="text-sm text-slate-400">
             {hasTeam
               ? "Gerencie os serviços do estabelecimento e de cada profissional da equipe."
-              : "Cadastre e edite os serviços que oferece para os seus clientes."}
+              : "Cadastre e edite os serviços que oferece. Use as setas de cada card para escolher a ordem em que aparecem para os clientes."}
           </p>
         </div>
         <button
@@ -464,6 +507,23 @@ export default function ServicesPage() {
               <div>
                 <div className="flex items-start justify-between gap-3 mb-2">
                   <h3 className="font-bold text-lg text-slate-100 group-hover:text-indigo-400 transition-colors truncate">{service.nome}</h3>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {(() => {
+                      const group = services.filter((s) => (s._profId ?? user?.uid) === (service._profId ?? user?.uid));
+                      const idx = group.findIndex((s) => s.id === service.id);
+                      const btn = "p-1 rounded-md border border-slate-700 text-slate-300 hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed";
+                      return (
+                        <>
+                          <button type="button" disabled={idx <= 0 || reordering} onClick={() => handleMoveService(service, -1)} className={btn} title="Mover para antes" aria-label="Mover para antes">
+                            <ChevronUp className="h-4 w-4 md:hidden" /><ChevronLeft className="h-4 w-4 hidden md:block" />
+                          </button>
+                          <button type="button" disabled={idx === group.length - 1 || reordering} onClick={() => handleMoveService(service, 1)} className={btn} title="Mover para depois" aria-label="Mover para depois">
+                            <ChevronDown className="h-4 w-4 md:hidden" /><ChevronRight className="h-4 w-4 hidden md:block" />
+                          </button>
+                        </>
+                      );
+                    })()}
+                  </div>
                   <button onClick={() => handleToggleAtivo(service)} className="text-slate-400 hover:text-white transition-colors shrink-0" title={service.ativo ? "Desativar" : "Ativar"}>
                     {service.ativo ? <ToggleRight className="h-6 w-6 text-emerald-500" /> : <ToggleLeft className="h-6 w-6 text-slate-600" />}
                   </button>

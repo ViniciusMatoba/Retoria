@@ -49,6 +49,8 @@ export default function PublicBookingPage({ params }: PageProps) {
           data.push({ id: doc.id, ...d } as Service);
         }
       });
+      // Ordem definida pelo profissional; sem ordem (cadastros antigos) vêm antes, em ordem alfabética
+      data.sort((a, b) => (a.ordem ?? -1) - (b.ordem ?? -1));
       setServices(data);
     } catch (e) {
       console.error("Error loading services:", e);

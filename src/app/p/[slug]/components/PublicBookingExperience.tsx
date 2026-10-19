@@ -79,6 +79,7 @@ export interface Service {
   ativo: boolean;
   preco?: number | null;
   exibirPreco?: boolean;
+  ordem?: number | null;
   imagemUrl?: string | null;
   imagemStoragePath?: string | null;
   imagemAlt?: string | null;
