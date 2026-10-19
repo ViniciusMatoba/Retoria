@@ -269,6 +269,8 @@ export default function PublicBookingExperience({
   const slotSuggestionOn = professional.slotSuggestion?.enabled !== false;
   const [serverNextSlots, setServerNextSlots] = useState<AvailableSlot[] | null>(null);
   const [loadingNextSlots, setLoadingNextSlots] = useState(false);
+  const DAYS_PER_PAGE = 5;
+  const [visibleDays, setVisibleDays] = useState(DAYS_PER_PAGE);
   const [nextSlotsError, setNextSlotsError] = useState(false);
   const selectedServiceIdsKey = selectedServices.map(s => s.id).join(",");
   const currentProfId = activeProfessionalId ?? professional.id;
@@ -278,6 +280,7 @@ export default function PublicBookingExperience({
     let cancelled = false;
     setLoadingNextSlots(true);
     setNextSlotsError(false);
+    setVisibleDays(DAYS_PER_PAGE);
     fetch(`/api/next-slots?professionalId=${encodeURIComponent(currentProfId)}&services=${encodeURIComponent(selectedServiceIdsKey)}`, { cache: "no-store" })
       .then(r => r.ok ? r.json() : Promise.reject(new Error("next-slots " + r.status)))
       .then(data => { if (!cancelled) setServerNextSlots(data.slots ?? []); })
@@ -699,7 +702,7 @@ export default function PublicBookingExperience({
                   <div className="space-y-3 pt-1">
                     <label className="block text-xs font-semibold text-[var(--theme-muted-text)] uppercase tracking-wider">Horários livres por dia</label>
                     <div className="space-y-4">
-                      {Object.entries(nextSlots.reduce((acc: Record<string, AvailableSlot[]>, sl) => { (acc[sl.data] ||= []).push(sl); return acc; }, {})).map(([dateKey, daySlots]) => (
+                      {Object.entries(nextSlots.reduce((acc: Record<string, AvailableSlot[]>, sl) => { (acc[sl.data] ||= []).push(sl); return acc; }, {})).slice(0, visibleDays).map(([dateKey, daySlots]) => (
                         <div key={dateKey} className="space-y-2">
                           <div className="text-xs font-bold text-[var(--theme-text)] capitalize">{formatDateTitle(dateKey)}</div>
                           <div className="grid grid-cols-3 gap-2">
@@ -722,6 +725,15 @@ export default function PublicBookingExperience({
                         </div>
                       ))}
                     </div>
+                    {new Set(nextSlots.map(sl => sl.data)).size > visibleDays && (
+                      <button
+                        type="button"
+                        onClick={() => setVisibleDays(v => v + DAYS_PER_PAGE)}
+                        className={`w-full py-2.5 px-4 border border-[rgba(255,255,255,0.15)] text-[var(--theme-text)] text-sm font-semibold hover:bg-[rgba(255,255,255,0.05)] transition-all ${btnRadiusClass}`}
+                      >
+                        Ver mais dias
+                      </button>
+                    )}
                     <p className="text-[11px] text-[var(--theme-muted-text)]">Nenhum desses horários serve para você?</p>
                     <button
                       type="button"
