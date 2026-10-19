@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { dbAdmin } from "@/lib/firebaseAdmin";
 import { isRateLimited } from "@/lib/rateLimit";
 import { computeNextSlots, parseServiceDurationMinutes, type LeadLike, type SlotLike } from "@/lib/availability";
+import { getBusyIntervals } from "@/lib/googleCalendar";
 import { addDaysSaoPaulo, getSaoPauloToday, isPastDateTimeSaoPaulo } from "@/lib/timezone";
 
 // GET /api/next-slots?professionalId=...&services=id1,id2
@@ -48,10 +49,13 @@ export async function GET(req: NextRequest) {
       .where("dataEscolhida", ">=", today).where("dataEscolhida", "<=", maxDate).get();
     const leads = leadsSnap.docs.map((d: FirebaseFirestore.QueryDocumentSnapshot) => d.data() as LeadLike);
 
+    const busy = await getBusyIntervals(professionalId, today, maxDate);
+
     const next = computeNextSlots({
       agendaConfig: prof.agendaConfig,
       slots, leads, durationMin, slotStepMin, perDay: 3,
       isPast: isPastDateTimeSaoPaulo,
+      busy,
     });
 
     return NextResponse.json(

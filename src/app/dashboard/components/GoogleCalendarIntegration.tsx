@@ -9,6 +9,7 @@ import { CalendarCheck, CalendarX, Loader2, CheckCircle, XCircle } from "lucide-
 export default function GoogleCalendarIntegration() {
   const { user } = useAuth();
   const [connected, setConnected] = useState<boolean | null>(null);
+  const [needsReconnect, setNeedsReconnect] = useState(false);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
@@ -18,6 +19,7 @@ export default function GoogleCalendarIntegration() {
     const ref = doc(db, "professionals", user.uid, "integrations", "google");
     const unsub = onSnapshot(ref, (snap) => {
       setConnected(snap.exists() && snap.data()?.connected === true);
+      setNeedsReconnect(snap.exists() && snap.data()?.needsReconnect === true && snap.data()?.connected !== true);
     });
     return () => unsub();
   }, [user]);
@@ -93,7 +95,9 @@ export default function GoogleCalendarIntegration() {
               {connected === null
                 ? "Verificando..."
                 : connected
-                ? "Conectado — novos agendamentos criam eventos automaticamente"
+                ? "Conectado — agendamentos confirmados criam eventos e compromissos da sua agenda bloqueiam horários"
+                : needsReconnect
+                ? "Conexão expirada — reconecte para voltar a criar eventos e bloquear horários ocupados"
                 : "Desconectado — conecte para criar eventos automaticamente"}
             </p>
           </div>

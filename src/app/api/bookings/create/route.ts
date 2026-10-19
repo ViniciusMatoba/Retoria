@@ -10,8 +10,9 @@ import {
 import { buildCustomerBookingIndex } from "@/lib/leadTypes";
 import { isRateLimited } from "@/lib/rateLimit";
 import { sendPushToProf } from "@/lib/sendPush";
-import { isFullName, normalizeName, FULL_NAME_ERROR } from "@/lib/nameUtils";
-import { parseServiceDurationMinutes, overlapsActiveLead, type LeadLike } from "@/lib/availability";
+import { isFullName, normalizeName, maskName, FULL_NAME_ERROR } from "@/lib/nameUtils";
+import { parseServiceDurationMinutes, overlapsActiveLead, overlapsBusy, type LeadLike } from "@/lib/availability";
+import { getBusyIntervals } from "@/lib/googleCalendar";
 
 export async function POST(req: NextRequest) {
   if (!dbAdmin || !authAdmin) {
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
 
     // 1. Strict payload validation
-    const allowedKeys = ["professionalId", "servicos", "serviceId", "nome", "telefone", "dataEscolhida", "horarioEscolhido", "observacao"];
+    const allowedKeys = ["professionalId", "servicos", "serviceId", "nome", "telefone", "dataEscolhida", "horarioEscolhido", "observacao", "usarCadastro"];
     const payloadKeys = Object.keys(body);
     const hasExtraKeys = payloadKeys.some(k => !allowedKeys.includes(k));
 
@@ -65,6 +66,8 @@ export async function POST(req: NextRequest) {
     }
 
     const { professionalId, nome, telefone, dataEscolhida, horarioEscolhido, observacao } = body;
+    // Cliente reconhecido pelo telefone: usa o nome já cadastrado com este profissional
+    const useRegistered = body.usarCadastro === true;
 
     // Aceita novo formato (servicos[]) ou legado (serviceId string)
     let servicosInput: { id: string }[] = [];
@@ -86,7 +89,7 @@ export async function POST(req: NextRequest) {
     // Type validation
     if (
       typeof professionalId !== "string" || !professionalId ||
-      typeof nome !== "string" ||
+      (typeof nome !== "string" && !useRegistered) ||
       typeof telefone !== "string" ||
       typeof dataEscolhida !== "string" ||
       typeof horarioEscolhido !== "string"
@@ -95,12 +98,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Characters limits
-    const typedNome = normalizeName(nome);
-    if (typedNome.length > 80) {
-      return NextResponse.json({ error: "O nome deve ter no máximo 80 caracteres." }, { status: 400 });
-    }
-    if (!isFullName(typedNome)) {
-      return NextResponse.json({ error: FULL_NAME_ERROR }, { status: 400 });
+    const typedNome = useRegistered ? "" : normalizeName(nome);
+    if (!useRegistered) {
+      if (typedNome.length > 80) {
+        return NextResponse.json({ error: "O nome deve ter no máximo 80 caracteres." }, { status: 400 });
+      }
+      if (!isFullName(typedNome)) {
+        return NextResponse.json({ error: FULL_NAME_ERROR }, { status: 400 });
+      }
     }
 
     const formattedPhone = telefone.replace(/\D/g, "");
@@ -130,6 +135,9 @@ export async function POST(req: NextRequest) {
     if (isPastDateTimeSaoPaulo(dataEscolhida, horarioEscolhido)) {
       return NextResponse.json({ error: "Este horário já passou. Por favor, escolha um horário futuro." }, { status: 400 });
     }
+
+    // Horários ocupados no Google Agenda do profissional (falha aberta: null = não bloqueia)
+    const busyDay = await getBusyIntervals(professionalId, dataEscolhida, dataEscolhida);
 
     // 2. Tenta vincular o agendamento a uma conta de cliente existente via número de telefone
     if (!customerUid) {
@@ -166,7 +174,9 @@ export async function POST(req: NextRequest) {
         profRef.collection("customers").where("telefone", "==", formattedPhone).limit(1)
       );
       const knownNome = knownCustomerSnap.empty ? null : (knownCustomerSnap.docs[0].data().nome as string | undefined);
-      const trimmedNome = knownNome && isFullName(knownNome) ? normalizeName(knownNome) : typedNome;
+      const knownFullName = !!knownNome && isFullName(knownNome);
+      if (useRegistered && !knownFullName) throw new Error("known-customer-missing");
+      const trimmedNome = knownFullName ? normalizeName(knownNome as string) : typedNome;
       const slotDuration = profData?.agendaConfig?.duracaoSlot || 30;
 
       // Read all services
@@ -202,6 +212,10 @@ export async function POST(req: NextRequest) {
       const slotsRef = profRef.collection("availableSlots");
       const slotsSnap = await transaction.get(slotsRef.where("data", "==", dataEscolhida));
       
+      if (overlapsBusy(busyDay, dataEscolhida, startMin, endMin)) {
+        throw new Error("slot-busy-external");
+      }
+
       // Agendamentos ativos do dia: protege contra slots desatualizados que ainda aparecem como livres
       const dayLeadsSnap = await transaction.get(profRef.collection("leads").where("dataEscolhida", "==", dataEscolhida));
       const dayLeads = dayLeadsSnap.docs.map((d: any) => d.data() as LeadLike);
@@ -354,7 +368,7 @@ export async function POST(req: NextRequest) {
       url: "/dashboard",
     }).catch(() => {});
 
-    return NextResponse.json({ success: true, leadId: result.leadId, horarioFim: result.horarioFim, nome: result.nome });
+    return NextResponse.json({ success: true, leadId: result.leadId, horarioFim: result.horarioFim, nome: maskName(result.nome) });
 
   } catch (err: any) {
     console.error("Booking api transaction error:", err);
@@ -366,6 +380,10 @@ export async function POST(req: NextRequest) {
       friendlyMessage = "Serviço não está mais ativo ou não foi encontrado.";
     } else if (errMsg === "slot-not-found") {
       friendlyMessage = "Um ou mais horários no intervalo selecionado não estão disponíveis na agenda.";
+    } else if (errMsg === "known-customer-missing") {
+      friendlyMessage = "Não encontramos seu cadastro. Informe seu nome completo.";
+    } else if (errMsg === "slot-busy-external") {
+      friendlyMessage = "Este horário não está mais disponível. Escolha outro horário.";
     } else if (errMsg === "slot-already-booked") {
       friendlyMessage = "Desculpe, este período já foi reservado por outro cliente.";
     }

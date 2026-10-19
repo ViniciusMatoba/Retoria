@@ -1,5 +1,6 @@
 import { dbAdmin } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
+import { intervalsFromIsoRange, type BusyByDate } from "@/lib/availability";
 
 // Import dinâmico para evitar crash de ESM/CJS no bundle do Vercel
 async function getGoogleApis() {
@@ -24,6 +25,18 @@ export async function getAuthUrl(professionalUid: string) {
     scope: ["https://www.googleapis.com/auth/calendar.events"],
     state: professionalUid,
   });
+}
+
+function isInvalidGrant(err: any): boolean {
+  return err?.response?.data?.error === "invalid_grant" || String(err?.message ?? "").includes("invalid_grant");
+}
+
+// Token revogado/expirado: marca a integração como desconectada para o painel pedir reconexão.
+export async function markNeedsReconnect(professionalUid: string) {
+  await dbAdmin
+    .collection("professionals").doc(professionalUid)
+    .collection("integrations").doc("google")
+    .set({ connected: false, needsReconnect: true, disconnectedAt: FieldValue.serverTimestamp() }, { merge: true });
 }
 
 export interface GoogleTokens {
@@ -98,6 +111,7 @@ export async function deleteCalendarEvent(
   try {
     await calendar.events.delete({ calendarId: "primary", eventId: calendarEventId });
   } catch (err: any) {
+    if (isInvalidGrant(err)) { await markNeedsReconnect(professionalUid); return; }
     if (err?.code !== 410) throw err;
   }
 }
@@ -148,6 +162,85 @@ export async function createCalendarEvent(
     event.attendees = [{ email: params.attendeeEmail }];
   }
 
-  const res = await calendar.events.insert({ calendarId: "primary", requestBody: event });
-  return res.data.id ?? null;
+  try {
+    const res = await calendar.events.insert({ calendarId: "primary", requestBody: event });
+    return res.data.id ?? null;
+  } catch (err: any) {
+    if (isInvalidGrant(err)) { await markNeedsReconnect(professionalUid); return null; }
+    throw err;
+  }
+}
+
+// ─── Horários ocupados no Google Agenda ──────────────────────────────────────
+// Falha aberta: qualquer erro devolve null e o app segue sem bloquear nada.
+const busyCache = new Map<string, { at: number; data: BusyByDate }>();
+const BUSY_CACHE_MS = 60_000;
+
+export async function getBusyIntervals(
+  professionalUid: string,
+  startDate: string,
+  endDate: string
+): Promise<BusyByDate | null> {
+  const cacheKey = `${professionalUid}|${startDate}|${endDate}`;
+  const cached = busyCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < BUSY_CACHE_MS) return cached.data;
+
+  try {
+    const tokens = await getTokens(professionalUid);
+    if (!tokens?.refresh_token) return null;
+
+    const google = await getGoogleApis();
+    const oauth2Client = await createOAuthClient();
+    oauth2Client.setCredentials({
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      expiry_date: tokens.expiry_date,
+    });
+    oauth2Client.on("tokens", async (newTokens) => {
+      if (newTokens.access_token) {
+        await dbAdmin
+          .collection("professionals").doc(professionalUid)
+          .collection("integrations").doc("google")
+          .set({ access_token: newTokens.access_token, expiry_date: newTokens.expiry_date ?? null }, { merge: true });
+      }
+    });
+
+    const calendar = google.calendar({ version: "v3", auth: oauth2Client });
+    const busy: BusyByDate = {};
+    let pageToken: string | undefined;
+
+    for (let page = 0; page < 5; page++) {
+      const res: any = await calendar.events.list({
+        calendarId: "primary",
+        timeMin: `${startDate}T00:00:00-03:00`,
+        timeMax: `${endDate}T23:59:59-03:00`,
+        singleEvents: true,
+        orderBy: "startTime",
+        maxResults: 2500,
+        pageToken,
+      });
+
+      for (const ev of res.data.items ?? []) {
+        if (ev.status === "cancelled") continue;
+        if (ev.transparency === "transparent") continue; // marcado como "livre"
+        if (!ev.start?.dateTime || !ev.end?.dateTime) continue; // eventos de dia inteiro não bloqueiam
+        const me = (ev.attendees ?? []).find((a: any) => a.self);
+        if (me?.responseStatus === "declined") continue;
+
+        for (const iv of intervalsFromIsoRange(ev.start.dateTime, ev.end.dateTime)) {
+          (busy[iv.date] ||= []).push({ start: iv.start, end: iv.end });
+        }
+      }
+
+      pageToken = res.data.nextPageToken ?? undefined;
+      if (!pageToken) break;
+    }
+
+    busyCache.set(cacheKey, { at: Date.now(), data: busy });
+    return busy;
+  } catch (err: any) {
+    if (isInvalidGrant(err)) await markNeedsReconnect(professionalUid).catch(() => {});
+    console.error("[google-busy]", err?.code ?? err?.message);
+    return null;
+  }
 }

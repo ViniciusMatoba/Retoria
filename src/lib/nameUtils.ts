@@ -11,3 +11,11 @@ export function isFullName(name: string): boolean {
   const parts = normalizeName(name).split(" ");
   return parts.length >= 2 && parts.every(p => NAME_PART.test(p));
 }
+
+// "Maria da Silva" -> "Maria S." (nunca expor o nome completo em respostas públicas)
+export function maskName(name: string): string {
+  const parts = normalizeName(name).split(" ").filter(Boolean);
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return parts[0];
+  return `${parts[0]} ${parts[parts.length - 1][0].toUpperCase()}.`;
+}

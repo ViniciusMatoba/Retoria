@@ -151,6 +151,8 @@ export default function PublicBookingExperience({
   const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null);
   const [clientNome, setClientNome] = useState("");
   const [clientTelefone, setClientTelefone] = useState("");
+  // Nome mascarado ("Maria S.") quando o telefone já tem cadastro com este profissional
+  const [recognizedName, setRecognizedName] = useState<string | null>(null);
   const [clientObservacao, setClientObservacao] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -304,6 +306,19 @@ export default function PublicBookingExperience({
     .filter((sl, _i, arr) => arr.filter(o => o.data === sl.data).indexOf(sl) < 3);
   const nextSlots = previewMode ? localNextSlots : (serverNextSlots ?? []);
 
+  useEffect(() => {
+    const digits = clientTelefone.replace(/\D/g, "");
+    if (previewMode || digits.length < 10) { setRecognizedName(null); return; }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      fetch(`/api/customer-lookup?professionalId=${encodeURIComponent(currentProfId)}&phone=${digits}`, { cache: "no-store" })
+        .then(r => r.ok ? r.json() : { found: false })
+        .then(data => { if (!cancelled) setRecognizedName(data.found && data.display ? String(data.display) : null); })
+        .catch(() => { if (!cancelled) setRecognizedName(null); });
+    }, 450);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [clientTelefone, currentProfId, previewMode]);
+
   const handleRequestOtherTimes = () => {
     const servicos = selectedServices.map(s => s.nome).join(", ");
     const template = professional.slotSuggestion?.requestMessage?.trim()
@@ -328,8 +343,9 @@ export default function PublicBookingExperience({
     setSubmitting(true);
 
     const typedNome = normalizeName(clientNome);
-    let trimmedNome = typedNome;
-    if (!isFullName(typedNome) || typedNome.length > 80) {
+    const useRegistered = !!recognizedName;
+    let trimmedNome = useRegistered ? recognizedName! : typedNome;
+    if (!useRegistered && (!isFullName(typedNome) || typedNome.length > 80)) {
       setError(FULL_NAME_ERROR);
       setSubmitting(false);
       return;
@@ -370,7 +386,8 @@ export default function PublicBookingExperience({
         body: JSON.stringify({
           professionalId: activeProfessionalId ?? professional.id,
           servicos: selectedServices.map(s => ({ id: s.id })),
-          nome: trimmedNome,
+          nome: useRegistered ? undefined : trimmedNome,
+          usarCadastro: useRegistered ? true : undefined,
           telefone: formattedClientPhone,
           dataEscolhida: selectedSlot.data,
           horarioEscolhido: selectedSlot.horario,
@@ -921,19 +938,26 @@ export default function PublicBookingExperience({
                 </div>
                 <form onSubmit={handleBookAppointment} className="space-y-4">
                   <div>
-                    <label className="block text-xs font-semibold text-[var(--theme-muted-text)] uppercase tracking-wider mb-2">Seu Nome *</label>
-                    <div className="relative">
-                      <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-[var(--theme-muted-text)]/60"><User className="h-4 w-4" /></span>
-                      <input type="text" required maxLength={80} value={clientNome} onChange={(e) => setClientNome(e.target.value)} placeholder="Insira seu nome completo" style={cardRadiusStyle} className="w-full pl-9 pr-4 py-2.5 bg-[var(--theme-surface)] border border-[rgba(255,255,255,0.08)] focus:outline-none focus:border-[var(--theme-primary)] text-[var(--theme-text)] text-sm transition-all" />
-                    </div>
-                  </div>
-                  <div>
                     <label className="block text-xs font-semibold text-[var(--theme-muted-text)] uppercase tracking-wider mb-2">Telefone com WhatsApp *</label>
                     <div className="relative">
                       <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-[var(--theme-muted-text)]/60"><Phone className="h-4 w-4" /></span>
                       <input type="text" required maxLength={20} value={clientTelefone} onChange={handlePhoneInputChange} placeholder="Ex: (11) 99999-9999" style={cardRadiusStyle} className="w-full pl-9 pr-4 py-2.5 bg-[var(--theme-surface)] border border-[rgba(255,255,255,0.08)] focus:outline-none focus:border-[var(--theme-primary)] text-[var(--theme-text)] text-sm transition-all" />
                     </div>
                   </div>
+                  {recognizedName ? (
+                    <div style={cardRadiusStyle} className="flex items-center justify-between gap-3 px-3 py-3 bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300">
+                      <span>Olá, <strong>{recognizedName}</strong>! Encontramos seu cadastro. Vamos usar os seus dados salvos.</span>
+                      <button type="button" onClick={() => setClientTelefone("")} className="shrink-0 underline text-emerald-200">Não sou eu</button>
+                    </div>
+                  ) : (
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--theme-muted-text)] uppercase tracking-wider mb-2">Seu Nome *</label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-[var(--theme-muted-text)]/60"><User className="h-4 w-4" /></span>
+                      <input type="text" required maxLength={80} value={clientNome} onChange={(e) => setClientNome(e.target.value)} placeholder="Insira seu nome completo" style={cardRadiusStyle} className="w-full pl-9 pr-4 py-2.5 bg-[var(--theme-surface)] border border-[rgba(255,255,255,0.08)] focus:outline-none focus:border-[var(--theme-primary)] text-[var(--theme-text)] text-sm transition-all" />
+                    </div>
+                  </div>
+                  )}
                   <div>
                     <label className="block text-xs font-semibold text-[var(--theme-muted-text)] uppercase tracking-wider mb-2">Observações (Opcional)</label>
                     <div className="relative">

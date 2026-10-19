@@ -1,4 +1,4 @@
-import { timeToMinutes, minutesToTime } from "@/lib/timezone";
+import { timeToMinutes, minutesToTime, addDaysSaoPaulo } from "@/lib/timezone";
 
 export interface DayConfigLike {
   ativo?: boolean;
@@ -22,6 +22,46 @@ export interface LeadLike {
   horarioEscolhido?: string;
   horarioFim?: string;
   duracaoAgendamento?: number;
+}
+
+export interface BusyInterval { start: number; end: number }
+export type BusyByDate = Record<string, BusyInterval[]>;
+
+const SP_PARTS = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Sao_Paulo",
+  year: "numeric", month: "2-digit", day: "2-digit",
+  hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+});
+
+function spDateAndMinutes(iso: string): { date: string; min: number } | null {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  const p = Object.fromEntries(SP_PARTS.formatToParts(d).map(x => [x.type, x.value]));
+  return { date: `${p.year}-${p.month}-${p.day}`, min: parseInt(p.hour, 10) * 60 + parseInt(p.minute, 10) };
+}
+
+// Converte um evento (início/fim ISO com fuso) em intervalos por dia no horário de São Paulo.
+export function intervalsFromIsoRange(startIso: string, endIso: string): Array<{ date: string } & BusyInterval> {
+  const a = spDateAndMinutes(startIso);
+  const b = spDateAndMinutes(endIso);
+  if (!a || !b) return [];
+  let endDate = b.date;
+  let endMin = b.min;
+  if (endMin === 0 && endDate > a.date) { endDate = addDaysSaoPaulo(endDate, -1); endMin = 1440; }
+  if (endDate < a.date || (endDate === a.date && endMin <= a.min)) return [];
+
+  const out: Array<{ date: string } & BusyInterval> = [];
+  let day = a.date;
+  for (let guard = 0; guard < 400; guard++) {
+    out.push({ date: day, start: day === a.date ? a.min : 0, end: day === endDate ? endMin : 1440 });
+    if (day === endDate) break;
+    day = addDaysSaoPaulo(day, 1);
+  }
+  return out;
+}
+
+export function overlapsBusy(busy: BusyByDate | null | undefined, dateStr: string, startMin: number, endMin: number): boolean {
+  return (busy?.[dateStr] ?? []).some(iv => iv.start < endMin && iv.end > startMin);
 }
 
 const WEEKDAY_KEYS = ["domingo", "segunda", "terca", "quarta", "quinta", "sexta", "sabado"];
@@ -108,8 +148,9 @@ export function computeNextSlots(params: {
   slotStepMin: number;
   perDay: number;
   isPast: (dateStr: string, timeStr: string) => boolean;
+  busy?: BusyByDate | null;
 }): SlotLike[] {
-  const { agendaConfig, slots, leads, durationMin, slotStepMin, perDay, isPast } = params;
+  const { agendaConfig, slots, leads, durationMin, slotStepMin, perDay, isPast, busy } = params;
   const free = slots
     .filter(s => s.disponivel)
     .sort((a, b) => (a.data === b.data ? timeToMinutes(a.horario) - timeToMinutes(b.horario) : a.data < b.data ? -1 : 1));
@@ -132,6 +173,7 @@ export function computeNextSlots(params: {
     if (!contiguous) continue;
     if (!isWithinWorkingHours(agendaConfig, slot.data, start, end)) continue;
     if (overlapsActiveLead(leads, slot.data, start, end, slotStepMin)) continue;
+    if (overlapsBusy(busy, slot.data, start, end)) continue;
 
     result.push(slot);
     perDayCount.set(slot.data, (perDayCount.get(slot.data) ?? 0) + 1);
