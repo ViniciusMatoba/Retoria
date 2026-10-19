@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dbAdmin, authAdmin } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
-import { createCalendarEvent, deleteCalendarEvent, getTokens } from "@/lib/googleCalendar";
+import { syncLeadEvent } from "@/lib/leadSync";
 import { timeToMinutes, minutesToTime, isPastDateTimeSaoPaulo } from "@/lib/timezone";
 import type * as FirebaseFirestore from "firebase-admin/firestore";
 
@@ -221,30 +221,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   // ── Sincroniza Google Calendar fora da transação (falha silenciosa) ────────
-  if (leadData?.status === "Agendado") {
-    try {
-      const tokens = await getTokens(professionalId);
-      if (tokens?.refresh_token) {
-        if (leadData.calendarEventId) {
-          await deleteCalendarEvent(professionalId, leadData.calendarEventId);
-        }
-        const newEventId = await createCalendarEvent(professionalId, {
-          summary: `✅ ${leadData.nome} — ${leadData.servicoEscolhido}`,
-          description: `Cliente: ${leadData.nome}\nTelefone: ${leadData.telefone}${leadData.observacao ? `\nObservações: ${leadData.observacao}` : ""}\n\n⏱️ Reagendado`,
-          date: dataEscolhida,
-          startTime: horarioEscolhido,
-          endTime: horarioFim,
-        });
-        if (newEventId) {
-          await dbAdmin
-            .collection("professionals").doc(professionalId)
-            .collection("leads").doc(leadId)
-            .update({ calendarEventId: newEventId });
-        }
-      }
-    } catch (calErr: any) {
-      console.warn("[reschedule] Falha ao atualizar Calendar:", calErr.code ?? calErr.message);
-    }
+  try {
+    await syncLeadEvent(professionalId, leadId);
+  } catch (calErr: any) {
+    console.warn("[reschedule] Falha ao atualizar Calendar:", calErr.code ?? calErr.message);
   }
 
   return NextResponse.json({ ok: true });

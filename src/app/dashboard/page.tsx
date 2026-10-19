@@ -53,6 +53,25 @@ type ProfFilter = string | null;
 
 export default function DashboardHome() {
   const { user, profile } = useAuth();
+
+  // Agendamentos cujo evento foi apagado no Google Agenda são cancelados aqui (ao abrir e a cada 3 min)
+  useEffect(() => {
+    if (!user) return;
+    const run = async () => {
+      try {
+        const token = await user.getIdToken();
+        await fetch(`/api/professionals/${user.uid}/google-sync`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } catch {
+        // silencioso: a próxima rodada tenta de novo
+      }
+    };
+    run();
+    const timer = setInterval(run, 180_000);
+    return () => clearInterval(timer);
+  }, [user]);
   const { showConfirmationModal } = useAppModal();
 
   const [teamMembers, setTeamMembers] = useState<TeamMemberTab[]>([]);

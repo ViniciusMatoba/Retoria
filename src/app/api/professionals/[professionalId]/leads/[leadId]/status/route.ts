@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { dbAdmin, authAdmin } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { isValidLeadStatus, type LeadStatus } from "@/lib/leadTypes";
-import { createCalendarEvent, deleteCalendarEvent } from "@/lib/googleCalendar";
+import { syncLeadEvent, releaseLeadSlots } from "@/lib/leadSync";
 import type * as FirebaseFirestore from "firebase-admin/firestore";
 
 type Params = { params: Promise<{ professionalId: string; leadId: string }> };
@@ -124,31 +124,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   // ── 6. Google Calendar (fora da transação — falha silenciosa) ──────────────
+  // Novo/Em contato => evento provisório; Agendado => confirmado; Cancelado/Perdido => removido.
   try {
-    if (newStatus === "Agendado") {
-      // Cria evento quando profissional confirma o agendamento
-      const eventId = await createCalendarEvent(professionalId, {
-        summary: `✅ ${leadData.nome} — ${leadData.servicoEscolhido}`,
-        description: `Cliente: ${leadData.nome}\nTelefone: ${leadData.telefone}${leadData.observacao ? `\nObservações: ${leadData.observacao}` : ""}`,
-        date: leadData.dataEscolhida,
-        startTime: leadData.horarioInicio ?? leadData.horarioEscolhido,
-        endTime: leadData.horarioFim,
-      });
-
-      // Salva o ID do evento no lead para poder remover depois se cancelar
-      if (eventId) {
-        await dbAdmin
-          .collection("professionals").doc(professionalId)
-          .collection("leads").doc(leadId)
-          .update({ calendarEventId: eventId, updatedAt: FieldValue.serverTimestamp() });
-      }
-    } else if ((newStatus === "Cancelado" || newStatus === "Perdido") && leadData.calendarEventId) {
-      await deleteCalendarEvent(professionalId, leadData.calendarEventId);
-      await dbAdmin
-        .collection("professionals").doc(professionalId)
-        .collection("leads").doc(leadId)
-        .update({ calendarEventId: null, updatedAt: FieldValue.serverTimestamp() });
-    }
+    await syncLeadEvent(professionalId, leadId);
   } catch (calErr) {
     console.warn("[google-calendar] Falha ao sincronizar evento:", calErr);
   }
@@ -156,27 +134,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   // ── 7. Liberar slots quando cancelado ou perdido ────────────────────────────
   if (newStatus === "Cancelado" || newStatus === "Perdido") {
     try {
-      const slotsRef = dbAdmin
-        .collection("professionals").doc(professionalId)
-        .collection("availableSlots");
-
-      const bookedSnap = await slotsRef
-        .where("bookingId", "==", leadId)
-        .get();
-
-      if (!bookedSnap.empty) {
-        const batch = dbAdmin.batch();
-        bookedSnap.docs.forEach((d: FirebaseFirestore.QueryDocumentSnapshot) => {
-          batch.update(d.ref, {
-            disponivel: true,
-            bookingId: null,
-            ocupacaoTipo: null,
-            updatedAt: FieldValue.serverTimestamp(),
-          });
-        });
-        await batch.commit();
-        console.log(`[lead-status] ${bookedSnap.size} slot(s) liberados para lead=${leadId}`);
-      }
+      await releaseLeadSlots(professionalId, leadId);
     } catch (slotErr) {
       console.warn("[lead-status] Falha ao liberar slots:", slotErr);
     }

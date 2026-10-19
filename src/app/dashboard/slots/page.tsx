@@ -1163,6 +1163,20 @@ export default function SlotsPage() {
     }
   };
 
+  // Reflete o agendamento no Google Agenda (servidor decide: provisório, confirmado ou removido)
+  const syncLeadToCalendar = async (leadId: string) => {
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      await fetch(`/api/professionals/${activeProfId}/leads/${leadId}/calendar-sync`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch (err) {
+      console.warn("Falha ao sincronizar com o Google Agenda:", err);
+    }
+  };
+
   const handleCreateManualBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -1243,6 +1257,7 @@ export default function SlotsPage() {
     }
 
     setActionLoading(true);
+    let createdLeadId = "";
 
     try {
       await runTransaction(db, async (transaction) => {
@@ -1263,6 +1278,7 @@ export default function SlotsPage() {
         // 2. Prepare Lead document payload
         const leadsRef = collection(db, "professionals", activeProfId, "leads");
         const newLeadRef = doc(leadsRef);
+        createdLeadId = newLeadRef.id;
         const service = services.find(s => s.id === bookingServicoId);
 
         const leadPayload = {
@@ -1296,6 +1312,7 @@ export default function SlotsPage() {
         }
       });
 
+      if (createdLeadId) await syncLeadToCalendar(createdLeadId);
       setSuccess("Agendamento manual cadastrado com sucesso!");
       setShowBookingModal(false);
     } catch (err: any) {
@@ -1482,6 +1499,7 @@ export default function SlotsPage() {
         });
       });
 
+      await syncLeadToCalendar(editingLead.id);
       setSuccess("Agendamento atualizado com sucesso!");
       setShowEditModal(false);
     } catch (err: any) {

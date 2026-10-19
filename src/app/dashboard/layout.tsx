@@ -20,6 +20,7 @@ import {
   LayoutGrid,
   UserCog,
   BookUser,
+  BellRing,
   QrCode,
 } from "lucide-react";
 import {
@@ -140,6 +141,7 @@ export default function DashboardLayout({
   const navItems = [
     { name: "Leads / Contatos", href: "/dashboard", icon: Users },
     { name: "Clientes", href: "/dashboard/clientes", icon: BookUser },
+    { name: "Lembretes", href: "/dashboard/lembretes", icon: BellRing },
     { name: "Serviços", href: "/dashboard/services", icon: Briefcase },
     { name: "Horários", href: "/dashboard/slots", icon: Calendar },
     ...(!isTeamMember ? [

@@ -13,6 +13,7 @@ import { sendPushToProf } from "@/lib/sendPush";
 import { isFullName, normalizeName, maskName, FULL_NAME_ERROR } from "@/lib/nameUtils";
 import { parseServiceDurationMinutes, overlapsActiveLead, overlapsBusy, type LeadLike } from "@/lib/availability";
 import { getBusyIntervals } from "@/lib/googleCalendar";
+import { syncLeadEvent } from "@/lib/leadSync";
 
 export async function POST(req: NextRequest) {
   if (!dbAdmin || !authAdmin) {
@@ -359,6 +360,13 @@ export async function POST(req: NextRequest) {
 
       return { leadId: newLeadRef.id, horarioFim, profData, serviceNome: servicoEscolhido, nome: trimmedNome };
     });
+
+    // Evento provisório no Google Agenda — falha silenciosa, não bloqueia a reserva
+    try {
+      await syncLeadEvent(professionalId, result.leadId);
+    } catch (calErr) {
+      console.warn("[booking] Falha ao criar evento provisório:", calErr);
+    }
 
     // Notificação push — falha silenciosa, não bloqueia a resposta
     const dataFriendly = formatDateFriendlySaoPaulo(dataEscolhida);

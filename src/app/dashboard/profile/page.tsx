@@ -121,6 +121,7 @@ export default function ProfilePage() {
     "Novo":             "Olá {nome}! Recebi seu pedido de agendamento para {servico} em {data} às {horario}. Vou confirmar em breve! 😊",
     "Em contato":       "Olá {nome}, estou entrando em contato sobre seu agendamento de {servico} em {data} às {horario}. Podemos conversar?",
     "Agendado":         "Olá {nome}! Seu agendamento de {servico} foi realizado para {data} às {horario}. Qualquer imprevisto, é só nos avisar! 📅",
+    "Lembrete":         "Olá {nome}! Passando para lembrar do seu agendamento de {servico} em {data} às {horario}. Posso confirmar sua presença? 😊",
     "Confirmado":       "Olá {nome}! Seu agendamento de {servico} está confirmado para {data} às {horario}. Te esperamos! 🎉",
     "Atendido":         "Olá {nome}, foi um prazer atendê-lo(a) hoje! Espero que tenha gostado do {servico}. Até a próxima! 😄",
     "Cancelado":        "Olá {nome}, precisamos cancelar o agendamento de {servico} previsto para {data} às {horario}. Lamentamos o inconveniente. Entre em contato para remarcar!",
@@ -903,7 +904,7 @@ const TEMPLATE_CATEGORIES = [
   },
   {
     label: "Acompanhamento",
-    statuses: ["Em contato"],
+    statuses: ["Em contato", "Lembrete"],
   },
   {
     label: "Encerramento",
@@ -1105,6 +1106,7 @@ interface TemplateEditorProps {
 const STATUS_COLORS: Record<string, string> = {
   "Novo":           "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
   "Em contato":     "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  "Lembrete":       "bg-violet-500/10 text-violet-400 border-violet-500/20",
   "Agendado":       "bg-sky-500/10 text-sky-400 border-sky-500/20",
   "Confirmado":     "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
   "Atendido":       "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
