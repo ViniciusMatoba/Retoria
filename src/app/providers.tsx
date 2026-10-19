@@ -52,6 +52,7 @@ export interface ProfessionalProfile {
 
   // Message templates per lead status
   messageTemplates?: Record<string, string>;
+  slotSuggestion?: { enabled: boolean; requestMessage?: string; quickReply?: string };
 
   // Member-level config (set by owner, stored on member's doc)
   teamConfig?: {

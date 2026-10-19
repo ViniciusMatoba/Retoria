@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { isFullName, normalizeName, FULL_NAME_ERROR } from "@/lib/nameUtils";
 import {
   Calendar,
   Clock,
@@ -21,7 +22,7 @@ import PublicServiceCard from "./PublicServiceCard";
 import PublicProfessionalHeader from "./PublicProfessionalHeader";
 import { getDefaultThemeConfig, ThemeConfig, getBestTextColor } from "@/lib/themeUtils";
 import { getWhatsAppLink } from "@/lib/whatsapp";
-import { isPastDateTimeSaoPaulo, getSaoPauloToday } from "@/lib/timezone";
+import { isPastDateTimeSaoPaulo, getSaoPauloToday, timeToMinutes, minutesToTime } from "@/lib/timezone";
 import type { PublicAddress, ServiceLocationType } from "@/lib/contactUtils";
 import { auth } from "@/lib/firebase";
 
@@ -52,6 +53,7 @@ export interface Professional {
   descricaoCurta?: string;
   fotoLogoUrl?: string;
   corPrincipal?: string;
+  slotSuggestion?: { enabled?: boolean; requestMessage?: string };
   agendaConfig?: { duracaoSlot?: number; janelaAgendamentoDias?: number; [key: string]: any };
   themeConfig?: ThemeConfig;
 
@@ -261,6 +263,30 @@ export default function PublicBookingExperience({
     setStep(step + 1);
   };
 
+// Próximos 3 horários livres que comportam a duração total dos serviços escolhidos
+  const slotStepMin = professional.agendaConfig?.duracaoSlot || 30;
+  const freeKeys = new Set(slots.map(sl => `${sl.data}|${sl.horario}`));
+  const slotsNeeded = Math.max(1, Math.ceil((totalDuracaoMin || slotStepMin) / slotStepMin));
+  const slotSuggestionOn = professional.slotSuggestion?.enabled !== false;
+  const nextSlots = slots
+    .filter(sl => !isPastDateTimeSaoPaulo(sl.data, sl.horario))
+    .filter(sl => {
+      const start = timeToMinutes(sl.horario);
+      for (let i = 1; i < slotsNeeded; i++) {
+        if (!freeKeys.has(`${sl.data}|${minutesToTime(start + i * slotStepMin)}`)) return false;
+      }
+      return true;
+    })
+    .slice(0, 3);
+
+  const handleRequestOtherTimes = () => {
+    const servicos = selectedServices.map(s => s.nome).join(", ");
+    const template = professional.slotSuggestion?.requestMessage?.trim()
+      || "Olá! Gostaria de agendar {servico}, mas nenhum dos horários sugeridos serve para mim. Poderia me enviar outras opções de horário?";
+    const message = template.replace(/{servico}/g, servicos || "um horário");
+    window.open(getWhatsAppLink(activeWhatsapp ?? professional.telefoneWhatsapp, message), "_blank", "noopener,noreferrer");
+  };
+
   const handlePrevStep = () => { setError(""); setStep(step - 1); };
 
   const handleBookAppointment = async (e: React.FormEvent) => {
@@ -276,9 +302,10 @@ export default function PublicBookingExperience({
 
     setSubmitting(true);
 
-    const trimmedNome = clientNome.trim();
-    if (trimmedNome.length < 2 || trimmedNome.length > 80) {
-      setError("O nome deve conter entre 2 e 80 caracteres.");
+    const typedNome = normalizeName(clientNome);
+    let trimmedNome = typedNome;
+    if (!isFullName(typedNome) || typedNome.length > 80) {
+      setError(FULL_NAME_ERROR);
       setSubmitting(false);
       return;
     }
@@ -350,6 +377,9 @@ export default function PublicBookingExperience({
       }
 
       if (!response.ok) throw new Error(resData.error || "Erro ao criar agendamento.");
+
+      // O servidor pode substituir o nome pelo já cadastrado para este telefone
+      if (typeof resData.nome === "string" && resData.nome) trimmedNome = resData.nome;
 
       const [year, month, day] = selectedSlot.data.split("-");
       const friendlyDate = `${day}/${month}/${year}`;
@@ -627,8 +657,54 @@ export default function PublicBookingExperience({
               <div className="space-y-5">
                 <div>
                   <h2 className="text-lg font-bold text-[var(--theme-text)] mb-1" style={{ fontFamily: "var(--theme-heading-font)" }}>Selecione data e hora</h2>
-                  <p className="text-xs text-[var(--theme-muted-text)]">Veja a disponibilidade de nossa agenda em tempo real.</p>
+                  <p className="text-xs text-[var(--theme-muted-text)]">{slotSuggestionOn ? "Estes são os próximos horários livres do profissional." : "Veja a disponibilidade de nossa agenda em tempo real."}</p>
                 </div>
+                {slotSuggestionOn ? (
+                <>
+                {nextSlots.length === 0 ? (
+                  <div style={cardRadiusStyle} className="text-center py-10 text-[var(--theme-muted-text)] text-sm border border-dashed border-[rgba(128,128,128,0.2)]">
+                    <p>Nenhum horário disponível nos próximos dias.</p>
+                    <button
+                      type="button"
+                      onClick={handleRequestOtherTimes}
+                      className={`mt-4 py-3 px-4 border border-[rgba(255,255,255,0.15)] text-[var(--theme-text)] text-sm font-semibold hover:bg-[rgba(255,255,255,0.05)] transition-all ${btnRadiusClass}`}
+                    >
+                      Pedir outras opções de horário
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3 pt-1">
+                    <label className="block text-xs font-semibold text-[var(--theme-muted-text)] uppercase tracking-wider">Próximos horários livres</label>
+                    <div className="space-y-2">
+                      {nextSlots.map((slot) => {
+                        const isSelected = selectedSlot?.id === slot.id;
+                        return (
+                          <button
+                            key={slot.id}
+                            type="button"
+                            onClick={() => { setSelectedDate(slot.data); setSelectedSlot(slot); }}
+                            style={isSelected ? { backgroundColor: theme.primaryColor, borderColor: theme.primaryColor, color: getBestTextColor(theme.primaryColor) } : {}}
+                            className={`w-full py-3 px-4 border text-sm font-bold flex items-center justify-between gap-2 transition-all ${btnRadiusClass} ${isSelected ? "shadow-md" : "bg-[var(--theme-surface)]/60 border-[rgba(255,255,255,0.08)] text-[var(--theme-text)] hover:border-[rgba(255,255,255,0.2)]"}`}
+                          >
+                            <span className="capitalize">{formatDateTitle(slot.data)}</span>
+                            <span className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5 opacity-60" />{slot.horario}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[11px] text-[var(--theme-muted-text)]">Nenhum desses horários serve para você?</p>
+                    <button
+                      type="button"
+                      onClick={handleRequestOtherTimes}
+                      className={`w-full py-3 px-4 border border-[rgba(255,255,255,0.15)] text-[var(--theme-text)] text-sm font-semibold hover:bg-[rgba(255,255,255,0.05)] transition-all ${btnRadiusClass}`}
+                    >
+                      Pedir outras opções de horário
+                    </button>
+                  </div>
+                )}
+                </>
+                ) : (
+                <>
                 {Object.keys(groupedSlots).length === 0 ? (
                   <div style={cardRadiusStyle} className="text-center py-10 text-[var(--theme-muted-text)] text-sm border border-dashed border-[rgba(128,128,128,0.2)]">
                     Nenhum horário disponível nos próximos dias.
@@ -738,6 +814,8 @@ export default function PublicBookingExperience({
                       </div>
                     )}
                   </div>
+                )}
+                </>
                 )}
                 <div className="flex gap-3 pt-4">
                   <button onClick={handlePrevStep} className={`flex-1 py-3.5 bg-[var(--theme-surface)] hover:opacity-90 text-[var(--theme-text)] border border-[rgba(128,128,128,0.2)] font-semibold text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-1.5 ${btnRadiusClass}`}>

@@ -10,6 +10,7 @@ import {
 import { buildCustomerBookingIndex } from "@/lib/leadTypes";
 import { isRateLimited } from "@/lib/rateLimit";
 import { sendPushToProf } from "@/lib/sendPush";
+import { isFullName, normalizeName, FULL_NAME_ERROR } from "@/lib/nameUtils";
 
 // Parser helper to extract duration in minutes from service description
 const parseServiceDurationMinutes = (duracaoStr: string): number => {
@@ -119,9 +120,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Characters limits
-    const trimmedNome = nome.trim();
-    if (trimmedNome.length < 2 || trimmedNome.length > 80) {
-      return NextResponse.json({ error: "O nome deve ter entre 2 e 80 caracteres." }, { status: 400 });
+    const typedNome = normalizeName(nome);
+    if (typedNome.length > 80) {
+      return NextResponse.json({ error: "O nome deve ter no máximo 80 caracteres." }, { status: 400 });
+    }
+    if (!isFullName(typedNome)) {
+      return NextResponse.json({ error: FULL_NAME_ERROR }, { status: 400 });
     }
 
     const formattedPhone = telefone.replace(/\D/g, "");
@@ -180,6 +184,14 @@ export async function POST(req: NextRequest) {
         throw new Error("professional-not-found");
       }
       const profData = profSnap.data();
+
+      // Telefone amarrado ao nome (por profissional): se já existe cliente com este telefone,
+      // o nome cadastrado prevalece sobre o digitado. Cadastros antigos sem nome completo são atualizados.
+      const knownCustomerSnap = await transaction.get(
+        profRef.collection("customers").where("telefone", "==", formattedPhone).limit(1)
+      );
+      const knownNome = knownCustomerSnap.empty ? null : (knownCustomerSnap.docs[0].data().nome as string | undefined);
+      const trimmedNome = knownNome && isFullName(knownNome) ? normalizeName(knownNome) : typedNome;
       const slotDuration = profData?.agendaConfig?.duracaoSlot || 30;
 
       // Read all services
@@ -349,18 +361,18 @@ export async function POST(req: NextRequest) {
         updatedAt: new Date(),
       });
 
-      return { leadId: newLeadRef.id, horarioFim, profData, serviceNome: servicoEscolhido };
+      return { leadId: newLeadRef.id, horarioFim, profData, serviceNome: servicoEscolhido, nome: trimmedNome };
     });
 
     // Notificação push — falha silenciosa, não bloqueia a resposta
     const dataFriendly = formatDateFriendlySaoPaulo(dataEscolhida);
     sendPushToProf(professionalId, {
-      title: `📅 Novo agendamento — ${trimmedNome}`,
+      title: `📅 Novo agendamento — ${result.nome}`,
       body: `${result.serviceNome} · ${dataFriendly} às ${horarioEscolhido}`,
       url: "/dashboard",
     }).catch(() => {});
 
-    return NextResponse.json({ success: true, leadId: result.leadId, horarioFim: result.horarioFim });
+    return NextResponse.json({ success: true, leadId: result.leadId, horarioFim: result.horarioFim, nome: result.nome });
 
   } catch (err: any) {
     console.error("Booking api transaction error:", err);

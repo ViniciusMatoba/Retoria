@@ -275,6 +275,12 @@ export default function ProfilePage() {
     setPublicAddress((prev) => ({ ...prev, [key]: value }));
   };
 
+  const handleSaveSlotSuggestion = async (value: { enabled: boolean; requestMessage: string; quickReply: string }) => {
+    if (!user) return;
+    await updateDoc(doc(db, "professionals", user.uid), { slotSuggestion: value });
+    await refreshProfile();
+  };
+
   const handleSaveTemplates = async () => {
     if (!user) return;
     setTemplatesSaving(true);
@@ -873,6 +879,12 @@ export default function ProfilePage() {
           profissionalName={nomeNegocio || nome}
         />
       )}
+      {activeProfileTab === "mensagens" && (
+        <SlotSuggestionSettings
+          initial={profile?.slotSuggestion}
+          onSave={handleSaveSlotSuggestion}
+        />
+      )}
 
     </div>
     </>
@@ -897,6 +909,94 @@ const TEMPLATE_CATEGORIES = [
     statuses: ["Atendido", "Cancelado", "Perdido", "Não compareceu"],
   },
 ];
+
+const DEFAULT_REQUEST_MESSAGE = "Olá! Gostaria de agendar {servico}, mas nenhum dos horários sugeridos serve para mim. Poderia me enviar outras opções de horário?";
+const DEFAULT_QUICK_REPLY = "Olá! Claro, tenho estas outras opções de horário:\n• \n• \n• \nQual delas fica melhor para você? 😊";
+
+function SlotSuggestionSettings({ initial, onSave }: {
+  initial?: { enabled: boolean; requestMessage?: string; quickReply?: string };
+  onSave: (v: { enabled: boolean; requestMessage: string; quickReply: string }) => Promise<void>;
+}) {
+  const [enabled, setEnabled] = useState(initial?.enabled !== false);
+  const [requestMessage, setRequestMessage] = useState(initial?.requestMessage || DEFAULT_REQUEST_MESSAGE);
+  const [quickReply, setQuickReply] = useState(initial?.quickReply || DEFAULT_QUICK_REPLY);
+  const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState("");
+
+  const flash = (msg: string) => { setFeedback(msg); setTimeout(() => setFeedback(""), 3000); };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onSave({ enabled, requestMessage: requestMessage.trim(), quickReply: quickReply.trim() });
+      flash("Salvo!");
+    } catch {
+      flash("Erro ao salvar. Tente novamente.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(quickReply);
+      flash("Resposta rápida copiada!");
+    } catch {
+      flash("Não foi possível copiar.");
+    }
+  };
+
+  return (
+    <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/40 p-5 space-y-5">
+      <div>
+        <h3 className="text-base font-bold text-slate-100">Sugestão de horários</h3>
+        <p className="text-xs text-slate-400 mt-1">
+          Quando ativado, o cliente vê apenas os 3 próximos horários livres e pode pedir outras opções pelo WhatsApp.
+          Desativado, ele vê o calendário completo.
+        </p>
+      </div>
+
+      <label className="flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} className="h-4 w-4" />
+        <span className="text-sm text-slate-200">Mostrar só os 3 próximos horários livres</span>
+      </label>
+
+      <div className="space-y-1.5">
+        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Mensagem do cliente pedindo outro horário</label>
+        <textarea
+          value={requestMessage}
+          onChange={(e) => setRequestMessage(e.target.value)}
+          rows={3}
+          maxLength={500}
+          className="w-full rounded-xl bg-slate-950 border border-slate-800 p-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
+        />
+        <p className="text-[11px] text-slate-500">Use {"{servico}"} para inserir o serviço escolhido pelo cliente.</p>
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Resposta rápida do profissional</label>
+        <textarea
+          value={quickReply}
+          onChange={(e) => setQuickReply(e.target.value)}
+          rows={5}
+          maxLength={500}
+          className="w-full rounded-xl bg-slate-950 border border-slate-800 p-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
+        />
+        <p className="text-[11px] text-slate-500">Copie e cole no WhatsApp ao responder um pedido de outro horário, preenchendo as opções.</p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="button" onClick={handleSave} disabled={saving} className="rounded-xl bg-indigo-600 hover:bg-indigo-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+          {saving ? "Salvando..." : "Salvar"}
+        </button>
+        <button type="button" onClick={handleCopy} className="rounded-xl border border-slate-700 hover:bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-200">
+          Copiar resposta rápida
+        </button>
+        {feedback && <span className="text-xs text-slate-400">{feedback}</span>}
+      </div>
+    </div>
+  );
+}
 
 interface MessageTemplatesTabProps {
   templates: Record<string, string>;

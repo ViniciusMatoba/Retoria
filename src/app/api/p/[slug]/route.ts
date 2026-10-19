@@ -25,6 +25,12 @@ function buildProfDto(id: string, data: FirebaseFirestore.DocumentData) {
   for (const field of PUBLIC_PROF_FIELDS) {
     if (data[field] !== undefined) dto[field] = data[field];
   }
+  if (data.slotSuggestion) {
+    dto.slotSuggestion = {
+      enabled: data.slotSuggestion.enabled !== false,
+      requestMessage: typeof data.slotSuggestion.requestMessage === "string" ? data.slotSuggestion.requestMessage : undefined,
+    };
+  }
   if (data.agendaConfig) {
     const agendaDto: Record<string, unknown> = {};
     for (const f of PUBLIC_AGENDA_FIELDS) {

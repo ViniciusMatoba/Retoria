@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { isFullName, normalizeName, FULL_NAME_ERROR } from "@/lib/nameUtils";
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "../../providers";
@@ -22,9 +23,15 @@ export default function CustomerProfilePage() {
     setError("");
     setSaved(false);
 
+    if (!isFullName(name)) {
+      setError(FULL_NAME_ERROR);
+      setSaving(false);
+      return;
+    }
+
     try {
       await updateDoc(doc(db, "customerAccounts", user.uid), {
-        name: name.trim(),
+        name: normalizeName(name),
         phone: phone.trim(),
         updatedAt: serverTimestamp(),
       });
