@@ -596,6 +596,29 @@ async function main() {
     );
   });
 
+  console.log("\n[NOTAS] customerNotes — notas privadas do profissional");
+  const NOTE = ["professionals", PROF_UID, "customerNotes", "11999998888"];
+  await test("profissional dono grava e lê notas do cliente", async () => {
+    const db = testEnv.authenticatedContext(PROF_UID).firestore();
+    await assertSucceeds(setDoc(doc(db, ...NOTE), { notas: "Alergia a látex", updatedAt: new Date() }));
+    await assertSucceeds(getDoc(doc(db, ...NOTE)));
+  });
+  await test("outro profissional não lê nem escreve notas", async () => {
+    const db = testEnv.authenticatedContext(OTHER_PROF).firestore();
+    await assertFails(getDoc(doc(db, ...NOTE)));
+    await assertFails(setDoc(doc(db, ...NOTE), { notas: "x", updatedAt: new Date() }));
+  });
+  await test("visitante e cliente não leem notas", async () => {
+    await assertFails(getDoc(doc(testEnv.unauthenticatedContext().firestore(), ...NOTE)));
+    await assertFails(getDoc(doc(testEnv.authenticatedContext(CUST_UID).firestore(), ...NOTE)));
+  });
+  await test("notas rejeitam campos extras, tamanho excessivo e id inválido", async () => {
+    const db = testEnv.authenticatedContext(PROF_UID).firestore();
+    await assertFails(setDoc(doc(db, ...NOTE), { notas: "x", extra: 1, updatedAt: new Date() }));
+    await assertFails(setDoc(doc(db, ...NOTE), { notas: "x".repeat(2001), updatedAt: new Date() }));
+    await assertFails(setDoc(doc(db, "professionals", PROF_UID, "customerNotes", "abc"), { notas: "x", updatedAt: new Date() }));
+  });
+
   // ── SEC-007: isolamento de leads entre profissionais ──────────────────────
   console.log("\n[SEC-007] leads — isolamento entre profissionais");
 

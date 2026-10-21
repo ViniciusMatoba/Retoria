@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, doc, getDocs, setDoc } from "firebase/firestore";
 import { BookUser, ChevronDown, ChevronUp, MessageCircle, Search, Trophy } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { useAuth } from "../../providers";
@@ -47,6 +47,7 @@ export default function ClientesPage() {
   const { user } = useAuth();
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [leads, setLeads] = useState<LeadRow[]>([]);
+  const [notes, setNotes] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
@@ -60,11 +61,16 @@ export default function ClientesPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [custSnap, leadSnap] = await Promise.all([
+        const [custSnap, leadSnap, notesSnap] = await Promise.all([
           getDocs(collection(db, "professionals", user.uid, "customers")),
           getDocs(collection(db, "professionals", user.uid, "leads")),
+          getDocs(collection(db, "professionals", user.uid, "customerNotes")).catch(() => null),
         ]);
         if (cancelled) return;
+
+        const notesMap: Record<string, string> = {};
+        notesSnap?.docs.forEach((d) => { notesMap[d.id] = String(d.data().notas ?? ""); });
+        setNotes(notesMap);
 
         const leadRows: LeadRow[] = leadSnap.docs.map((d) => {
           const x = d.data();
@@ -303,6 +309,12 @@ export default function ClientesPage() {
 
                 {isOpen && (
                   <div className="px-4 pb-4 space-y-4">
+                    <NotasEditor
+                      profId={user!.uid}
+                      phone={c.telefone}
+                      initial={notes[c.telefone] ?? ""}
+                      onSaved={(v) => setNotes((prev) => ({ ...prev, [c.telefone]: v }))}
+                    />
                     <div className="grid grid-cols-3 gap-2 text-center">
                       <div className="rounded-xl bg-slate-950/50 border border-slate-800 p-3">
                         <div className="text-lg font-bold text-emerald-400">{done.length}</div>
@@ -359,6 +371,59 @@ export default function ClientesPage() {
         </div>
       )}
       </>)}
+    </div>
+  );
+}
+
+const NOTAS_MAX = 2000;
+
+// Notas privadas do profissional sobre o cliente (alergias, preferências etc.), com botão Salvar próprio.
+function NotasEditor({ profId, phone, initial, onSaved }: { profId: string; phone: string; initial: string; onSaved: (v: string) => void }) {
+  const [value, setValue] = useState(initial);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const dirty = value !== initial;
+
+  const save = async () => {
+    setSaving(true);
+    setMsg(null);
+    try {
+      await setDoc(doc(db, "professionals", profId, "customerNotes", phone), { notas: value.trim(), updatedAt: new Date() });
+      onSaved(value.trim());
+      setValue(value.trim());
+      setMsg({ ok: true, text: "Notas salvas." });
+    } catch (e) {
+      console.error("Erro ao salvar notas:", e);
+      setMsg({ ok: false, text: "Não foi possível salvar as notas." });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div>
+      <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 block">Notas do cliente</label>
+      <textarea
+        value={value}
+        onChange={(e) => { setValue(e.target.value); setMsg(null); }}
+        maxLength={NOTAS_MAX}
+        rows={3}
+        placeholder="Particularidades: alergias, preferências, observações..."
+        className="w-full rounded-xl bg-slate-950/50 border border-slate-800 p-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
+      />
+      <div className="mt-2 flex items-center justify-between gap-3">
+        <span className={`text-xs ${msg ? (msg.ok ? "text-emerald-400" : "text-red-400") : "text-slate-500"}`}>
+          {msg ? msg.text : `${value.length}/${NOTAS_MAX}`}
+        </span>
+        <button
+          type="button"
+          onClick={save}
+          disabled={saving || !dirty}
+          className="rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 px-4 py-2 text-xs font-semibold text-white"
+        >
+          {saving ? "Salvando..." : "Salvar notas"}
+        </button>
+      </div>
     </div>
   );
 }

@@ -105,6 +105,18 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // Notas do profissional sobre o cliente (alergias, preferências etc.), chaveadas pelo telefone.
+      // Somente o dono lê/escreve; formato e tamanho validados.
+      match /customerNotes/{phone} {
+        allow read: if isProfessional(profId);
+        allow create, update: if isProfessional(profId)
+          && phone.matches('^[0-9]{8,20}$')
+          && request.resource.data.keys().hasOnly(['notas', 'updatedAt'])
+          && request.resource.data.notas is string
+          && request.resource.data.notas.size() <= 2000;
+        allow delete: if isProfessional(profId);
+      }
+
       match /usage/{period} {
         allow read: if isProfessional(profId);
         allow write: if false;
