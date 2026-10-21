@@ -148,6 +148,7 @@ export default function PublicBookingExperience({
   const [step, setStep] = useState(hasTeam ? 0 : 1);
   const [selectedServices, setSelectedServices] = useState<Service[]>([]);
   const [selectedDate, setSelectedDate] = useState("");
+  const [desiredDate, setDesiredDate] = useState("");
   const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null);
   const [clientNome, setClientNome] = useState("");
   const [clientTelefone, setClientTelefone] = useState("");
@@ -323,7 +324,10 @@ export default function PublicBookingExperience({
     const servicos = selectedServices.map(s => s.nome).join(", ");
     const template = professional.slotSuggestion?.requestMessage?.trim()
       || "Olá! Gostaria de agendar {servico}, mas nenhum dos horários sugeridos serve para mim. Poderia me enviar outras opções de horário?";
-    const message = template.replace(/{servico}/g, servicos || "um horário");
+    const [dy, dm, dd] = desiredDate.split("-");
+    const desiredLabel = desiredDate && dy && dm && dd ? `${dd}/${dm}/${dy}` : "";
+    let message = template.replace(/{servico}/g, servicos || "um horário").replace(/{data}/g, desiredLabel || "uma data a combinar");
+    if (desiredLabel && !template.includes("{data}")) message += ` Data que eu gostaria: ${desiredLabel}.`;
     window.open(getWhatsAppLink(activeWhatsapp ?? professional.telefoneWhatsapp, message), "_blank", "noopener,noreferrer");
   };
 
@@ -708,13 +712,6 @@ export default function PublicBookingExperience({
                 ) : nextSlots.length === 0 ? (
                   <div style={cardRadiusStyle} className="text-center py-10 text-[var(--theme-muted-text)] text-sm border border-dashed border-[rgba(128,128,128,0.2)]">
                     <p>Nenhum horário disponível nos próximos dias.</p>
-                    <button
-                      type="button"
-                      onClick={handleRequestOtherTimes}
-                      className={`mt-4 py-3 px-4 border border-[rgba(255,255,255,0.15)] text-[var(--theme-text)] text-sm font-semibold hover:bg-[rgba(255,255,255,0.05)] transition-all ${btnRadiusClass}`}
-                    >
-                      Pedir outras opções de horário
-                    </button>
                   </div>
                 ) : (
                   <div className="space-y-3 pt-1">
@@ -752,14 +749,6 @@ export default function PublicBookingExperience({
                         Ver mais dias
                       </button>
                     )}
-                    <p className="text-[11px] text-[var(--theme-muted-text)]">Nenhum desses horários serve para você?</p>
-                    <button
-                      type="button"
-                      onClick={handleRequestOtherTimes}
-                      className={`w-full py-3 px-4 border border-[rgba(255,255,255,0.15)] text-[var(--theme-text)] text-sm font-semibold hover:bg-[rgba(255,255,255,0.05)] transition-all ${btnRadiusClass}`}
-                    >
-                      Pedir outras opções de horário
-                    </button>
                   </div>
                 )}
                 </>
@@ -876,6 +865,27 @@ export default function PublicBookingExperience({
                   </div>
                 )}
                 </>
+                )}
+                {!previewMode && (
+                  <div style={cardRadiusStyle} className="border border-[rgba(255,255,255,0.1)] bg-[var(--theme-surface)]/20 p-4 space-y-3">
+                    <p className="text-xs font-semibold text-[var(--theme-text)]">Não encontrou o dia ou horário que queria?</p>
+                    <p className="text-[11px] text-[var(--theme-muted-text)]">Informe a data desejada e peça outras opções pelo WhatsApp.</p>
+                    <input
+                      type="date"
+                      min={todaySP}
+                      value={desiredDate}
+                      onChange={(e) => setDesiredDate(e.target.value)}
+                      aria-label="Data desejada"
+                      className="w-full px-3 py-2.5 rounded-xl bg-[var(--theme-surface)]/60 border border-[rgba(255,255,255,0.1)] text-sm text-[var(--theme-text)]"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleRequestOtherTimes}
+                      className={`w-full py-3 px-4 border border-[rgba(255,255,255,0.15)] text-[var(--theme-text)] text-sm font-semibold hover:bg-[rgba(255,255,255,0.05)] transition-all ${btnRadiusClass}`}
+                    >
+                      Pedir outras opções de horário
+                    </button>
+                  </div>
                 )}
                 <div className="flex gap-3 pt-4">
                   <button onClick={handlePrevStep} className={`flex-1 py-3.5 bg-[var(--theme-surface)] hover:opacity-90 text-[var(--theme-text)] border border-[rgba(128,128,128,0.2)] font-semibold text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-1.5 ${btnRadiusClass}`}>
