@@ -72,6 +72,23 @@ export default function DashboardHome() {
     const timer = setInterval(run, 180_000);
     return () => clearInterval(timer);
   }, [user]);
+  // Completa o valor de agendamentos antigos sem valorTotal (uma vez por sessão do navegador)
+  useEffect(() => {
+    if (!user) return;
+    try { if (sessionStorage.getItem("retoria_backfill_values")) return; } catch {}
+    (async () => {
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch(`/api/professionals/${user.uid}/backfill-values`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) { try { sessionStorage.setItem("retoria_backfill_values", "1"); } catch {} }
+      } catch {
+        // silencioso
+      }
+    })();
+  }, [user]);
   const { showConfirmationModal } = useAppModal();
 
   const [teamMembers, setTeamMembers] = useState<TeamMemberTab[]>([]);
