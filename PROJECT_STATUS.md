@@ -15,7 +15,7 @@ Este arquivo serve como referência rápida para o status atual e progresso do d
 
 * **Next.js Build**: **Aprovado** (`npm run build` executado com sucesso em 26/06/2026).
 * **Testes de Temas**: **Aprovado** (`npm run test:themes` — 13/13).
-* **Testes de Regras (Firebase)**: **Aprovado** (`npm run test:rules` — 73/73, inclui 20 testes de segurança adicionados em 26/06/2026).
+* **Testes de Regras (Firebase)**: **Aprovado** (`npm run test:rules` — 81/81 em 21/10/2026; inclui testes de slotBookings e customerNotes). Mudanças de 21/10 estão commitadas localmente, sem push nem deploy; ver `docs/PROJECT_CONTROL.md` (F15–F18).
 * **Deploy**: Aguardando revisão (nenhum deploy executado desde a auditoria de segurança).
 * **Homologação pós-deploy**: **Não testada** (pendente de execução de jornadas críticas).
 * **Gate Atual**: Gate A: GO | Gate B: **NO-GO** (Security Gate pendente)

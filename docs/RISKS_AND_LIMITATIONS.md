@@ -11,3 +11,8 @@ Este documento apresenta a análise de riscos técnicos e limitações funcionai
   * **Mitigação**: Implementação de regra rígida de validação que remove imagens que não estejam hospedadas no próprio Firebase Storage do Retoria ou pasta `/` local.
 * **Bloqueio de Execução de Testes de Regras**: O emulador do Firebase necessita de um ambiente JDK 21+ instalado na máquina de desenvolvimento para validação automatizada de regras locais. A ausência de Java compatível no ambiente local atrasa a homologação de segurança em tempo de desenvolvimento.
   * **Mitigação**: Planejar a migração ou instalação do JDK 21+ ou delegar a execução de `npm run test:rules` a uma esteira de integração contínua (CI).
+
+## Riscos adicionados em 2026-10-21
+* **Regras e app precisam subir juntos**: as notas do cliente dependem da regra `customerNotes`; sem publicar as regras, salvar notas falha com permissão negada.
+* **Google Agenda**: eventos criados direto no Google bloqueiam a página pública, mas não aparecem no painel; refresh token de app OAuth em modo Teste expira e exige reconexão.
+* **Rotas novas sem teste automatizado**: editar, criar manual, cancelar e bloquear horário só têm verificação por build e leitura; exigem homologação manual.

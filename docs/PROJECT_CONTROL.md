@@ -49,6 +49,10 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 | F11 | Firestore Rules | Segurança do Firestore | Testado | Sim | 53/53 aprovados | Sim | Sim | `firestore.rules`, `npm run test:rules — 53/53 com Microsoft OpenJDK 21.0.11` | Nenhum | Manter |
 | F12 | Storage Rules | Segurança do Storage | Testado | Sim | Sim | Sim | Sim | `storage.rules`, `scripts/test-rules.mjs` | Nenhum | Manter |
 | F13 | Deploy | Deploy automático | Implementado | Sim | `npm run build` | Não testada | Publicado | Vercel Git integration, commit `b2aea7e` | Nenhum | Homologação pós-deploy |
+| F15 | Agenda | Edição e criação manual de agendamento via Admin SDK (slotBookings, valorTotal) | Implementado | Sim | Build; sem teste automatizado das rotas | Não testada | Não | `leads/route.ts`, `leads/[leadId]/edit/route.ts`, commit `99bcaeb` | Deploy + teste manual | Homologar editar/criar no painel |
+| F16 | Agenda | Lixeira cancela e libera horário; reativação direta de Cancelado/Perdido bloqueada | Implementado | Sim | Build | Não testada | Não | `dashboard/page.tsx`, `status/route.ts`, commit `2369dd8` | Deploy + teste manual | Homologar |
+| F17 | Agenda | Bloquear/reativar horário livre (campo `bloqueadoManual`) | Implementado | Sim | Build | Não testada | Não | `dashboard/slots/page.tsx`, commit `f597dca` | Deploy + teste manual | Homologar |
+| F18 | Clientes | Notas privadas do cliente (`customerNotes`) | Testado (regras) / Implementado (UI) | Sim | `test:rules` 81/81 | Não testada | Não | `firestore.rules`, `clientes/page.tsx`, commit `a78228a` | Deploy das regras do Firestore | Publicar regras e homologar |
 | F14 | Organizações | Controle multi-provider/equipes | Planejado | Não | Não | Não | Não | Roadmap apenas | Suspenso | Não implementar nesta etapa |
 
 ---
@@ -98,3 +102,16 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **Gate**: Gate A: GO, Gate B: NO-GO
 * **Bloqueadores**: Homologação pós-deploy das jornadas críticas ainda não executada.
 * **Próxima ação**: Executar homologação pós-deploy controlada do MVP Individual e registrar evidências no PROJECT_CONTROL.md.
+
+## Verificação 2026-10-21
+
+* **Branch**: main (4 commits locais à frente de origin/main, sem push)
+* **Commits**: `99bcaeb`, `2369dd8`, `f597dca`, `a78228a`
+* **Build**: Aprovado (`npm run build`)
+* **Testes de temas**: Aprovado (13/13)
+* **Testes de regras**: Aprovado (81/81, inclui 5 testes novos: escrita em slotBookings negada e 4 de customerNotes)
+* **Teste manual**: Não executado (rotas e telas novas sem teste no painel)
+* **Deploy**: Não realizado. As regras do Firestore (customerNotes) precisam ser publicadas junto com o app.
+* **Divergência**: docs citavam 53/53 e 73/73 em test:rules e não listavam Google Agenda, Clientes e Lembretes.
+* **Pendências investigadas, não implementadas**: Google Agenda (sincronização é app→Google e bloqueio de horários públicos; eventos criados direto no Google não aparecem na agenda do painel; token em modo Teste do OAuth pode expirar), data/horário desejado na página pública.
+* **Próxima ação**: deploy controlado (app + regras), homologação manual e decisão sobre Google e data desejada.
