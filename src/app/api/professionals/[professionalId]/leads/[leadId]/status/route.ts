@@ -88,6 +88,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         throw Object.assign(new Error("lead-wrong-owner"), { httpStatus: 403 });
       }
 
+      // Cancelado/Perdido já liberaram os slots; reativar por aqui deixaria o agendamento
+      // sem horário reservado. A reativação deve passar pela edição, que reserva os slots.
+      const INACTIVE = ["Cancelado", "Perdido"];
+      if (INACTIVE.includes(leadData.status) && !INACTIVE.includes(newStatus)) {
+        throw Object.assign(new Error("reactivate-blocked"), { httpStatus: 409 });
+      }
+
       // ── Todos os READs antes de qualquer WRITE ──────────────────────────────
       const customerUid: string | undefined = leadData.customerUid;
       let indexSnap: any = null;
@@ -118,6 +125,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const msg =
       err.message === "lead-not-found" ? "Agendamento não encontrado." :
       err.message === "lead-wrong-owner" ? "Acesso negado." :
+      err.message === "reactivate-blocked" ? "Este agendamento foi cancelado e seu horário liberado. Para reativá-lo, use Editar agendamento na Agenda e escolha um horário." :
       "Erro interno ao atualizar status.";
     if (httpStatus === 500) console.error("[lead-status]", err);
     return NextResponse.json({ error: msg }, { status: httpStatus });

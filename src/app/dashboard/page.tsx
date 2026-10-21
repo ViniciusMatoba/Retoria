@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { collection, query, orderBy, onSnapshot, getDocs, doc, deleteDoc, where, limit } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, getDocs, doc, where, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "../providers";
 import { formatPhoneFriendly, getWhatsAppLink } from "@/lib/whatsapp";
@@ -254,18 +254,18 @@ export default function DashboardHome() {
     }
   };
 
-  // ── Delete ─────────────────────────────────────────────────────────────────
+  // ── Cancelar (lixeira) ─────────────────────────────────────────────────────
+  // Não apaga o lead: marca como Cancelado e libera o horário, preservando o histórico do cliente.
   const handleDeleteLead = (lead: Lead) => {
     if (!user) return;
-    const profId = lead.professionalId || user.uid;
     showConfirmationModal({
-      title: "Excluir contato",
-      description: `Deseja realmente excluir "${lead.nome}"? Esta ação não pode ser desfeita.`,
-      confirmLabel: "Excluir",
-      cancelLabel: "Cancelar",
+      title: "Cancelar agendamento",
+      description: `Deseja cancelar o agendamento de "${lead.nome}" e liberar o horário? O histórico do cliente será mantido.`,
+      confirmLabel: "Cancelar agendamento",
+      cancelLabel: "Voltar",
       variant: "danger",
       onConfirm: async () => {
-        await deleteDoc(doc(db, "professionals", profId, "leads", lead.id));
+        await handleUpdateStatus(lead, "Cancelado");
       },
     });
   };
@@ -729,7 +729,7 @@ export default function DashboardHome() {
                           <button
                             onClick={() => handleDeleteLead(lead)}
                             className="p-2 bg-slate-900 hover:bg-red-500/10 text-slate-500 hover:text-red-400 rounded-lg border border-slate-800/80 hover:border-red-500/20 transition-all opacity-40 group-hover:opacity-100"
-                            title="Excluir Lead"
+                            title="Cancelar agendamento e liberar horário"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>

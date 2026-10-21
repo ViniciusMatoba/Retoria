@@ -83,7 +83,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const newStart = timeToMinutes(horarioEscolhido);
   const newEnd = newStart + duration;
   const newHorarioFim = minutesToTime(newEnd);
-  const willBeInactive = status === "Cancelado";
+  const willBeInactive = status === "Cancelado" || status === "Perdido";
 
   try {
     await dbAdmin.runTransaction(async (tx: any) => {
