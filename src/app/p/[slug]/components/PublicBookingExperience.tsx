@@ -867,21 +867,22 @@ export default function PublicBookingExperience({
                 </>
                 )}
                 {!previewMode && (
-                  <div style={cardRadiusStyle} className="border border-[rgba(255,255,255,0.1)] bg-[var(--theme-surface)]/20 p-4 space-y-3">
-                    <p className="text-xs font-semibold text-[var(--theme-text)]">Não encontrou o dia ou horário que queria?</p>
-                    <p className="text-[11px] text-[var(--theme-muted-text)]">Informe a data desejada e peça outras opções pelo WhatsApp.</p>
+                  <div style={cardRadiusStyle} className="border border-[rgba(128,128,128,0.35)] bg-[var(--theme-surface)] p-4 space-y-3">
+                    <p className="text-sm font-bold text-[var(--theme-text)]">Não encontrou o dia ou horário que queria?</p>
+                    <p className="text-xs text-[var(--theme-text)] opacity-75">Informe a data desejada e peça outras opções pelo WhatsApp.</p>
                     <input
                       type="date"
                       min={todaySP}
                       value={desiredDate}
                       onChange={(e) => setDesiredDate(e.target.value)}
                       aria-label="Data desejada"
-                      className="w-full px-3 py-2.5 rounded-xl bg-[var(--theme-surface)]/60 border border-[rgba(255,255,255,0.1)] text-sm text-[var(--theme-text)]"
+                      className="w-full px-3 py-2.5 rounded-xl bg-[var(--theme-surface)] border border-[rgba(128,128,128,0.45)] text-sm text-[var(--theme-text)]"
                     />
                     <button
                       type="button"
                       onClick={handleRequestOtherTimes}
-                      className={`w-full py-3 px-4 border border-[rgba(255,255,255,0.15)] text-[var(--theme-text)] text-sm font-semibold hover:bg-[rgba(255,255,255,0.05)] transition-all ${btnRadiusClass}`}
+                      style={{ backgroundColor: theme.primaryColor, color: getBestTextColor(theme.primaryColor), fontFamily: "var(--theme-body-font)" }}
+                      className={`w-full py-3 px-4 text-sm font-semibold shadow-md hover:brightness-110 active:scale-[0.98] transition-all ${btnRadiusClass}`}
                     >
                       Pedir outras opções de horário
                     </button>
