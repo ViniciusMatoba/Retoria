@@ -1114,7 +1114,7 @@ export default function SlotsPage() {
         if (!snap.exists()) throw new Error("slot-missing");
         const cur = snap.data();
         if (block && !cur.disponivel) throw new Error("slot-taken");
-        if (!block && !cur.bloqueadoManual) throw new Error("not-blocked");
+        if (!block && cur.disponivel) throw new Error("not-blocked");
         tx.update(docRef, {
           disponivel: !block,
           bloqueadoManual: block,
@@ -1126,7 +1126,7 @@ export default function SlotsPage() {
       console.error("Error toggling slot:", err);
       setError(
         err.message === "slot-taken" ? "Este horário acabou de ser reservado e não pode ser bloqueado." :
-        err.message === "not-blocked" ? "Este horário não está bloqueado manualmente." :
+        err.message === "not-blocked" ? "Este horário já está livre." :
         "Erro ao alterar o horário."
       );
       setSlotMenuId(null);
@@ -1685,34 +1685,17 @@ export default function SlotsPage() {
                     const expired = isSlotExpired(slot.horario);
                     const isOrphanBlocked = !slot.disponivel && !slot.bloqueadoManual && !lead && !isContinuation;
 
-              if (slot.bloqueadoManual && !slot.disponivel && !lead && !isContinuation) {
-                const open = slotMenuId === slot.id;
-                return (
-                  <div
-                    key={slot.id}
-                    onClick={() => setSlotMenuId(open ? null : slot.id)}
-                    className="p-4 bg-slate-950/40 border border-rose-500/20 rounded-2xl text-xs cursor-pointer"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <span className="font-mono text-slate-400 text-sm font-bold">{slot.horario}</span>
-                        <span className="text-[10px] text-slate-500 font-medium">Horário bloqueado</span>
-                      </div>
-                      <span className="text-[10px] text-rose-400 uppercase tracking-wider font-extrabold">Bloqueado</span>
-                    </div>
-                    {open && (
-                      <button
-                        type="button"
-                        disabled={slotActionId === slot.id}
-                        onClick={(e) => { e.stopPropagation(); handleToggleSlot(slot, false); }}
-                        className="mt-3 w-full py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-bold text-xs disabled:opacity-50"
-                      >
-                        {slotActionId === slot.id ? "Reativando..." : "Reativar horário"}
-                      </button>
-                    )}
-                  </div>
-                );
-              }
+                    if (slot.bloqueadoManual && !slot.disponivel && !lead && !isContinuation) {
+                      return (
+                        <div
+                          key={slot.id}
+                          className="p-2.5 rounded-xl border bg-slate-950/30 border-rose-500/20 flex items-center justify-between text-[11px]"
+                        >
+                          <span className="font-mono text-slate-400">{slot.horario}</span>
+                          <span className="text-[9px] text-rose-400 uppercase tracking-wider font-extrabold">Bloqueado</span>
+                        </div>
+                      );
+                    }
 
                     if (isOrphanBlocked) {
                       return (
@@ -1884,19 +1867,62 @@ export default function SlotsPage() {
               const expired = isPastDateTimeSaoPaulo(dateStr, slot.horario);
 
               // Slot bloqueado mas lead está cancelado/perdido (cleanup ainda não rodou)
-              const isOrphanBlocked = !slot.disponivel && !lead && !isContinuation;
+              const isOrphanBlocked = !slot.disponivel && !slot.bloqueadoManual && !lead && !isContinuation;
 
-              if (isOrphanBlocked) {
+              if (slot.bloqueadoManual && !slot.disponivel && !lead && !isContinuation) {
+                const open = slotMenuId === slot.id;
                 return (
                   <div
                     key={slot.id}
-                    className="p-4 bg-slate-950/20 border border-slate-800/30 rounded-2xl flex items-center justify-between text-xs opacity-50"
+                    onClick={() => setSlotMenuId(open ? null : slot.id)}
+                    className="p-4 bg-slate-950/40 border border-rose-500/20 rounded-2xl text-xs cursor-pointer"
                   >
-                    <div className="flex items-center gap-4">
-                      <span className="font-mono text-slate-400 text-sm">{slot.horario}</span>
-                      <span className="text-[10px] text-slate-500 font-medium">Horário livre</span>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <span className="font-mono text-slate-400 text-sm font-bold">{slot.horario}</span>
+                        <span className="text-[10px] text-slate-500 font-medium">Horário bloqueado</span>
+                      </div>
+                      <span className="text-[10px] text-rose-400 uppercase tracking-wider font-extrabold">Bloqueado</span>
                     </div>
-                    <span className="text-[10px] text-emerald-500/60 uppercase tracking-wider font-bold">Disponível</span>
+                    {open && (
+                      <button
+                        type="button"
+                        disabled={slotActionId === slot.id}
+                        onClick={(e) => { e.stopPropagation(); handleToggleSlot(slot, false); }}
+                        className="mt-3 w-full py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-bold text-xs disabled:opacity-50"
+                      >
+                        {slotActionId === slot.id ? "Reativando..." : "Reativar horário"}
+                      </button>
+                    )}
+                  </div>
+                );
+              }
+
+              if (isOrphanBlocked) {
+                const open = slotMenuId === slot.id;
+                return (
+                  <div
+                    key={slot.id}
+                    onClick={() => setSlotMenuId(open ? null : slot.id)}
+                    className="p-4 bg-slate-950/20 border border-slate-800/30 rounded-2xl text-xs cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between opacity-60">
+                      <div className="flex items-center gap-4">
+                        <span className="font-mono text-slate-400 text-sm">{slot.horario}</span>
+                        <span className="text-[10px] text-slate-500 font-medium">Horário indisponível</span>
+                      </div>
+                      <span className="text-[10px] text-rose-400 uppercase tracking-wider font-bold">Bloqueado</span>
+                    </div>
+                    {open && (
+                      <button
+                        type="button"
+                        disabled={slotActionId === slot.id}
+                        onClick={(e) => { e.stopPropagation(); handleToggleSlot(slot, false); }}
+                        className="mt-3 w-full py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-bold text-xs disabled:opacity-50"
+                      >
+                        {slotActionId === slot.id ? "Liberando..." : "Liberar horário"}
+                      </button>
+                    )}
                   </div>
                 );
               }
