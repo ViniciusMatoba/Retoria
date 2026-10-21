@@ -53,6 +53,10 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 | F16 | Agenda | Lixeira cancela e libera horário; reativação direta de Cancelado/Perdido bloqueada | Implementado | Sim | Build | Não testada | Não | `dashboard/page.tsx`, `status/route.ts`, commit `2369dd8` | Deploy + teste manual | Homologar |
 | F17 | Agenda | Bloquear/reativar horário livre (campo `bloqueadoManual`) | Implementado | Sim | Build | Não testada | Não | `dashboard/slots/page.tsx`, commit `f597dca` | Deploy + teste manual | Homologar |
 | F18 | Clientes | Notas privadas do cliente (`customerNotes`) | Testado (regras) / Implementado (UI) | Sim | `test:rules` 81/81 | Não testada | Não | `firestore.rules`, `clientes/page.tsx`, commit `a78228a` | Deploy das regras do Firestore | Publicar regras e homologar |
+| F19 | Agenda | Ações no cartão (status, Conversar, Reagendar, Cancelar) e Mover por toque/arrastar na visão diária | Implementado | Sim | Build | Não testada | Não | `LeadCardActions.tsx`, `dashboard/slots/page.tsx`, commit `75826cb` | Teste manual (arrastar só funciona com mouse; no celular usar Mover) | Homologar |
+| F20 | Agenda | Aba Agenda Atual primeiro/padrão; métricas e card Google no fim; aviso de reconexão no topo | Implementado | Sim | Build | Não testada | Não | `dashboard/slots/page.tsx`, commit `75826cb` | Teste manual | Homologar |
+| F21 | Página Pública | Data desejada na mensagem de "Pedir outras opções de horário" | Implementado | Sim | Build | Não testada | Não | `PublicBookingExperience.tsx`, commit `d13e7cc` | Teste manual | Homologar |
+| F22 | Financeiro | Preenchimento de valorTotal em agendamentos antigos (rota backfill-values) | Implementado | Sim | Build | Não testada | Não | `backfill-values/route.ts`, commit `aad1c9c` | Teste manual; usa preço atual do serviço | Homologar |
 | F14 | Organizações | Controle multi-provider/equipes | Planejado | Não | Não | Não | Não | Roadmap apenas | Suspenso | Não implementar nesta etapa |
 
 ---
@@ -115,3 +119,10 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **Divergência**: docs citavam 53/53 e 73/73 em test:rules e não listavam Google Agenda, Clientes e Lembretes.
 * **Pendências investigadas, não implementadas**: Google Agenda (sincronização é app→Google e bloqueio de horários públicos; eventos criados direto no Google não aparecem na agenda do painel; token em modo Teste do OAuth pode expirar), data/horário desejado na página pública.
 * **Próxima ação**: deploy controlado (app + regras), homologação manual e decisão sobre Google e data desejada.
+
+## Verificação 2026-10-21 (2)
+
+* **Commits locais (sem push)**: `75826cb`, `d13e7cc`, `aad1c9c`
+* **Build**: Aprovado. Regras do Firestore inalteradas nesta rodada.
+* **Teste manual**: Não executado.
+* **Riscos**: arrastar e soltar não funciona em toque (mitigado com o botão Mover); backfill usa o preço atual do serviço, não o da data do atendimento, e marca `valorOrigem`.
