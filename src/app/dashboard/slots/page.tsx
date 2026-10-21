@@ -1244,75 +1244,32 @@ export default function SlotsPage() {
       return;
     }
 
-    // Filter overlapping slots to update them
-    const targetSlots = slots.filter(s => 
-      s.data === bookingData && 
-      timeToMinutes(s.horario) >= startMinutes && 
-      timeToMinutes(s.horario) < endMinutes
-    );
-
-    if (targetSlots.length === 0) {
-      setBookingError("O horário de início selecionado não está cadastrado na agenda.");
-      return;
-    }
-
     setActionLoading(true);
-    let createdLeadId = "";
 
     try {
-      await runTransaction(db, async (transaction) => {
-        // 1. Fetch and verify slot availability inside transaction
-        const slotRefs = [];
-        for (const slot of targetSlots) {
-          const slotRef = doc(db, "professionals", activeProfId, "availableSlots", slot.id);
-          const docSnap = await transaction.get(slotRef);
-          if (!docSnap.exists()) {
-            throw new Error(`O horário ${slot.horario} não foi encontrado.`);
-          }
-          if (!docSnap.data().disponivel) {
-            throw new Error(`O horário ${slot.horario} já está ocupado ou reservado.`);
-          }
-          slotRefs.push(slotRef);
-        }
-
-        // 2. Prepare Lead document payload
-        const leadsRef = collection(db, "professionals", activeProfId, "leads");
-        const newLeadRef = doc(leadsRef);
-        createdLeadId = newLeadRef.id;
-        const service = services.find(s => s.id === bookingServicoId);
-
-        const leadPayload = {
-          professionalId: activeProfId,
+      const token = await user.getIdToken();
+      const service = services.find(s => s.id === bookingServicoId);
+      const res = await fetch(`/api/professionals/${activeProfId}/leads`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
           nome: trimmedNome,
           telefone: formattedPhone,
-          servicoEscolhido: service?.nome || "",
           serviceId: bookingServicoId,
+          servicoEscolhido: service?.nome || "",
           dataEscolhida: bookingData,
           horarioEscolhido: bookingHorario,
           observacao: bookingObservacao.trim(),
-          status: "Agendado",
           origem: bookingOrigem,
           duracaoServicoPadrao: service?.duracaoEstimada || "",
           duracaoAgendamento: duration,
-          horarioInicio: bookingHorario,
-          horarioFim: addMinutesToTime(bookingHorario, duration),
-          createdAt: new Date(),
-          updatedAt: new Date()
-        };
-
-        // 3. Write Lead
-        transaction.set(newLeadRef, leadPayload);
-
-        // 4. Mark slots as unavailable
-        for (const ref of slotRefs) {
-          transaction.update(ref, {
-            disponivel: false,
-            updatedAt: new Date()
-          });
-        }
+        }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Erro ao salvar agendamento.");
+      }
 
-      if (createdLeadId) await syncLeadToCalendar(createdLeadId);
       setSuccess("Agendamento manual cadastrado com sucesso!");
       setShowBookingModal(false);
     } catch (err: any) {
@@ -1395,95 +1352,12 @@ export default function SlotsPage() {
     setActionLoading(true);
 
     try {
-      await runTransaction(db, async (transaction) => {
-        const leadDocRef = doc(db, "professionals", activeProfId, "leads", editingLead.id);
-        const service = services.find(s => s.id === editServicoId);
-
-        // 1. Fetch old slots via private index (SEC-005 — bookingId not in slot docs)
-        const slotsRef = collection(db, "professionals", activeProfId, "availableSlots");
-        const slotBookingsRef = doc(db, "professionals", activeProfId, "slotBookings", editingLead.id);
-        const slotBookingsSnap = await getDoc(slotBookingsRef);
-        const oldSlotIds: string[] = slotBookingsSnap.exists()
-          ? (slotBookingsSnap.data()?.slotIds ?? [])
-          : [];
-        const oldSlotsSnaps = await Promise.all(
-          oldSlotIds.map(id => getDoc(doc(db, "professionals", activeProfId, "availableSlots", id)))
-        );
-
-        const willBeInactive = editStatus === "Cancelado";
-        let newOverlappingRefs: any[] = [];
-
-        // 2. If it will be active, verify new slot availability
-        if (!willBeInactive) {
-          const newSlotsSnap = await getDocs(query(slotsRef, where("data", "==", editData)));
-          const allNewSlots = newSlotsSnap.docs.map(d => ({
-            ref: d.ref,
-            id: d.id,
-            ...d.data()
-          })) as any[];
-
-          const overlapping = allNewSlots.filter(s => {
-            const slotInicio = timeToMinutes(s.horario);
-            const slotFim = slotInicio + slotDuration;
-            return slotInicio < newEnd && slotFim > newStart;
-          });
-
-          overlapping.sort((a, b) => timeToMinutes(a.horario) - timeToMinutes(b.horario));
-
-          // Validate coverage
-          let isCovered = false;
-          if (overlapping.length > 0) {
-            const firstStart = timeToMinutes(overlapping[0].horario);
-            const lastEnd = timeToMinutes(overlapping[overlapping.length - 1].horario) + slotDuration;
-
-            if (firstStart <= newStart && lastEnd >= newEnd) {
-              let hasGap = false;
-              for (let i = 0; i < overlapping.length - 1; i++) {
-                const curEnd = timeToMinutes(overlapping[i].horario) + slotDuration;
-                const nextStart = timeToMinutes(overlapping[i+1].horario);
-                if (curEnd < nextStart) {
-                  hasGap = true;
-                  break;
-                }
-              }
-              if (!hasGap) isCovered = true;
-            }
-          }
-
-          if (!isCovered) {
-            throw new Error("slot-not-found");
-          }
-
-          // Check if any slot is booked by another booking (SEC-005 — use index, not bookingId field)
-          const oldSlotIdSet = new Set(oldSlotIds);
-          const isOccupiedByOther = overlapping.some(s => !s.disponivel && !oldSlotIdSet.has(s.id));
-          if (isOccupiedByOther) {
-            throw new Error("slot-already-booked");
-          }
-
-          newOverlappingRefs = overlapping.map(s => ({ ref: s.ref, id: s.id }));
-        }
-
-        // Release old slots — SEC-005: sem bookingId no slot
-        oldSlotsSnaps.forEach(snap => {
-          if (snap.exists()) {
-            transaction.update(snap.ref, { disponivel: true, updatedAt: new Date() });
-          }
-        });
-
-        // Reserve new slots — SEC-005: sem bookingId no slot
-        if (!willBeInactive) {
-          newOverlappingRefs.forEach((s) => {
-            transaction.update(s.ref, { disponivel: false, updatedAt: new Date() });
-          });
-        }
-
-        // Update slotBookings index
-        const newSlotIds = willBeInactive ? [] : newOverlappingRefs.map((s: any) => s.id);
-        transaction.set(slotBookingsRef, { slotIds: newSlotIds, updatedAt: new Date() });
-
-        // Update lead payload
-        transaction.update(leadDocRef, {
+      const token = await user.getIdToken();
+      const service = services.find(s => s.id === editServicoId);
+      const res = await fetch(`/api/professionals/${activeProfId}/leads/${editingLead.id}/edit`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
           nome: trimmedNome,
           telefone: formattedPhone,
           serviceId: editServicoId,
@@ -1493,24 +1367,18 @@ export default function SlotsPage() {
           origem: editOrigem,
           status: editStatus,
           duracaoAgendamento: duration,
-          horarioInicio: editHorario,
-          horarioFim: newHorarioFim,
-          updatedAt: new Date()
-        });
+        }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Erro ao salvar alterações.");
+      }
 
-      await syncLeadToCalendar(editingLead.id);
       setSuccess("Agendamento atualizado com sucesso!");
       setShowEditModal(false);
     } catch (err: any) {
       console.error(err);
-      if (err.message === "slot-not-found") {
-        setEditError("Um ou mais horários necessários não estão disponíveis na agenda.");
-      } else if (err.message === "slot-already-booked") {
-        setEditError("Desculpe, este período já está ocupado por outro cliente.");
-      } else {
-        setEditError("Erro ao salvar alterações: " + err.message);
-      }
+      setEditError(err.message || "Erro ao salvar alterações.");
     } finally {
       setActionLoading(false);
     }

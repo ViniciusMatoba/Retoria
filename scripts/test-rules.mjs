@@ -589,6 +589,13 @@ async function main() {
     );
   });
 
+  await test("SEC-005: profissional dono NÃO escreve em slotBookings (só Admin SDK)", async () => {
+    const ctx = testEnv.authenticatedContext(PROF_UID);
+    await assertFails(
+      setDoc(doc(ctx.firestore(), "professionals", PROF_UID, "slotBookings", LEAD_ID), { slotIds: [] })
+    );
+  });
+
   // ── SEC-007: isolamento de leads entre profissionais ──────────────────────
   console.log("\n[SEC-007] leads — isolamento entre profissionais");
 
