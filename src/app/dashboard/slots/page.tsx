@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import GoogleCalendarIntegration from "../components/GoogleCalendarIntegration";
+import LeadCardActions from "../components/LeadCardActions";
 import {
   collection,
   query,
@@ -224,7 +225,7 @@ export default function SlotsPage() {
   const [activeProfId, setActiveProfId] = useState<string>("");
 
   // Navigation Tabs
-  const [activeTab, setActiveTab] = useState<"smart" | "manual" | "agenda">("smart");
+  const [activeTab, setActiveTab] = useState<"smart" | "manual" | "agenda">("agenda");
   
   // Result / Message States
   const [error, setError] = useState("");
@@ -305,6 +306,9 @@ export default function SlotsPage() {
   const [editData, setEditData] = useState("");
   const [editHorario, setEditHorario] = useState("");
   const [editOrigem, setEditOrigem] = useState("whatsapp");
+  const [movingLead, setMovingLead] = useState<any | null>(null);
+  const [dragLeadId, setDragLeadId] = useState<string | null>(null);
+  const [googleNeedsReconnect, setGoogleNeedsReconnect] = useState(false);
   const [slotMenuId, setSlotMenuId] = useState<string | null>(null);
   const [slotActionId, setSlotActionId] = useState<string | null>(null);
   const [editStatus, setEditStatus] = useState("Agendado");
@@ -1131,6 +1135,49 @@ export default function SlotsPage() {
     }
   };
 
+  // Aviso no topo quando o Google Agenda precisa ser reconectado (o cartão de integração fica no fim da página)
+  useEffect(() => {
+    if (!user) return;
+    const ref = doc(db, "professionals", user.uid, "integrations", "google");
+    const unsub = onSnapshot(ref, (snap) => {
+      setGoogleNeedsReconnect(snap.exists() && snap.data()?.needsReconnect === true && snap.data()?.connected !== true);
+    }, () => setGoogleNeedsReconnect(false));
+    return () => unsub();
+  }, [user]);
+
+  // Move um agendamento para um horário livre do dia. O servidor valida conflito, cobertura e passado.
+  const handleMoveLeadTo = (lead: any, slot: AvailableSlot) => {
+    setMovingLead(null);
+    setDragLeadId(null);
+    if (!user) return;
+    if (lead.dataEscolhida === slot.data && (lead.horarioInicio || lead.horarioEscolhido) === slot.horario) return;
+    const duration = getLeadDurationInMinutes(lead, services, slotDuration);
+    const fim = addMinutesToTime(slot.horario, duration);
+    showConfirmationModal({
+      title: "Mover agendamento",
+      description: `Mover ${lead.nome} de ${lead.horarioEscolhido} para ${slot.horario} em ${formatDate(slot.data)}? Os horários serão atualizados e o antigo ficará livre.`,
+      confirmLabel: "Mover",
+      cancelLabel: "Voltar",
+      onConfirm: async () => {
+        try {
+          const token = await user.getIdToken();
+          const res = await fetch(`/api/professionals/${activeProfId}/leads/${lead.id}/reschedule`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ dataEscolhida: slot.data, horarioEscolhido: slot.horario, horarioFim: fim }),
+          });
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || "Não foi possível mover o agendamento.");
+          }
+          setSuccess("Agendamento movido com sucesso!");
+        } catch (e: any) {
+          setError(e.message || "Não foi possível mover o agendamento.");
+        }
+      },
+    });
+  };
+
   const handleDeleteSlot = (slotId: string) => {
     if (!user) return;
     showConfirmationModal({
@@ -1782,6 +1829,12 @@ export default function SlotsPage() {
 
     return (
       <div className="space-y-6">
+        {movingLead && (
+          <div className="sticky top-2 z-10 flex items-center justify-between gap-3 rounded-2xl border border-indigo-500/40 bg-indigo-950/90 px-4 py-3 text-xs text-indigo-100 backdrop-blur">
+            <span>Toque em um <strong>horário livre</strong> para mover <strong>{movingLead.nome}</strong>.</span>
+            <button type="button" onClick={() => setMovingLead(null)} className="shrink-0 rounded-lg border border-indigo-400/40 px-3 py-1.5 font-semibold">Cancelar</button>
+          </div>
+        )}
         <div className="border-b border-slate-800 pb-3 flex justify-between items-center">
           <div>
             <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-400">Visão Diária</h4>
@@ -1869,8 +1922,17 @@ export default function SlotsPage() {
                 return (
                   <div
                     key={slot.id}
-                    onClick={() => setSlotMenuId(open ? null : slot.id)}
-                    className="p-4 bg-slate-900 border border-slate-850 rounded-2xl text-xs font-bold cursor-pointer"
+                    onClick={() => {
+                      if (movingLead) handleMoveLeadTo(movingLead, slot);
+                      else setSlotMenuId(open ? null : slot.id);
+                    }}
+                    onDragOver={(e) => { if (dragLeadId) e.preventDefault(); }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const dragged = leads.find((l) => l.id === (dragLeadId || e.dataTransfer.getData("text/plain")));
+                      if (dragged) handleMoveLeadTo(dragged, slot);
+                    }}
+                    className={`p-4 bg-slate-900 border rounded-2xl text-xs font-bold cursor-pointer ${movingLead || dragLeadId ? "border-indigo-500/60 ring-1 ring-indigo-500/30" : "border-slate-850"}`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
@@ -1884,7 +1946,7 @@ export default function SlotsPage() {
                         {style.label}
                       </span>
                     </div>
-                    {open && (
+                    {open && !movingLead && (
                       <button
                         type="button"
                         disabled={slotActionId === slot.id}
@@ -1904,9 +1966,13 @@ export default function SlotsPage() {
                   <div
                     key={slot.id}
                     onClick={() => handleOpenEditModal(lead)}
-                    className="p-4 rounded-2xl border cursor-pointer hover:brightness-110 transition-all text-xs flex flex-col md:flex-row md:items-center justify-between gap-3 relative overflow-hidden"
+                    draggable={["Novo", "Em contato", "Agendado"].includes(lead.status)}
+                    onDragStart={(e) => { e.dataTransfer.setData("text/plain", lead.id); setDragLeadId(lead.id); }}
+                    onDragEnd={() => setDragLeadId(null)}
+                    className={`p-4 rounded-2xl border cursor-pointer hover:brightness-110 transition-all text-xs flex flex-col relative overflow-hidden ${dragLeadId === lead.id ? "opacity-50" : ""}`}
                     style={{ backgroundColor: style.bg + "15", borderLeft: `4px solid ${style.bg}`, borderColor: style.bg + "30" }}
                   >
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                     <div className="flex items-center gap-4">
                       <span className="text-slate-200 font-mono font-bold text-sm">{slot.horario}</span>
                       <div>
@@ -1929,6 +1995,15 @@ export default function SlotsPage() {
                     <div className="flex items-center gap-3">
                       {lead.telefone && <span className="text-xs text-slate-400 font-mono">Tel: {lead.telefone}</span>}
                     </div>
+                    </div>
+                    <LeadCardActions
+                      lead={lead}
+                      profId={activeProfId}
+                      moving={movingLead?.id === lead.id}
+                      onReschedule={handleOpenEditModal}
+                      onMove={(l) => setMovingLead((prev: any) => (prev?.id === l.id ? null : l))}
+                      onError={(m) => setError(m)}
+                    />
                   </div>
                 );
               }
@@ -2034,18 +2109,18 @@ export default function SlotsPage() {
         </div>
       )}
 
-      {/* Integração Google Calendar — destaque especial */}
-      <div className="relative rounded-3xl overflow-hidden shadow-xl" style={{ background: "linear-gradient(135deg,#1e3a5f 0%,#1e2d5a 60%,#2d1b6e 100%)", border: "2px solid #3b82f6" }}>
-        <div className="flex items-center gap-2 px-5 pt-4 pb-2">
-          <span className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest px-3 py-1 rounded-full" style={{ background: "#2563eb", color: "#fff", boxShadow: "0 0 12px rgba(59,130,246,0.5)" }}>
-            <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
-            Funcionalidade Importante
-          </span>
+      {googleNeedsReconnect && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
+          <span>O Google Agenda foi desconectado e precisa ser reconectado.</span>
+          <button
+            type="button"
+            onClick={() => document.getElementById("google-card")?.scrollIntoView({ behavior: "smooth" })}
+            className="shrink-0 rounded-lg border border-amber-400/40 px-3 py-1.5 font-semibold"
+          >
+            Reconectar
+          </button>
         </div>
-        <div className="px-3 pb-3">
-          <GoogleCalendarIntegration />
-        </div>
-      </div>
+      )}
 
       {error && (
         <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex gap-3 items-center">
@@ -2063,6 +2138,23 @@ export default function SlotsPage() {
 
       {/* Navigation Tabs (Top-level full-width navigation) */}
       <div className="flex bg-slate-900 border border-slate-800 p-1.5 rounded-2xl max-w-xl">
+        <button
+          onClick={() => {
+            setActiveTab("agenda");
+            setError("");
+            setSuccess("");
+          }}
+          className={`
+            flex-1 flex items-center justify-center gap-1.5 py-3 rounded-xl text-xs md:text-sm font-bold transition-all
+            ${activeTab === "agenda" 
+              ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/25" 
+              : "text-slate-400 hover:text-slate-200"
+            }
+          `}
+        >
+          <CalendarIcon className="h-4.5 w-4.5" />
+          <span>Agenda Atual</span>
+        </button>
         <button
           onClick={() => {
             setActiveTab("smart");
@@ -2096,23 +2188,6 @@ export default function SlotsPage() {
         >
           <Sliders className="h-4.5 w-4.5" />
           <span>Horário Avulso</span>
-        </button>
-        <button
-          onClick={() => {
-            setActiveTab("agenda");
-            setError("");
-            setSuccess("");
-          }}
-          className={`
-            flex-1 flex items-center justify-center gap-1.5 py-3 rounded-xl text-xs md:text-sm font-bold transition-all
-            ${activeTab === "agenda" 
-              ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/25" 
-              : "text-slate-400 hover:text-slate-200"
-            }
-          `}
-        >
-          <CalendarIcon className="h-4.5 w-4.5" />
-          <span>Agenda Atual</span>
         </button>
       </div>
 
@@ -2581,28 +2656,6 @@ export default function SlotsPage() {
       {activeTab === "agenda" && (
         <div className="space-y-6 animate-fade-in">
           
-          {/* Metrics summary cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-slate-900/40 border border-slate-800 p-6 rounded-3xl backdrop-blur-sm relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-3 text-emerald-500/10"><Check className="h-16 w-16" /></div>
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Horários Disponíveis (Livres)</span>
-              <h3 className="text-3xl font-black text-emerald-400 mt-2">{totalAvailable}</h3>
-              <p className="text-[11px] text-slate-400 mt-1">Livres para pré-agendamentos.</p>
-            </div>
-            <div className="bg-slate-900/40 border border-slate-800 p-6 rounded-3xl backdrop-blur-sm relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-3 text-amber-500/10"><X className="h-16 w-16" /></div>
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Horários Ocupados / Reservados</span>
-              <h3 className="text-3xl font-black text-amber-500 mt-2">{totalReserved}</h3>
-              <p className="text-[11px] text-slate-400 mt-1">Slots agendados por clientes.</p>
-            </div>
-            <div className="bg-slate-900/40 border border-slate-800 p-6 rounded-3xl backdrop-blur-sm relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-3 text-indigo-500/10"><CalendarIcon className="h-16 w-16" /></div>
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total de Slots na Agenda</span>
-              <h3 className="text-3xl font-black text-indigo-400 mt-2">{slots.length}</h3>
-              <p className="text-[11px] text-slate-400 mt-1">Soma de todos os horários criados.</p>
-            </div>
-          </div>
-
           {/* Calendar Controls & Navigation */}
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-slate-900/40 border border-slate-800 p-5 rounded-3xl backdrop-blur-sm">
             <div className="flex items-center gap-2">
@@ -2708,8 +2761,45 @@ export default function SlotsPage() {
               </div>
             )}
           </div>
+
+          {/* Metrics summary cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-slate-900/40 border border-slate-800 p-6 rounded-3xl backdrop-blur-sm relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-3 text-emerald-500/10"><Check className="h-16 w-16" /></div>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Horários Disponíveis (Livres)</span>
+              <h3 className="text-3xl font-black text-emerald-400 mt-2">{totalAvailable}</h3>
+              <p className="text-[11px] text-slate-400 mt-1">Livres para pré-agendamentos.</p>
+            </div>
+            <div className="bg-slate-900/40 border border-slate-800 p-6 rounded-3xl backdrop-blur-sm relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-3 text-amber-500/10"><X className="h-16 w-16" /></div>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Horários Ocupados / Reservados</span>
+              <h3 className="text-3xl font-black text-amber-500 mt-2">{totalReserved}</h3>
+              <p className="text-[11px] text-slate-400 mt-1">Slots agendados por clientes.</p>
+            </div>
+            <div className="bg-slate-900/40 border border-slate-800 p-6 rounded-3xl backdrop-blur-sm relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-3 text-indigo-500/10"><CalendarIcon className="h-16 w-16" /></div>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total de Slots na Agenda</span>
+              <h3 className="text-3xl font-black text-indigo-400 mt-2">{slots.length}</h3>
+              <p className="text-[11px] text-slate-400 mt-1">Soma de todos os horários criados.</p>
+            </div>
+          </div>
         </div>
       )}
+
+      <div id="google-card">
+      {/* Integração Google Calendar (movida para o fim da página) */}
+      <div className="relative rounded-3xl overflow-hidden shadow-xl" style={{ background: "linear-gradient(135deg,#1e3a5f 0%,#1e2d5a 60%,#2d1b6e 100%)", border: "2px solid #3b82f6" }}>
+        <div className="flex items-center gap-2 px-5 pt-4 pb-2">
+          <span className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest px-3 py-1 rounded-full" style={{ background: "#2563eb", color: "#fff", boxShadow: "0 0 12px rgba(59,130,246,0.5)" }}>
+            <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+            Funcionalidade Importante
+          </span>
+        </div>
+        <div className="px-3 pb-3">
+          <GoogleCalendarIntegration />
+        </div>
+      </div>
+      </div>
 
       {/* MODAL 1: SMART GENERATOR PREVIEW */}
       {showPreview && (
