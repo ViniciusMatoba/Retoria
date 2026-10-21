@@ -65,8 +65,9 @@ export const getStartOfWeekSaoPaulo = (dateStr: string): string => {
 };
 
 // Check if a YYYY-MM-DD and HH:MM time is in the past relative to Sao Paulo current time
-export const isPastDateTimeSaoPaulo = (dateStr: string, timeStr: string): boolean => {
-  const now = new Date();
+// offsetMinutes > 0 antecipa o "agora": o horário só é válido se começar depois de agora + offset.
+export const isPastDateTimeSaoPaulo = (dateStr: string, timeStr: string, offsetMinutes = 0): boolean => {
+  const now = new Date(Date.now() + offsetMinutes * 60_000);
   
   const formatter = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Sao_Paulo",
@@ -91,6 +92,14 @@ export const isPastDateTimeSaoPaulo = (dateStr: string, timeStr: string): boolea
   if (dateStr === todaySP && timeStr < timeSP) return true;
   return false;
 };
+
+// Antecedência mínima para agendamentos feitos pelo cliente (página pública).
+// O profissional não é limitado por ela ao agendar/mover manualmente.
+export const PUBLIC_MIN_LEAD_MINUTES = 120;
+
+// true se o horário já passou OU começa em menos de PUBLIC_MIN_LEAD_MINUTES a partir de agora.
+export const isTooSoonForPublicBooking = (dateStr: string, timeStr: string): boolean =>
+  isPastDateTimeSaoPaulo(dateStr, timeStr, PUBLIC_MIN_LEAD_MINUTES);
 
 // Format YYYY-MM-DD into "Quinta-feira, 25/06/2026"
 export const formatDateFriendlySaoPaulo = (dateStr: string): string => {

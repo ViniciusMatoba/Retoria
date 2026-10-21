@@ -22,7 +22,7 @@ import PublicServiceCard from "./PublicServiceCard";
 import PublicProfessionalHeader from "./PublicProfessionalHeader";
 import { getDefaultThemeConfig, ThemeConfig, getBestTextColor } from "@/lib/themeUtils";
 import { getWhatsAppLink } from "@/lib/whatsapp";
-import { isPastDateTimeSaoPaulo, getSaoPauloToday, timeToMinutes, minutesToTime } from "@/lib/timezone";
+import { isTooSoonForPublicBooking, getSaoPauloToday, timeToMinutes, minutesToTime } from "@/lib/timezone";
 import type { PublicAddress, ServiceLocationType } from "@/lib/contactUtils";
 import { auth } from "@/lib/firebase";
 
@@ -296,7 +296,7 @@ export default function PublicBookingExperience({
   const freeKeys = new Set(slots.map(sl => `${sl.data}|${sl.horario}`));
   const slotsNeeded = Math.max(1, Math.ceil((totalDuracaoMin || slotStepMin) / slotStepMin));
   const localNextSlots = slots
-    .filter(sl => !isPastDateTimeSaoPaulo(sl.data, sl.horario))
+    .filter(sl => !isTooSoonForPublicBooking(sl.data, sl.horario))
     .filter(sl => {
       const start = timeToMinutes(sl.horario);
       for (let i = 1; i < slotsNeeded; i++) {
@@ -366,8 +366,8 @@ export default function PublicBookingExperience({
       setSubmitting(false);
       return;
     }
-    if (isPastDateTimeSaoPaulo(selectedSlot.data, selectedSlot.horario)) {
-      setError("Este horário já passou. Por favor, escolha um horário futuro.");
+    if (isTooSoonForPublicBooking(selectedSlot.data, selectedSlot.horario)) {
+      setError("Este horário exige pelo menos 2 horas de antecedência. Escolha outro horário ou peça outras opções.");
       setSubmitting(false);
       return;
     }
@@ -808,7 +808,7 @@ export default function PublicBookingExperience({
                             
                             const dateKey = `${currentYear}-${(currentMonth + 1).toString().padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
                             const daySlots = groupedSlots[dateKey] || [];
-                            const hasSlots = daySlots.some(slot => !isPastDateTimeSaoPaulo(slot.data, slot.horario));
+                            const hasSlots = daySlots.some(slot => !isTooSoonForPublicBooking(slot.data, slot.horario));
                             const isSelected = selectedDate === dateKey;
                             const isToday = todaySP === dateKey;
                             
@@ -844,7 +844,7 @@ export default function PublicBookingExperience({
                         <label className="block text-xs font-semibold text-[var(--theme-muted-text)] uppercase tracking-wider mb-1">2. Escolha o horário</label>
                         <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                           {groupedSlots[selectedDate]
-                            .filter((slot) => !isPastDateTimeSaoPaulo(slot.data, slot.horario))
+                            .filter((slot) => !isTooSoonForPublicBooking(slot.data, slot.horario))
                             .map((slot) => {
                             const isSelected = selectedSlot?.id === slot.id;
                             return (

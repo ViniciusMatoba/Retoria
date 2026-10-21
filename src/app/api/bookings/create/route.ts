@@ -5,6 +5,7 @@ import {
   timeToMinutes,
   minutesToTime,
   isPastDateTimeSaoPaulo,
+  isTooSoonForPublicBooking,
   formatDateFriendlySaoPaulo,
 } from "@/lib/timezone";
 import { buildCustomerBookingIndex } from "@/lib/leadTypes";
@@ -135,6 +136,13 @@ export async function POST(req: NextRequest) {
     // Future validation
     if (isPastDateTimeSaoPaulo(dataEscolhida, horarioEscolhido)) {
       return NextResponse.json({ error: "Este horário já passou. Por favor, escolha um horário futuro." }, { status: 400 });
+    }
+    // Antecedência mínima (2h): impede agendar um horário que começa daqui a pouco
+    if (isTooSoonForPublicBooking(dataEscolhida, horarioEscolhido)) {
+      return NextResponse.json(
+        { error: "Este horário exige pelo menos 2 horas de antecedência. Escolha um horário mais adiante ou peça outras opções ao profissional." },
+        { status: 400 }
+      );
     }
 
     // Horários ocupados no Google Agenda do profissional (falha aberta: null = não bloqueia)

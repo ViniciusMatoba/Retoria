@@ -57,6 +57,7 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 | F20 | Agenda | Aba Agenda Atual primeiro/padrão; métricas e card Google no fim; aviso de reconexão no topo | Implementado | Sim | Build | Não testada | Não | `dashboard/slots/page.tsx`, commit `75826cb` | Teste manual | Homologar |
 | F21 | Página Pública | Data desejada na mensagem de "Pedir outras opções de horário" | Implementado | Sim | Build | Não testada | Não | `PublicBookingExperience.tsx`, commit `d13e7cc` | Teste manual | Homologar |
 | F22 | Financeiro | Preenchimento de valorTotal em agendamentos antigos (rota backfill-values) | Implementado | Sim | Build | Não testada | Não | `backfill-values/route.ts`, commit `aad1c9c` | Teste manual; usa preço atual do serviço | Homologar |
+| F23 | Página Pública | Antecedência mínima de 2h para o cliente agendar (lista, seleção e API) | Implementado | Sim | Build; verificação da regra por script (08:00 → só 10:00+) | Não testada | Não | `timezone.ts` (`PUBLIC_MIN_LEAD_MINUTES`), `bookings/create`, `next-slots`, `PublicBookingExperience.tsx` | Teste manual | Homologar |
 | F14 | Organizações | Controle multi-provider/equipes | Planejado | Não | Não | Não | Não | Roadmap apenas | Suspenso | Não implementar nesta etapa |
 
 ---
