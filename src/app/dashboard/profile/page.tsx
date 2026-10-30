@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import ImageCropModal from "@/components/ImageCropModal";
+import AppTab from "./components/AppTab";
 import { doc, updateDoc, collection, query, where, getDocs, orderBy } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
@@ -36,6 +37,7 @@ import {
   ChevronUp,
   Info,
   MessageSquare,
+  Smartphone,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -133,7 +135,7 @@ export default function ProfilePage() {
   const [templatesSaved, setTemplatesSaved] = useState(false);
 
   // ── Profile tab ───────────────────────────────────────────────────────────
-  const [activeProfileTab, setActiveProfileTab] = useState<"perfil" | "mensagens">("perfil");
+  const [activeProfileTab, setActiveProfileTab] = useState<"perfil" | "mensagens" | "app">("perfil");
 
   // ── UI state ──────────────────────────────────────────────────────────────
   const [formLoading, setFormLoading] = useState(false);
@@ -459,7 +461,17 @@ export default function ProfilePage() {
           <MessageSquare className="h-4 w-4" />
           Mensagens
         </button>
+        <button
+          type="button"
+          onClick={() => setActiveProfileTab("app")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${activeProfileTab === "app" ? "bg-indigo-600 text-white shadow" : "text-slate-400 hover:text-slate-200"}`}
+        >
+          <Smartphone className="h-4 w-4" />
+          App
+        </button>
       </div>
+
+      {activeProfileTab === "app" && <AppTab />}
 
       {error && (
         <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex gap-3 items-center">
