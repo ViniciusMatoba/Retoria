@@ -13,6 +13,7 @@ export interface SlotLike {
   data: string;
   horario: string;
   disponivel: boolean;
+  source?: string;
 }
 
 export interface LeadLike {
@@ -171,7 +172,8 @@ export function computeNextSlots(params: {
       if (!freeKeys.has(`${slot.data}|${minutesToTime(start + i * slotStepMin)}`)) { contiguous = false; break; }
     }
     if (!contiguous) continue;
-    if (!isWithinWorkingHours(agendaConfig, slot.data, start, end)) continue;
+    // Horário avulso foi criado de propósito pelo profissional: vale mesmo fora do expediente cadastrado.
+    if (slot.source !== "manual" && !isWithinWorkingHours(agendaConfig, slot.data, start, end)) continue;
     if (overlapsActiveLead(leads, slot.data, start, end, slotStepMin)) continue;
     if (overlapsBusy(busy, slot.data, start, end)) continue;
 
