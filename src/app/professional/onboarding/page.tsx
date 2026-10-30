@@ -60,7 +60,7 @@ export default function OnboardingPage() {
     if (loading) return;
     if (!user) { router.push("/login"); return; }
     if (profile && profile.professionalStatus !== "onboarding") {
-      router.push("/dashboard");
+      router.push("/dashboard/slots");
       return;
     }
     // Pré-preencher com dados do profile (vindos da ativação)
@@ -144,7 +144,7 @@ export default function OnboardingPage() {
 
       await addAccountType(user.uid, "professional");
       await refreshProfile();
-      router.push("/dashboard");
+      router.push("/dashboard/slots");
     } catch (e: any) {
       setError("Erro ao salvar: " + e.message);
       setSaving(false);

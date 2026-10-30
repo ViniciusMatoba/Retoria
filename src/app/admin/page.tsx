@@ -132,10 +132,10 @@ export default function AdminPage() {
       fetch("/api/admin/me", { headers: { Authorization: `Bearer ${token}` } })
         .then((r) => r.json())
         .then((d) => {
-          if (!d.isAdmin) router.push("/dashboard");
+          if (!d.isAdmin) router.push("/dashboard/slots");
           else setIsAdmin(true);
         })
-        .catch(() => router.push("/dashboard"))
+        .catch(() => router.push("/dashboard/slots"))
     );
   }, [user, router]);
 
@@ -279,7 +279,7 @@ export default function AdminPage() {
           <button onClick={fetchData} className="p-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-all" title="Atualizar dados">
             <RefreshCw className="h-4 w-4" />
           </button>
-          <button onClick={() => router.push("/dashboard")}
+          <button onClick={() => router.push("/dashboard/slots")}
             className="flex items-center gap-1.5 px-3 py-1.5 text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-sm font-medium transition-all">
             <LayoutDashboard className="h-4 w-4" /><span>Ir para Dashboard</span>
           </button>

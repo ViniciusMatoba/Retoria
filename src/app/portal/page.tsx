@@ -129,7 +129,7 @@ export default function PortalPage() {
           {/* Professional area */}
           {hasProfessional && isProfessionalActive ? (
             <Link
-              href="/dashboard"
+              href="/dashboard/slots"
               className="group flex items-center gap-4 p-5 bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800 hover:border-indigo-500/40 rounded-2xl transition-all duration-200 shadow-sm"
             >
               <div className="h-12 w-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shrink-0 group-hover:bg-indigo-500/20 transition-colors">

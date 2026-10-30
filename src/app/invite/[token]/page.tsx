@@ -63,7 +63,7 @@ export default function AcceptInvitePage({ params }: PageProps) {
       // Login automático
       await signInWithEmailAndPassword(auth, invite!.email, senha);
       setDone(true);
-      setTimeout(() => router.push("/dashboard"), 1500);
+      setTimeout(() => router.push("/dashboard/slots"), 1500);
     } catch (err: any) {
       setSubmitError(err.message ?? "Erro inesperado.");
     } finally {

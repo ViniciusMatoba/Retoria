@@ -139,11 +139,11 @@ export default function DashboardLayout({
   const isTeamMember = profile?.role === "team_member";
 
   const navItems = [
+    { name: "Horários", href: "/dashboard/slots", icon: Calendar },
     { name: "Leads / Contatos", href: "/dashboard", icon: Users },
     { name: "Clientes", href: "/dashboard/clientes", icon: BookUser },
     { name: "Lembretes", href: "/dashboard/lembretes", icon: BellRing },
     { name: "Serviços", href: "/dashboard/services", icon: Briefcase },
-    { name: "Horários", href: "/dashboard/slots", icon: Calendar },
     ...(!isTeamMember ? [
       ...(maxMembers !== 0 ? [{ name: "Equipe", href: "/dashboard/team", icon: UserCog }] : []),
       { name: "Personalização da Página", href: "/dashboard/personalization", icon: Palette },

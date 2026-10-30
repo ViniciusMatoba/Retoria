@@ -271,6 +271,9 @@ export default function SlotsPage() {
 
   // --- MANUAL BOOKING MODAL STATES ---
   const [showBookingModal, setShowBookingModal] = useState(false);
+  const bookingPrefillRef = React.useRef<{ data: string; horario: string } | null>(null);
+  const [customerList, setCustomerList] = useState<{ nome: string; telefone: string }[]>([]);
+  const [customerSuggestField, setCustomerSuggestField] = useState<"nome" | "telefone" | null>(null);
   const [bookingNome, setBookingNome] = useState("");
   const [bookingTelefone, setBookingTelefone] = useState("");
   const [bookingObservacao, setBookingObservacao] = useState("");
@@ -440,6 +443,12 @@ export default function SlotsPage() {
       setServices(servicesList);
     }).catch(err => console.error("Error loading services:", err));
 
+    getDocs(collection(db, "professionals", activeProfId, "customers")).then(snap => {
+      setCustomerList(snap.docs
+        .map(d => ({ nome: String(d.data().nome ?? ""), telefone: String(d.data().telefone ?? "").replace(/\D/g, "") }))
+        .filter(c => c.nome && c.telefone));
+    }).catch(err => console.error("Error loading customers:", err));
+
     const leadsRef = collection(db, "professionals", activeProfId, "leads");
     const unsubscribeLeads = onSnapshot(leadsRef, (snapshot) => {
       const leadsList: any[] = [];
@@ -463,8 +472,11 @@ export default function SlotsPage() {
       setBookingTelefone("");
       setBookingObservacao("");
       setBookingServicoId("");
-      setBookingData(agendaDateFilter || new Date().toISOString().split("T")[0]);
-      setBookingHorario("");
+      const prefill = bookingPrefillRef.current;
+      bookingPrefillRef.current = null;
+      setBookingData(prefill?.data || agendaDateFilter || new Date().toISOString().split("T")[0]);
+      setBookingHorario(prefill?.horario || "");
+      setCustomerSuggestField(null);
       setBookingOrigem("whatsapp");
       setBookingDuracaoOption("30");
       setBookingDuracaoCustom("");
@@ -1514,6 +1526,32 @@ export default function SlotsPage() {
   };
 
   // --- CALENDAR VIEWS RENDERERS ---
+  const renderCustomerSuggestions = (q: string, field: (c: { nome: string; telefone: string }) => string) => {
+    if (q.length < 2) return null;
+    const matches = customerList.filter(c => field(c).includes(q)).slice(0, 5);
+    if (matches.length === 0) return null;
+    return (
+      <div className="absolute z-10 left-0 right-0 top-full mt-1 bg-slate-950 border border-slate-700 rounded-xl overflow-hidden shadow-xl">
+        {matches.map(c => (
+          <button
+            key={c.telefone}
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              setBookingNome(c.nome);
+              setBookingTelefone(formatPhoneFriendly(c.telefone));
+              setCustomerSuggestField(null);
+            }}
+            className="w-full text-left px-3 py-2 hover:bg-slate-800 border-b border-slate-800 last:border-0"
+          >
+            <span className="block text-xs font-bold text-slate-100">{c.nome}</span>
+            <span className="block text-[10px] text-slate-400 font-mono">{formatPhoneFriendly(c.telefone)}</span>
+          </button>
+        ))}
+      </div>
+    );
+  };
+
   const renderMonthView = () => {
     if (!calendarRefDate) return null;
     const grid = getMonthGrid(calendarRefDate);
@@ -1540,6 +1578,7 @@ export default function SlotsPage() {
             const availableCount = futureSlots.filter(s => s.disponivel).length;
             const reservedCount = futureSlots.filter(s => !s.disponivel).length;
             const cancelledCount = leads.filter(l => l.status === "Cancelado" && l.dataEscolhida === dateStr).length;
+            const attendedCount = leads.filter(l => l.status === "Atendido" && l.dataEscolhida === dateStr).length;
             const dayNum = dateStr.split("-")[2];
 
             const styleLivre = getCalendarStatusStyle("Disponível", calendarColors);
@@ -1550,14 +1589,16 @@ export default function SlotsPage() {
               <div
                 key={dateStr}
                 onClick={() => {
-                  if (isPast) return;
+                  if (isPast && attendedCount === 0) return;
                   setCalendarRefDate(dateStr);
                   setCalendarView("day");
                 }}
                 className={`
                   p-1 md:p-3 rounded-xl md:rounded-2xl border text-left flex flex-col justify-between h-16 md:h-28 transition-all duration-200
                   ${isPast
-                    ? "bg-slate-950/10 border-slate-900/30 opacity-30 cursor-default"
+                    ? attendedCount > 0
+                      ? "bg-emerald-950/20 border-emerald-500/30 cursor-pointer hover:border-emerald-400/60"
+                      : "bg-slate-950/10 border-slate-900/30 opacity-30 cursor-default"
                     : isToday
                       ? "bg-indigo-950/20 border-indigo-500/50 shadow-md shadow-indigo-500/5 cursor-pointer hover:border-indigo-400/70"
                       : isCurrentMonth
@@ -1576,6 +1617,13 @@ export default function SlotsPage() {
                 </div>
 
                 <div className="space-y-0.5 md:space-y-1 mt-1 md:mt-2 text-[8px] md:text-[10px] font-bold">
+                  {isPast && attendedCount > 0 && (
+                    <div className="flex items-center gap-0.5 md:gap-1 text-emerald-400">
+                      <Check className="h-2.5 w-2.5 md:h-3 md:w-3 shrink-0" />
+                      <span className="hidden md:inline">{attendedCount} Atendido{attendedCount > 1 ? "s" : ""}</span>
+                      <span className="md:hidden">{attendedCount}</span>
+                    </div>
+                  )}
                   {!isPast && availableCount > 0 && (
                     <div className="flex items-center gap-0.5 md:gap-1" style={{ color: styleLivre.bg }}>
                       <span className="h-1 w-1 md:h-1.5 md:w-1.5 rounded-full shrink-0" style={{ backgroundColor: styleLivre.bg }} />
@@ -1973,14 +2021,28 @@ export default function SlotsPage() {
                       </span>
                     </div>
                     {open && !movingLead && (
-                      <button
-                        type="button"
-                        disabled={slotActionId === slot.id}
-                        onClick={(e) => { e.stopPropagation(); handleToggleSlot(slot, true); }}
-                        className="mt-3 w-full py-2 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-400 font-bold text-xs disabled:opacity-50"
-                      >
-                        {slotActionId === slot.id ? "Bloqueando..." : "Bloquear horário"}
-                      </button>
+                      <div className="mt-3 flex gap-2">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            bookingPrefillRef.current = { data: slot.data, horario: slot.horario };
+                            setSlotMenuId(null);
+                            setShowBookingModal(true);
+                          }}
+                          className="flex-1 py-2 rounded-xl bg-indigo-600/20 border border-indigo-500/40 text-indigo-300 font-bold text-xs"
+                        >
+                          Agendar
+                        </button>
+                        <button
+                          type="button"
+                          disabled={slotActionId === slot.id}
+                          onClick={(e) => { e.stopPropagation(); handleToggleSlot(slot, true); }}
+                          className="flex-1 py-2 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-400 font-bold text-xs disabled:opacity-50"
+                        >
+                          {slotActionId === slot.id ? "Bloqueando..." : "Bloquear horário"}
+                        </button>
+                      </div>
                     )}
                   </div>
                 );
@@ -2965,29 +3027,37 @@ export default function SlotsPage() {
             <form onSubmit={handleCreateManualBooking} className="space-y-4">
               {/* Cliente Nome & Telefone */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 relative">
                   <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider">Nome do Cliente *</label>
                   <input
                     type="text"
                     required
                     value={bookingNome}
                     maxLength={80}
-                    onChange={(e) => setBookingNome(e.target.value)}
+                    onChange={(e) => { setBookingNome(e.target.value); setCustomerSuggestField("nome"); }}
+                    onFocus={() => setCustomerSuggestField("nome")}
+                    onBlur={() => setCustomerSuggestField(null)}
+                    autoComplete="off"
                     placeholder="Ex: João Silva"
                     className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500"
                   />
+                  {customerSuggestField === "nome" && renderCustomerSuggestions(bookingNome.trim().toLowerCase(), (c) => c.nome.toLowerCase())}
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 relative">
                   <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider">Telefone *</label>
                   <input
                     type="text"
                     required
                     value={bookingTelefone}
                     maxLength={20}
-                    onChange={(e) => setBookingTelefone(e.target.value)}
+                    onChange={(e) => { setBookingTelefone(e.target.value); setCustomerSuggestField("telefone"); }}
+                    onFocus={() => setCustomerSuggestField("telefone")}
+                    onBlur={() => setCustomerSuggestField(null)}
+                    autoComplete="off"
                     placeholder="Ex: (11) 99999-9999"
                     className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-indigo-500"
                   />
+                  {customerSuggestField === "telefone" && renderCustomerSuggestions(bookingTelefone.replace(/\D/g, ""), (c) => c.telefone)}
                 </div>
               </div>
 

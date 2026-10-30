@@ -127,3 +127,12 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **Build**: Aprovado. Regras do Firestore inalteradas nesta rodada.
 * **Teste manual**: Não executado.
 * **Riscos**: arrastar e soltar não funciona em toque (mitigado com o botão Mover); backfill usa o preço atual do serviço, não o da data do atendimento, e marca `valorOrigem`.
+
+## Verificação 2026-10-30
+
+* **Branch**: `feat/painel-horarios-agendar` (sem push)
+* **Alterações (Implementado)**: botão "Agendar" no horário livre (abre o modal manual com data/horário preenchidos); sugestão de clientes cadastrados (nome/telefone) no modal; "Horários" como primeira tela e destino pós-login/onboarding/convite/portal/admin; dias atendidos marcados no calendário mensal.
+* **Build**: Aprovado. **Testes de temas**: Aprovado (13/13).
+* **Testes de regras**: NÃO concluído (emulador encerrado por timeout); regras inalteradas.
+* **Teste manual**: Não executado.
+* **Divergência**: nenhuma nova identificada nesta rodada.
