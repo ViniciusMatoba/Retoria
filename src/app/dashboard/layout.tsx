@@ -140,7 +140,7 @@ export default function DashboardLayout({
 
   const navItems = [
     { name: "Horários", href: "/dashboard/slots", icon: Calendar },
-    { name: "Leads / Contatos", href: "/dashboard", icon: Users },
+    { name: "Leads / Contatos", href: "/dashboard/leads", icon: Users },
     { name: "Clientes", href: "/dashboard/clientes", icon: BookUser },
     { name: "Lembretes", href: "/dashboard/lembretes", icon: BellRing },
     { name: "Serviços", href: "/dashboard/services", icon: Briefcase },
