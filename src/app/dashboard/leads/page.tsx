@@ -96,6 +96,7 @@ export default function DashboardHome() {
   const [initialized, setInitialized] = useState(false);
 
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [metricLeads, setMetricLeads] = useState<Lead[]>([]);
   const [leadsLimit, setLeadsLimit] = useState(50);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -206,6 +207,28 @@ export default function DashboardHome() {
     }
   }, [user, activeProfId, initialized, teamMembers, leadsLimit]);
 
+  // ── Leads das métricas — sem limite, independente de "Carregar mais" ──────
+  useEffect(() => {
+    if (!user || !initialized) return;
+    const profIds = activeProfId === "all"
+      ? [user.uid, ...teamMembers.map((m) => m.id)]
+      : [activeProfId ?? user.uid];
+    const byProf = new Map<string, Lead[]>();
+    const publish = () => setMetricLeads(Array.from(byProf.values()).flat());
+
+    const unsubs = profIds.map((pid) => {
+      const q = query(
+        collection(db, "professionals", pid, "leads"),
+        where("status", "in", ["Novo", "Agendado", "Atendido"])
+      );
+      return onSnapshot(q, (snap) => {
+        byProf.set(pid, snap.docs.map((d) => ({ id: d.id, ...d.data() } as Lead)));
+        publish();
+      }, () => {});
+    });
+    return () => unsubs.forEach((u) => u());
+  }, [user, activeProfId, initialized, teamMembers]);
+
   // ── Update status ──────────────────────────────────────────────────────────
   const handleUpdateStatus = async (lead: Lead, newStatus: LeadStatus) => {
     if (!user || updatingLeadId) return;
@@ -288,8 +311,8 @@ export default function DashboardHome() {
   };
 
   // ── Metrics ────────────────────────────────────────────────────────────────
-  const newLeads = leads.filter(l => l.status === "Novo").length;
-  const scheduledLeads = leads.filter(l => l.status === "Agendado").length;
+  const newLeads = metricLeads.filter(l => l.status === "Novo").length;
+  const scheduledLeads = metricLeads.filter(l => l.status === "Agendado").length;
 
   const todayStr = new Date().toISOString().split("T")[0];
   const thisMonthStr = new Date().toISOString().slice(0, 7);
@@ -298,12 +321,12 @@ export default function DashboardHome() {
   })();
   const thisYearStr = new Date().getFullYear().toString();
 
-  const attendedThisMonth = leads.filter(
+  const attendedThisMonth = metricLeads.filter(
     l => l.status === "Atendido" && l.dataEscolhida?.startsWith(thisMonthStr)
   ).length;
 
   // Revenue filtered by revenueFilter
-  const revenueAtendidos = leads.filter(l => {
+  const revenueAtendidos = metricLeads.filter(l => {
     if (l.status !== "Atendido") return false;
     const d = l.dataEscolhida ?? "";
     if (revenueFilter === "hoje") return d === todayStr;
@@ -319,7 +342,7 @@ export default function DashboardHome() {
   const in7dStr = (() => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().split("T")[0]; })();
   const in30dStr = (() => { const d = new Date(); d.setDate(d.getDate() + 30); return d.toISOString().split("T")[0]; })();
 
-  const projectionLeads = leads.filter(l => {
+  const projectionLeads = metricLeads.filter(l => {
     if (l.status !== "Agendado") return false;
     const d = l.dataEscolhida ?? "";
     if (projectionFilter === "amanha") return d === tomorrowStr;
@@ -337,7 +360,7 @@ export default function DashboardHome() {
       const d = new Date(now.getFullYear(), now.getMonth() - (3 - i), 1);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       const label = d.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" });
-      const atendidos = leads.filter(l => l.status === "Atendido" && l.dataEscolhida?.startsWith(key));
+      const atendidos = metricLeads.filter(l => l.status === "Atendido" && l.dataEscolhida?.startsWith(key));
       return {
         key,
         label: label.charAt(0).toUpperCase() + label.slice(1),
