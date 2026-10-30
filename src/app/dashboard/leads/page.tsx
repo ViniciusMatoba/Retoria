@@ -101,6 +101,10 @@ export default function DashboardHome() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("Todos");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  // Com filtro de data ativo a lista carrega sem o limite de 50, para não perder leads antigos do período.
+  const dateFilterActive = dateFrom !== "" || dateTo !== "";
 
   const [updatingLeadId, setUpdatingLeadId] = useState<string | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
@@ -176,7 +180,7 @@ export default function DashboardHome() {
       };
 
       for (const pid of allProfIds) {
-        const q = query(collection(db, "professionals", pid, "leads"), orderBy("createdAt", "desc"), limit(leadsLimit));
+        const q = query(collection(db, "professionals", pid, "leads"), orderBy("createdAt", "desc"), ...(dateFilterActive ? [] : [limit(leadsLimit)]));
         const unsub = onSnapshot(q, (snap) => {
           snap.docs.forEach((d) => {
             leadsMap.set(`${pid}:${d.id}`, {
@@ -198,14 +202,14 @@ export default function DashboardHome() {
     } else {
       // Único profissional
       const pid = activeProfId ?? user.uid;
-      const q = query(collection(db, "professionals", pid, "leads"), orderBy("createdAt", "desc"), limit(leadsLimit));
+      const q = query(collection(db, "professionals", pid, "leads"), orderBy("createdAt", "desc"), ...(dateFilterActive ? [] : [limit(leadsLimit)]));
       const unsub = onSnapshot(q, (snap) => {
         setLeads(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Lead)));
         setLoading(false);
       }, () => { setLoading(false); });
       return () => unsub();
     }
-  }, [user, activeProfId, initialized, teamMembers, leadsLimit]);
+  }, [user, activeProfId, initialized, teamMembers, leadsLimit, dateFilterActive]);
 
   // ── Leads das métricas — sem limite, independente de "Carregar mais" ──────
   useEffect(() => {
@@ -396,7 +400,9 @@ export default function DashboardHome() {
       lead.telefone.includes(searchTerm) ||
       lead.servicoEscolhido.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === "Todos" || lead.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    const d = lead.dataEscolhida ?? "";
+    const matchesDate = (!dateFrom || (d !== "" && d >= dateFrom)) && (!dateTo || (d !== "" && d <= dateTo));
+    return matchesSearch && matchesStatus && matchesDate;
   });
 
   const formatDate = (dateStr: string) => {
@@ -619,6 +625,50 @@ export default function DashboardHome() {
           </div>
         </div>
 
+        {/* Filtro por data / período (data do atendimento) */}
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <input
+            type="date"
+            value={dateFrom}
+            max={dateTo || undefined}
+            onChange={(e) => setDateFrom(e.target.value)}
+            aria-label="Data inicial"
+            className="bg-slate-950 border border-slate-800/80 rounded-xl px-3 py-2 text-sm font-mono focus:outline-none focus:border-indigo-500 text-slate-300"
+          />
+          <span className="text-xs text-slate-500">até</span>
+          <input
+            type="date"
+            value={dateTo}
+            min={dateFrom || undefined}
+            onChange={(e) => setDateTo(e.target.value)}
+            aria-label="Data final"
+            className="bg-slate-950 border border-slate-800/80 rounded-xl px-3 py-2 text-sm font-mono focus:outline-none focus:border-indigo-500 text-slate-300"
+          />
+          {([
+            { label: "Hoje", from: todayStr, to: todayStr },
+            { label: "Semana", from: thisWeekStart, to: todayStr },
+            { label: "Mês", from: `${thisMonthStr}-01`, to: todayStr },
+          ]).map(p => (
+            <button
+              key={p.label}
+              type="button"
+              onClick={() => { setDateFrom(p.from); setDateTo(p.to); }}
+              className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-950 border border-slate-800/80 text-slate-300 hover:border-indigo-500"
+            >
+              {p.label}
+            </button>
+          ))}
+          {dateFilterActive && (
+            <button
+              type="button"
+              onClick={() => { setDateFrom(""); setDateTo(""); }}
+              className="px-3 py-2 rounded-xl text-xs font-bold text-rose-400 border border-rose-500/30 bg-rose-500/10"
+            >
+              Limpar datas
+            </button>
+          )}
+        </div>
+
         {loading ? (
           <div className="flex flex-col justify-center items-center py-12">
             <Loader2 className="h-8 w-8 text-indigo-500 animate-spin" />
@@ -629,7 +679,7 @@ export default function DashboardHome() {
             <div className="p-4 bg-slate-900 rounded-full text-slate-600 mb-4"><Inbox className="h-8 w-8" /></div>
             <h3 className="text-lg font-bold text-slate-300">Nenhum contato encontrado</h3>
             <p className="text-slate-500 text-sm mt-1 max-w-sm">
-              {searchTerm || statusFilter !== "Todos"
+              {searchTerm || statusFilter !== "Todos" || dateFilterActive
                 ? "Tente mudar os filtros de busca para encontrar outros contatos."
                 : "Os leads dos clientes aparecerão aqui conforme chegarem."}
             </p>
@@ -783,7 +833,7 @@ export default function DashboardHome() {
             </table>
           </div>
           {/* Carregar mais — aparece se o número de leads retornados atingiu o limite */}
-          {leads.length >= leadsLimit && (
+          {!dateFilterActive && leads.length >= leadsLimit && (
             <div className="flex justify-center pt-2 pb-1">
               <button
                 onClick={() => setLeadsLimit(l => l + 50)}
