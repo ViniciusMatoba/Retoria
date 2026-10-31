@@ -58,6 +58,7 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 | F21 | Página Pública | Data desejada na mensagem de "Pedir outras opções de horário" | Implementado | Sim | Build | Não testada | Não | `PublicBookingExperience.tsx`, commit `d13e7cc` | Teste manual | Homologar |
 | F22 | Financeiro | Preenchimento de valorTotal em agendamentos antigos (rota backfill-values) | Implementado | Sim | Build | Não testada | Não | `backfill-values/route.ts`, commit `aad1c9c` | Teste manual; usa preço atual do serviço | Homologar |
 | F23 | Página Pública | Antecedência mínima de 2h para o cliente agendar (lista, seleção e API) | Implementado | Sim | Build; verificação da regra por script (08:00 → só 10:00+) | Não testada | Não | `timezone.ts` (`PUBLIC_MIN_LEAD_MINUTES`), `bookings/create`, `next-slots`, `PublicBookingExperience.tsx` | Teste manual | Homologar |
+| F24 | Página Pública | Faixas alternadas em "Horários livres por dia": linha da data com tom da cor principal, linha dos horários neutra | Implementado | Sim | `scripts/test-slot-stripes.ts` criado, não executado | Não testada | Não | `src/lib/slotDayStripes.ts`, `PublicBookingExperience.tsx` | Build e teste pendentes | Rodar `npm run test:slot-stripes`, build e homologar |
 | F14 | Organizações | Controle multi-provider/equipes | Planejado | Não | Não | Não | Não | Roadmap apenas | Suspenso | Não implementar nesta etapa |
 
 ---
@@ -136,3 +137,12 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **Testes de regras**: NÃO concluído (emulador encerrado por timeout); regras inalteradas.
 * **Teste manual**: Não executado.
 * **Divergência**: nenhuma nova identificada nesta rodada.
+
+## Verificação 2026-10-31
+
+* **Branch**: `feat/faixas-data-horario` (sem push)
+* **Alterações (Implementado)**: F24, faixas alternadas data/horário na lista de horários livres da página pública.
+* **Build**: NÃO executado. **Testes**: `test:slot-stripes` criado e NÃO executado (a pedido do usuário, que fará o teste).
+* **Regras do Firestore**: inalteradas.
+* **Teste manual**: Não executado.
+* **Próxima ação**: usuário executa `npm run test:slot-stripes` e `npm run build`, confere a tela; depois push e homologação pós-deploy.

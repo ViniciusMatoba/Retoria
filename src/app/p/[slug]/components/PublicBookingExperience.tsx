@@ -21,6 +21,7 @@ import PublicThemeProvider from "./PublicThemeProvider";
 import PublicServiceCard from "./PublicServiceCard";
 import PublicProfessionalHeader from "./PublicProfessionalHeader";
 import { getDefaultThemeConfig, ThemeConfig, getBestTextColor } from "@/lib/themeUtils";
+import { getSlotDayStripeStyles } from "@/lib/slotDayStripes";
 import { getWhatsAppLink } from "@/lib/whatsapp";
 import { isTooSoonForPublicBooking, getSaoPauloToday, timeToMinutes, minutesToTime } from "@/lib/timezone";
 import type { PublicAddress, ServiceLocationType } from "@/lib/contactUtils";
@@ -466,6 +467,7 @@ export default function PublicBookingExperience({
   };
 
   const cardRadiusStyle = { borderRadius: `${theme.cardRadius}px` };
+  const slotDayStripes = getSlotDayStripeStyles(theme.primaryColor);
 
   let cardClass = "";
   switch (theme.cardStyle) {
@@ -716,11 +718,11 @@ export default function PublicBookingExperience({
                 ) : (
                   <div className="space-y-3 pt-1">
                     <label className="block text-xs font-semibold text-[var(--theme-muted-text)] uppercase tracking-wider">Horários livres por dia</label>
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                       {Object.entries(nextSlots.reduce((acc: Record<string, AvailableSlot[]>, sl) => { (acc[sl.data] ||= []).push(sl); return acc; }, {})).slice(0, visibleDays).map(([dateKey, daySlots]) => (
-                        <div key={dateKey} className="space-y-2">
-                          <div className="text-xs font-bold text-[var(--theme-text)] capitalize">{formatDateTitle(dateKey)}</div>
-                          <div className="grid grid-cols-3 gap-2">
+                        <div key={dateKey} style={cardRadiusStyle} className="overflow-hidden border border-[rgba(128,128,128,0.15)]">
+                          <div style={slotDayStripes.dateRow} className="px-3 py-2 text-xs font-bold text-[var(--theme-text)] capitalize">{formatDateTitle(dateKey)}</div>
+                          <div style={slotDayStripes.slotsRow} className="grid grid-cols-3 gap-2 p-2">
                             {daySlots.map((slot) => {
                               const isSelected = selectedSlot?.id === slot.id;
                               return (
