@@ -188,4 +188,5 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **TypeScript**: sem erros. **Lint**: nenhum erro novo em relação à `main`.
 * **Testes**: `test:customer-edit` 10/10, `test:time-grid` 26/26, `test:slot-stripes` 9/9, `test:themes` 13/13. `test:rules` não executado (regras inalteradas).
 * **Build**: Aprovado. `next start` local: manifesto e ícone respondem; `/dashboard/*` com `user-scalable=no`; páginas fora do painel sem mudança.
-* **Teste manual**: Não executado.
+* **Teste manual na prévia do Vercel** (branch `feat/painel-resumo-app`, commit `4bb016e`): aprovado pelo usuário em 2026-11-03.
+* **Deploy**: merge em `main` e publicação pela integração do Vercel. Teste pós-deploy em produção: NÃO TESTADO.
