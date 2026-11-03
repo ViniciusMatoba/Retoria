@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test:rules": "firebase emulators:exec --only firestore,storage --project agendazap-test \"node scripts/test-rules.mjs\"",
     "test:themes": "npx tsx scripts/test-themes.ts",
+    "test:slot-stripes": "npx tsx scripts/test-slot-stripes.ts",
     "check:governance": "node scripts/check-project-governance.mjs"
   },
   "dependencies": {
