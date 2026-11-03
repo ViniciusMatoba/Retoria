@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { collection, doc, getDocs, setDoc } from "firebase/firestore";
-import { BookUser, ChevronDown, ChevronUp, MessageCircle, Search, Trophy } from "lucide-react";
+import { BookUser, ChevronDown, ChevronUp, MessageCircle, Pencil, Search, Trophy, X } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { useAuth } from "../../providers";
 import { formatPhoneFriendly, getWhatsAppLink } from "@/lib/whatsapp";
@@ -55,6 +55,7 @@ export default function ClientesPage() {
   const [view, setView] = useState<"lista" | "ranking">("lista");
   const [rankBy, setRankBy] = useState<"valor" | "atendimentos">("valor");
   const [periodDays, setPeriodDays] = useState<0 | 30 | 90 | 365>(0);
+  const [editing, setEditing] = useState<CustomerRow | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -309,6 +310,13 @@ export default function ClientesPage() {
 
                 {isOpen && (
                   <div className="px-4 pb-4 space-y-4">
+                    <button
+                      type="button"
+                      onClick={() => setEditing(c)}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-700 hover:bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-200"
+                    >
+                      <Pencil className="h-4 w-4" /> Editar cadastro
+                    </button>
                     <NotasEditor
                       profId={user!.uid}
                       phone={c.telefone}
@@ -371,6 +379,109 @@ export default function ClientesPage() {
         </div>
       )}
       </>)}
+
+      {editing && (
+        <CustomerEditModal
+          customer={editing}
+          onClose={() => setEditing(null)}
+          onSaved={(nome, telefone) => {
+            const old = editing.telefone;
+            setCustomers((prev) => prev.map((c) => (c.telefone === old ? { ...c, id: telefone, nome, telefone } : c)));
+            setLeads((prev) => prev.map((l) => (l.telefone === old ? { ...l, nome, telefone } : l)));
+            if (telefone !== old) {
+              setNotes((prev) => {
+                if (!(old in prev) || telefone in prev) return prev;
+                const next = { ...prev, [telefone]: prev[old] };
+                delete next[old];
+                return next;
+              });
+              setOpenId(telefone);
+            }
+            setEditing(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Alteração do nome e do telefone do cliente. Vale também para os agendamentos dele.
+function CustomerEditModal({
+  customer,
+  onClose,
+  onSaved,
+}: {
+  customer: CustomerRow;
+  onClose: () => void;
+  onSaved: (nome: string, telefone: string) => void;
+}) {
+  const { user } = useAuth();
+  const [nome, setNome] = useState(customer.nome);
+  const [telefone, setTelefone] = useState(formatPhoneFriendly(customer.telefone));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    setSaving(true);
+    setError("");
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/professionals/${user.uid}/customers`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ telefoneAtual: customer.telefone, nome, telefone }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Não foi possível salvar o cadastro.");
+      onSaved(data.nome, data.telefone);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center" role="dialog" aria-modal="true">
+      <button type="button" aria-label="Fechar" onClick={onClose} className="absolute inset-0 bg-black/40" />
+      <form onSubmit={save} className="relative w-full md:max-w-md rounded-t-3xl md:rounded-3xl border border-slate-800 bg-slate-900 p-5 pb-8 shadow-2xl space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-black text-slate-100">Editar cadastro</h2>
+          <button type="button" aria-label="Fechar" onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div>
+          <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 block">Nome</label>
+          <input
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+            maxLength={80}
+            className="w-full rounded-xl bg-slate-950/50 border border-slate-800 px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 block">Telefone (WhatsApp)</label>
+          <input
+            value={telefone}
+            onChange={(e) => setTelefone(e.target.value)}
+            inputMode="tel"
+            className="w-full rounded-xl bg-slate-950/50 border border-slate-800 px-3 py-2.5 text-sm text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
+          />
+        </div>
+        <p className="text-[11px] text-slate-500">O nome e o telefone também são atualizados nos agendamentos deste cliente.</p>
+        {error && <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">{error}</div>}
+        <div className="flex gap-2">
+          <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-700 text-slate-200 text-xs font-bold">
+            Cancelar
+          </button>
+          <button type="submit" disabled={saving} className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-50">
+            {saving ? "Salvando..." : "Salvar"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

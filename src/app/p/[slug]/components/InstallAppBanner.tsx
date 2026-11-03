@@ -5,11 +5,18 @@ import { Download, X } from "lucide-react";
 
 type InstallEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> };
 
-const DISMISS_KEY = "retoria-install-dismissed";
-
-// Convite discreto para instalar o app do profissional. Android: botão que abre o instalador do Chrome.
-// iPhone: instrução (o Safari não tem botão de instalar).
-export default function InstallAppBanner({ appName }: { appName: string }) {
+// Convite discreto para instalar o app (do profissional na página pública, ou o painel do administrador).
+// Android: botão que abre o instalador do Chrome. iPhone: instrução (o Safari não tem botão de instalar).
+export default function InstallAppBanner({
+  appName,
+  description = "Agende mais rápido, direto da tela inicial.",
+  dismissKey = "retoria-install-dismissed",
+}: {
+  appName: string;
+  description?: string;
+  dismissKey?: string;
+}) {
+  const DISMISS_KEY = dismissKey;
   const [installEvent, setInstallEvent] = useState<InstallEvent | null>(null);
   const [isIos, setIsIos] = useState(false);
   const [dismissed, setDismissed] = useState(true);
@@ -27,7 +34,7 @@ export default function InstallAppBanner({ appName }: { appName: string }) {
     const onPrompt = (e: Event) => { e.preventDefault(); setInstallEvent(e as InstallEvent); };
     window.addEventListener("beforeinstallprompt", onPrompt);
     return () => window.removeEventListener("beforeinstallprompt", onPrompt);
-  }, []);
+  }, [DISMISS_KEY]);
 
   if (dismissed || (!installEvent && !isIos)) return null;
 
@@ -50,7 +57,7 @@ export default function InstallAppBanner({ appName }: { appName: string }) {
       <div className="min-w-0 flex-1 text-xs">
         <p className="font-bold truncate">Instale o app {appName}</p>
         {installEvent ? (
-          <p className="text-slate-400">Agende mais rápido, direto da tela inicial.</p>
+          <p className="text-slate-400">{description}</p>
         ) : (
           <p className="text-slate-400">Toque em Compartilhar e depois em &quot;Adicionar à Tela de Início&quot;.</p>
         )}

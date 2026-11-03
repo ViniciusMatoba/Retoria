@@ -1,11 +1,8 @@
 "use client";
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Minus, Plus } from "lucide-react";
 import {
   DEFAULT_HOUR_HEIGHT,
-  MAX_HOUR_HEIGHT,
-  MIN_HOUR_HEIGHT,
   anchoredScrollTop,
   clampHourHeight,
   getSaoPauloNowMinutes,
@@ -75,9 +72,9 @@ const storeHeight = (h: number) => {
 const touchDistance = (a: Touch, b: Touch) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
 
 // Grade de horários das visões Dia e Semana, com pinça para "espremer" ou ampliar as horas (como no Google Agenda).
+// No computador, Ctrl + roda do mouse (ou a pinça do touchpad) faz o mesmo.
 export default function TimeGridCalendar({ days, scrollKey }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const headerRef = useRef<HTMLDivElement>(null);
   // A grade só aparece depois que a agenda carrega no navegador, então ler o zoom salvo aqui não gera divergência de hidratação.
   const [hourHeight, setHourHeight] = useState(() => (typeof window === "undefined" ? DEFAULT_HOUR_HEIGHT : readStoredHeight()));
   const heightRef = useRef(hourHeight);
@@ -103,9 +100,8 @@ export default function TimeGridCalendar({ days, scrollKey }: Props) {
     const oldHeight = heightRef.current;
     const next = clampHourHeight(newHeight);
     if (!el || next === oldHeight) return;
-    const header = headerRef.current?.offsetHeight ?? 0;
     const rect = el.getBoundingClientRect();
-    const focusY = focusClientY !== undefined ? focusClientY - rect.top - header : (el.clientHeight - header) / 2;
+    const focusY = focusClientY !== undefined ? focusClientY - rect.top : el.clientHeight / 2;
     const gridScroll = el.scrollTop;
     pendingScrollRef.current = anchoredScrollTop(gridScroll, Math.max(0, focusY), oldHeight, next);
     heightRef.current = next;
@@ -172,43 +168,15 @@ export default function TimeGridCalendar({ days, scrollKey }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scrollKey]);
 
-  const stepZoom = (factor: number) => {
-    zoomTo(heightRef.current * factor);
-    storeHeight(heightRef.current);
-  };
-
   const gridHeight = hourHeight * 24;
   const multiDay = days.length > 1;
 
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-950/20 overflow-hidden">
-      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-slate-800/80">
-        <span className="text-[10px] text-slate-500 font-semibold">Pince com dois dedos para ajustar as horas</span>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            aria-label="Diminuir horas"
-            onClick={() => stepZoom(1 / 1.25)}
-            disabled={hourHeight <= MIN_HOUR_HEIGHT}
-            className="p-1.5 rounded-lg border border-slate-800 text-slate-400 disabled:opacity-30"
-          >
-            <Minus className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            aria-label="Aumentar horas"
-            onClick={() => stepZoom(1.25)}
-            disabled={hourHeight >= MAX_HOUR_HEIGHT}
-            className="p-1.5 rounded-lg border border-slate-800 text-slate-400 disabled:opacity-30"
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      </div>
-
-      <div ref={scrollRef} className="relative h-[70vh] min-h-[420px] overflow-y-auto overscroll-contain" style={{ touchAction: "pan-x pan-y" }}>
-        {/* Cabeçalho dos dias, fixo no topo enquanto rola */}
-        <div ref={headerRef} className="sticky top-0 z-20 flex border-b border-slate-800 bg-slate-950/95 backdrop-blur">
+      {/* Cabeçalho dos dias (só na semana; no dia a data já aparece acima da grade).
+          Fica fora da área que rola; scrollbar-gutter mantém as colunas alinhadas com a grade. */}
+      {multiDay && (
+        <div className="flex border-b border-slate-800 overflow-hidden" style={{ scrollbarGutter: "stable" }}>
           <div style={{ width: GUTTER }} className="shrink-0" />
           {days.map((d) => (
             <button
@@ -228,7 +196,13 @@ export default function TimeGridCalendar({ days, scrollKey }: Props) {
             </button>
           ))}
         </div>
+      )}
 
+      <div
+        ref={scrollRef}
+        className="relative h-[70vh] min-h-[420px] overflow-y-auto overscroll-contain"
+        style={{ touchAction: "pan-x pan-y", scrollbarGutter: "stable" }}
+      >
         <div className="relative flex" style={{ height: gridHeight }}>
           {/* Coluna das horas */}
           <div style={{ width: GUTTER }} className="shrink-0 relative">
