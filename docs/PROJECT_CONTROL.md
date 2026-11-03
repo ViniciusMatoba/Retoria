@@ -173,3 +173,5 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **Build**: Aprovado.
 * **Teste manual**: Não executado. Gesto de pinça e deslizar não verificados em aparelho.
 * **Divergência**: o agendamento manual não gravava o cliente em `customers` (só a rota pública gravava), por isso o preenchimento automático não encontrava clientes manuais.
+* **Teste manual na prévia do Vercel** (branch `feat/agenda-estilo-google`, commit `e503a55`): aprovado pelo usuário em 2026-11-03.
+* **Deploy**: merge em `main` e publicação pela integração do Vercel. Teste pós-deploy em produção: NÃO TESTADO.
