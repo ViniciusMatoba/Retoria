@@ -59,6 +59,10 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 | F22 | Financeiro | Preenchimento de valorTotal em agendamentos antigos (rota backfill-values) | Implementado | Sim | Build | Não testada | Não | `backfill-values/route.ts`, commit `aad1c9c` | Teste manual; usa preço atual do serviço | Homologar |
 | F23 | Página Pública | Antecedência mínima de 2h para o cliente agendar (lista, seleção e API) | Implementado | Sim | Build; verificação da regra por script (08:00 → só 10:00+) | Não testada | Não | `timezone.ts` (`PUBLIC_MIN_LEAD_MINUTES`), `bookings/create`, `next-slots`, `PublicBookingExperience.tsx` | Teste manual | Homologar |
 | F24 | Página Pública | Faixas alternadas em "Horários livres por dia": linha da data com tom da cor principal, linha dos horários neutra | Testado | Sim | `test:slot-stripes` 9/9; build aprovado | Não testada | Sim | `src/lib/slotDayStripes.ts`, `PublicBookingExperience.tsx` | Nenhum | Homologação pós-deploy |
+| F25 | Agenda | Visões Dia/Semana em grade estilo Google Agenda: blocos pela duração, linha da hora atual, pinça (e Ctrl+roda / botões −/+) para ajustar as horas, painel inferior de detalhes | Testado (lógica) | Sim | `test:time-grid` 26/26; build aprovado | Não testada | Não | `src/lib/timeGrid.ts`, `TimeGridCalendar.tsx`, `dashboard/slots/page.tsx` | Gesto de pinça só verificável em aparelho real | Homologar no celular |
+| F26 | Agenda | Deslizar para o lado troca de dia/semana/mês | Testado (lógica) | Sim | `test:time-grid` (detectSwipe) | Não testada | Não | `timeGrid.ts` (`detectSwipe`), `dashboard/slots/page.tsx` | Teste em aparelho real | Homologar no celular |
+| F27 | Agenda | Duplicar agendamento (abre novo agendamento manual com cliente, serviço, duração e observação copiados) | Implementado | Sim | Build | Não testada | Não | `dashboard/slots/page.tsx` (`handleDuplicateLead`) | Teste manual | Homologar |
+| F28 | Clientes | Agendamento manual grava o cliente em `customers`; preenchimento automático inclui clientes de agendamentos anteriores | Testado (lógica) / Implementado (rota) | Sim | `test:time-grid` (mergeCustomerSuggestions); build | Não testada | Não | `api/professionals/[professionalId]/leads/route.ts`, `src/lib/customerSuggestions.ts` | Teste manual (rota usa Admin SDK; regras inalteradas) | Homologar |
 | F14 | Organizações | Controle multi-provider/equipes | Planejado | Não | Não | Não | Não | Roadmap apenas | Suspenso | Não implementar nesta etapa |
 
 ---
@@ -157,3 +161,17 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **Teste manual**: Não executado.
 * **Teste pós-deploy em produção**: NÃO TESTADO
 * **Próxima ação**: homologar as faixas na página pública real `/p/[slug]` com "Mostrar só os 3 próximos horários livres" ativo.
+
+## Verificação 2026-11-03 (2)
+
+* **Branch**: `feat/agenda-estilo-google` (a partir de `main` `9ed5f82`)
+* **Backup prévio**: `Documentos/Retoria-backups/Retoria-2026-11-03` (cópia da pasta) e `Retoria-2026-11-03.bundle` (histórico Git, verificado com `git bundle verify`)
+* **Alterações**: F25, F26, F27, F28.
+* **TypeScript**: `tsc --noEmit` sem erros.
+* **Lint**: arquivos novos sem problemas; `dashboard/slots/page.tsx` sem erros novos em relação à `main` (2 erros antigos de react-hooks a menos); `leads/route.ts` igual à `main` (9 `no-explicit-any` pré-existentes).
+* **Testes**: `test:time-grid` 26/26, `test:slot-stripes` 9/9, `test:themes` 13/13. `test:rules` não executado (regras inalteradas).
+* **Build**: Aprovado.
+* **Teste manual**: Não executado. Gesto de pinça e deslizar não verificados em aparelho.
+* **Divergência**: o agendamento manual não gravava o cliente em `customers` (só a rota pública gravava), por isso o preenchimento automático não encontrava clientes manuais.
+* **Teste manual na prévia do Vercel** (branch `feat/agenda-estilo-google`, commit `e503a55`): aprovado pelo usuário em 2026-11-03.
+* **Deploy**: merge em `main` e publicação pela integração do Vercel. Teste pós-deploy em produção: NÃO TESTADO.

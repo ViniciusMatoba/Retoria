@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import GoogleCalendarIntegration from "../components/GoogleCalendarIntegration";
 import LeadCardActions from "../components/LeadCardActions";
+import TimeGridCalendar, { type TimeGridDay, type TimeGridEvent } from "../components/TimeGridCalendar";
 import {
   collection,
   query,
@@ -33,6 +34,8 @@ import {
   formatDateShortSaoPaulo, 
   getMonthNameSaoPaulo 
 } from "@/lib/timezone";
+import { mergeCustomerSuggestions } from "@/lib/customerSuggestions";
+import { detectSwipe } from "@/lib/timeGrid";
 import { useAuth } from "../../providers";
 import { 
   Calendar as CalendarIcon,
@@ -54,7 +57,8 @@ import {
   Users,
   ChevronLeft,
   ChevronRight,
-  Building2
+  Building2,
+  Copy
 } from "lucide-react";
 import { useAppModal } from "@/components/ModalProvider";
 
@@ -271,7 +275,18 @@ export default function SlotsPage() {
 
   // --- MANUAL BOOKING MODAL STATES ---
   const [showBookingModal, setShowBookingModal] = useState(false);
-  const bookingPrefillRef = React.useRef<{ data: string; horario: string } | null>(null);
+  // Pré-preenchimento do agendamento manual: horário livre tocado na agenda, ou cópia de um agendamento (Duplicar)
+  const bookingPrefillRef = React.useRef<{
+    data: string;
+    horario: string;
+    nome?: string;
+    telefone?: string;
+    servicoId?: string;
+    duracaoOption?: string;
+    duracaoCustom?: string;
+    observacao?: string;
+    origem?: string;
+  } | null>(null);
   const [customerList, setCustomerList] = useState<{ nome: string; telefone: string }[]>([]);
   const [customerSuggestField, setCustomerSuggestField] = useState<"nome" | "telefone" | null>(null);
   const [bookingNome, setBookingNome] = useState("");
@@ -314,6 +329,10 @@ export default function SlotsPage() {
   const [googleNeedsReconnect, setGoogleNeedsReconnect] = useState(false);
   const [slotMenuId, setSlotMenuId] = useState<string | null>(null);
   const [slotActionId, setSlotActionId] = useState<string | null>(null);
+  // Bloco tocado na grade das visões Dia/Semana (abre o painel de detalhes)
+  const [gridSelection, setGridSelection] = useState<{ type: "lead" | "slot"; id: string } | null>(null);
+  const swipeStartRef = React.useRef<{ x: number; y: number; t: number } | null>(null);
+  const [swipeDir, setSwipeDir] = useState<1 | -1 | 0>(0);
   const [editStatus, setEditStatus] = useState("Agendado");
   const [editDuracaoOption, setEditDuracaoOption] = useState("30");
   const [editDuracaoCustom, setEditDuracaoCustom] = useState("");
@@ -468,18 +487,18 @@ export default function SlotsPage() {
   // Initialize and clear inputs for manual booking modal
   useEffect(() => {
     if (showBookingModal) {
-      setBookingNome("");
-      setBookingTelefone("");
-      setBookingObservacao("");
-      setBookingServicoId("");
       const prefill = bookingPrefillRef.current;
       bookingPrefillRef.current = null;
+      setBookingNome(prefill?.nome || "");
+      setBookingTelefone(prefill?.telefone ? formatPhoneFriendly(prefill.telefone) : "");
+      setBookingObservacao(prefill?.observacao || "");
+      setBookingServicoId(prefill?.servicoId || "");
       setBookingData(prefill?.data || agendaDateFilter || new Date().toISOString().split("T")[0]);
       setBookingHorario(prefill?.horario || "");
       setCustomerSuggestField(null);
-      setBookingOrigem("whatsapp");
-      setBookingDuracaoOption("30");
-      setBookingDuracaoCustom("");
+      setBookingOrigem(prefill?.origem || "whatsapp");
+      setBookingDuracaoOption(prefill?.duracaoOption || "30");
+      setBookingDuracaoCustom(prefill?.duracaoCustom || "");
       setBookingError("");
     }
   }, [showBookingModal, agendaDateFilter]);
@@ -508,6 +527,8 @@ export default function SlotsPage() {
       slotsByDate: slotsMap 
     };
   }, [leads, slots]);
+
+  const customerSuggestions = React.useMemo(() => mergeCustomerSuggestions(customerList, leads), [customerList, leads]);
 
   // Group slots by date for components compatibility
   const groupedSlots = React.useMemo(() => {
@@ -1352,6 +1373,8 @@ export default function SlotsPage() {
         throw new Error(data.error || "Erro ao salvar agendamento.");
       }
 
+      // Já entra no preenchimento automático, sem precisar recarregar a tela
+      setCustomerList(prev => prev.some(c => c.telefone === formattedPhone) ? prev : [...prev, { nome: trimmedNome, telefone: formattedPhone }]);
       setSuccess("Agendamento manual cadastrado com sucesso!");
       setShowBookingModal(false);
     } catch (err: any) {
@@ -1528,7 +1551,7 @@ export default function SlotsPage() {
   // --- CALENDAR VIEWS RENDERERS ---
   const renderCustomerSuggestions = (q: string, field: (c: { nome: string; telefone: string }) => string) => {
     if (q.length < 2) return null;
-    const matches = customerList.filter(c => field(c).includes(q)).slice(0, 5);
+    const matches = customerSuggestions.filter(c => field(c).includes(q)).slice(0, 5);
     if (matches.length === 0) return null;
     return (
       <div className="absolute z-10 left-0 right-0 top-full mt-1 bg-slate-950 border border-slate-700 rounded-xl overflow-hidden shadow-xl">
@@ -1654,197 +1677,302 @@ export default function SlotsPage() {
     );
   };
 
-  const renderWeekView = () => {
-    if (!calendarRefDate) return null;
-    const startStr = getStartOfWeekSaoPaulo(calendarRefDate);
-    const weekDays: string[] = [];
-    for (let i = 0; i < 7; i++) {
-      weekDays.push(addDaysSaoPaulo(startStr, i));
+  // Monta um dia da grade estilo Google Agenda: agendamentos como blocos pela duração real
+  // e os horários cadastrados que não estão cobertos por um agendamento (livre, bloqueado, expirado).
+  const buildGridDay = (dateStr: string, short: boolean): TimeGridDay => {
+    const today = getSaoPauloToday();
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const dayOfWeek = new Date(Date.UTC(y, m - 1, d, 12, 0, 0)).getUTCDay();
+    const weekdayFull = weekdayLabels[weekdayKeys[dayOfWeek]] || "";
+    const isPast = dateStr < today;
+    const step = slotDuration > 0 ? slotDuration : 30;
+
+    const leadRanges = leads
+      .filter(l => l.dataEscolhida === dateStr && l.status !== "Perdido" && l.status !== "Cancelado" && (l.horarioInicio || l.horarioEscolhido))
+      .map(l => {
+        const start = timeToMinutes(l.horarioInicio || l.horarioEscolhido);
+        return { lead: l, start, end: start + Math.max(getLeadDurationInMinutes(l, services, slotDuration), 15) };
+      });
+
+    const events: TimeGridEvent[] = leadRanges.map(({ lead, start, end }) => {
+      const style = getCalendarStatusStyle(lead.status, calendarColors);
+      return {
+        id: `lead-${lead.id}`,
+        start,
+        end,
+        kind: "lead",
+        title: lead.nome || "Cliente",
+        subtitle: lead.servicoEscolhido,
+        color: style.bg,
+        textColor: style.text,
+        dimmed: dragLeadId === lead.id || movingLead?.id === lead.id,
+        onClick: () => setGridSelection({ type: "lead", id: lead.id }),
+        draggable: ["Novo", "Em contato", "Agendado"].includes(lead.status),
+        onDragStart: (e) => { e.dataTransfer.setData("text/plain", lead.id); setDragLeadId(lead.id); },
+        onDragEnd: () => setDragLeadId(null),
+      };
+    });
+
+    const daySlots = [...(slotsByDate.get(dateStr) || [])].sort((a, b) => timeToMinutes(a.horario) - timeToMinutes(b.horario));
+    daySlots.forEach(slot => {
+      const start = timeToMinutes(slot.horario);
+      if (leadRanges.some(r => start >= r.start && start < r.end)) return; // coberto pelo bloco do agendamento
+      const end = start + step;
+
+      if (!slot.disponivel) {
+        const style = getCalendarStatusStyle("Bloqueado", calendarColors);
+        events.push({
+          id: `slot-${slot.id}`,
+          start,
+          end,
+          kind: "blocked",
+          title: slot.bloqueadoManual ? "Bloqueado" : "Indisponível",
+          color: style.bg,
+          onClick: () => setGridSelection({ type: "slot", id: slot.id }),
+        });
+        return;
+      }
+
+      if (isPastDateTimeSaoPaulo(dateStr, slot.horario)) {
+        events.push({ id: `slot-${slot.id}`, start, end, kind: "expired", title: "Expirado", color: "#6B7280" });
+        return;
+      }
+
+      const style = getCalendarStatusStyle("Disponível", calendarColors);
+      events.push({
+        id: `slot-${slot.id}`,
+        start,
+        end,
+        kind: "free",
+        title: style.label,
+        color: style.bg,
+        highlight: !!movingLead || !!dragLeadId,
+        onClick: () => {
+          if (movingLead) handleMoveLeadTo(movingLead, slot);
+          else setGridSelection({ type: "slot", id: slot.id });
+        },
+        acceptsDrop: !!dragLeadId,
+        onDrop: (e) => {
+          e.preventDefault();
+          const dragged = leads.find((l) => l.id === (dragLeadId || e.dataTransfer.getData("text/plain")));
+          if (dragged) handleMoveLeadTo(dragged, slot);
+        },
+      });
+    });
+
+    const cancelledCount = leads.filter(l => l.status === "Cancelado" && l.dataEscolhida === dateStr).length;
+
+    return {
+      dateStr,
+      weekdayLabel: short ? weekdayFull.slice(0, 3) : weekdayFull.split("-")[0],
+      dayNumber: String(d),
+      isToday: dateStr === today,
+      isPast,
+      badge: short && !isPast && cancelledCount > 0 ? `${cancelledCount} canc.` : undefined,
+      onHeaderClick: short && !isPast ? () => { setCalendarRefDate(dateStr); setCalendarView("day"); } : undefined,
+      events,
+    };
+  };
+
+  // Duplicar (como no Google Agenda): abre um novo agendamento com cliente, serviço, duração e observação copiados.
+  // A data vem preenchida com a do original; o horário fica em branco para escolher o novo.
+  const handleDuplicateLead = (lead: (typeof leads)[number]) => {
+    const dur = parseServiceDuration(`${getLeadDurationInMinutes(lead, services, slotDuration)} minutos`);
+    bookingPrefillRef.current = {
+      data: lead.dataEscolhida || "",
+      horario: "",
+      nome: lead.nome || "",
+      telefone: String(lead.telefone || "").replace(/\D/g, ""),
+      servicoId: services.some(s => s.id === lead.serviceId) ? lead.serviceId : "",
+      duracaoOption: dur.option,
+      duracaoCustom: dur.customVal,
+      observacao: lead.observacao || "",
+      origem: lead.origem || "whatsapp",
+    };
+    setGridSelection(null);
+    setShowBookingModal(true);
+  };
+
+  const isCalendarPrevDisabled = () => {
+    const today = getSaoPauloToday();
+    return (
+      (calendarView === "month" && calendarRefDate.slice(0, 7) <= today.slice(0, 7)) ||
+      (calendarView === "week" && getStartOfWeekSaoPaulo(calendarRefDate) <= getStartOfWeekSaoPaulo(today)) ||
+      (calendarView === "day" && calendarRefDate <= today)
+    );
+  };
+
+  // Avança (1) ou volta (-1) um mês, semana ou dia, conforme a visão atual.
+  const shiftCalendar = (dir: 1 | -1, fromSwipe = false) => {
+    if (dir === -1 && isCalendarPrevDisabled()) return;
+    setSwipeDir(fromSwipe ? dir : 0);
+    if (calendarView === "month") {
+      setCalendarRefDate(prev => shiftMonth(prev, dir));
+    } else if (calendarView === "week") {
+      setCalendarRefDate(prev => addDaysSaoPaulo(prev, 7 * dir));
+    } else {
+      setCalendarRefDate(prev => addDaysSaoPaulo(prev, dir));
+    }
+  };
+
+  // Deslizar o dedo para o lado no calendário troca de período, como no Google Agenda.
+  // Toques com dois dedos (pinça) e toques com o painel de detalhes aberto não contam.
+  const handleCalendarTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length !== 1 || gridSelection) {
+      swipeStartRef.current = null;
+      return;
+    }
+    swipeStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() };
+  };
+  const handleCalendarTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length > 1) swipeStartRef.current = null;
+  };
+  const handleCalendarTouchEnd = (e: React.TouchEvent) => {
+    const start = swipeStartRef.current;
+    swipeStartRef.current = null;
+    if (!start || e.changedTouches.length === 0) return;
+    const touch = e.changedTouches[0];
+    const result = detectSwipe(touch.clientX - start.x, touch.clientY - start.y, Date.now() - start.t);
+    if (result) shiftCalendar(result === "next" ? 1 : -1, true);
+  };
+
+  const renderMovingBanner = () =>
+    movingLead && (
+      <div className="sticky top-2 z-30 flex items-center justify-between gap-3 rounded-2xl border border-indigo-500/40 bg-indigo-950/90 px-4 py-3 text-xs text-indigo-100 backdrop-blur">
+        <span>Toque em um <strong>horário livre</strong> para mover <strong>{movingLead.nome}</strong>.</span>
+        <button type="button" onClick={() => setMovingLead(null)} className="shrink-0 rounded-lg border border-indigo-400/40 px-3 py-1.5 font-semibold">Cancelar</button>
+      </div>
+    );
+
+  // Painel inferior (como o do Google Agenda) com os detalhes e ações do bloco tocado na grade.
+  const renderGridSelectionSheet = () => {
+    if (!gridSelection) return null;
+    const close = () => setGridSelection(null);
+    let content: React.ReactNode = null;
+
+    if (gridSelection.type === "lead") {
+      const lead = leads.find(l => l.id === gridSelection.id);
+      if (!lead || lead.status === "Cancelado" || lead.status === "Perdido") return null;
+      const style = getCalendarStatusStyle(lead.status, calendarColors);
+      const start = lead.horarioInicio || lead.horarioEscolhido;
+      const dur = getLeadDurationInMinutes(lead, services, slotDuration);
+      content = (
+        <>
+          <div className="flex items-start gap-3">
+            <span className="mt-1 h-3.5 w-3.5 shrink-0 rounded" style={{ backgroundColor: style.bg }} />
+            <div className="min-w-0">
+              <div className="text-base font-black text-slate-100 truncate">{lead.nome}</div>
+              <div className="text-xs text-slate-400 mt-0.5">
+                {formatDateFriendly(lead.dataEscolhida)} · {start} – {addMinutesToTime(start, dur)}
+              </div>
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                <span className="px-1.5 py-0.5 rounded text-[9px] uppercase font-black tracking-wider" style={{ backgroundColor: style.bg + "20", color: style.bg }}>{lead.status}</span>
+                {lead.servicoEscolhido && <span className="text-[11px] text-slate-400 font-semibold">{lead.servicoEscolhido} ({dur} min)</span>}
+              </div>
+              {lead.telefone && <div className="text-xs text-slate-400 font-mono mt-1">Tel: {lead.telefone}</div>}
+            </div>
+          </div>
+          <div className="mt-4 flex gap-2">
+            <button
+              type="button"
+              onClick={() => { close(); handleOpenEditModal(lead); }}
+              className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-xs"
+            >
+              Abrir agendamento
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDuplicateLead(lead)}
+              className="flex-1 py-2.5 rounded-xl border border-slate-700 text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5"
+            >
+              <Copy className="h-3.5 w-3.5" />
+              Duplicar
+            </button>
+          </div>
+          <LeadCardActions
+            lead={lead}
+            profId={activeProfId}
+            moving={movingLead?.id === lead.id}
+            onReschedule={(l) => { close(); handleOpenEditModal(l); }}
+            onMove={(l) => { close(); setMovingLead((prev: any) => (prev?.id === l.id ? null : l)); }}
+            onError={(m) => setError(m)}
+          />
+        </>
+      );
+    } else {
+      const slot = slots.find(s => s.id === gridSelection.id);
+      if (!slot) return null;
+      const range = `${slot.horario} – ${addMinutesToTime(slot.horario, slotDuration > 0 ? slotDuration : 30)}`;
+      const busy = slotActionId === slot.id;
+      content = (
+        <>
+          <div className="text-base font-black text-slate-100">
+            {slot.disponivel ? "Horário livre" : slot.bloqueadoManual ? "Horário bloqueado" : "Horário indisponível"}
+          </div>
+          <div className="text-xs text-slate-400 mt-0.5">{formatDateFriendly(slot.data)} · {range}</div>
+          {slot.disponivel ? (
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  bookingPrefillRef.current = { data: slot.data, horario: slot.horario };
+                  close();
+                  setShowBookingModal(true);
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-xs"
+              >
+                Agendar
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={async () => { await handleToggleSlot(slot, true); close(); }}
+                className="flex-1 py-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-400 font-bold text-xs disabled:opacity-50"
+              >
+                {busy ? "Bloqueando..." : "Bloquear horário"}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={async () => { await handleToggleSlot(slot, false); close(); }}
+              className="mt-4 w-full py-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-bold text-xs disabled:opacity-50"
+            >
+              {busy ? "Salvando..." : slot.bloqueadoManual ? "Reativar horário" : "Liberar horário"}
+            </button>
+          )}
+        </>
+      );
     }
 
     return (
-      <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
-        {weekDays.map(dateStr => {
-          const today = getSaoPauloToday();
-          const isToday = dateStr === today;
-          const isPast = dateStr < today;
-          const daySlots = slotsByDate.get(dateStr) || [];
-          const sortedSlots = [...daySlots].sort((a, b) => timeToMinutes(a.horario) - timeToMinutes(b.horario));
-          const cancelledCount = leads.filter(l => l.status === "Cancelado" && l.dataEscolhida === dateStr).length;
-          const isSlotExpired = (horario: string) => isToday && isPastDateTimeSaoPaulo(dateStr, horario);
+      <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center" role="dialog" aria-modal="true">
+        <button type="button" aria-label="Fechar" onClick={close} className="absolute inset-0 bg-black/40" />
+        <div className="relative w-full md:max-w-md max-h-[80vh] overflow-y-auto rounded-t-3xl md:rounded-3xl border border-slate-800 bg-slate-900 p-5 pb-8 shadow-2xl animate-fade-in">
+          <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-700 md:hidden" />
+          <button type="button" aria-label="Fechar" onClick={close} className="absolute right-3 top-3 p-1.5 rounded-lg text-slate-400 hover:text-slate-200">
+            <X className="h-4 w-4" />
+          </button>
+          {content}
+        </div>
+      </div>
+    );
+  };
 
-          return (
-            <div
-              key={dateStr}
-              className={`
-                border rounded-2xl p-4 flex flex-col gap-3 min-h-[400px]
-                ${isPast
-                  ? "bg-slate-950/5 border-slate-900/30 opacity-40"
-                  : isToday
-                    ? "bg-slate-950/20 border-indigo-500/30 ring-1 ring-indigo-500/10 shadow-lg shadow-indigo-500/5"
-                    : "bg-slate-950/20 border-slate-800/80"
-                }
-              `}
-            >
-              <div
-                className={`border-b border-slate-800/60 pb-2 transition-colors ${isPast ? "cursor-default" : "cursor-pointer hover:text-indigo-400"}`}
-                onClick={() => {
-                  if (isPast) return;
-                  setCalendarRefDate(dateStr);
-                  setCalendarView("day");
-                }}
-              >
-                <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-400">
-                  {(() => {
-                    const [y, m, d] = dateStr.split("-").map(Number);
-                    const dayOfWeek = new Date(Date.UTC(y, m - 1, d, 12, 0, 0)).getUTCDay();
-                    return weekdayLabels[weekdayKeys[dayOfWeek]];
-                  })()}
-                </h4>
-                <div className="text-sm font-black text-slate-200 mt-0.5">{formatDateShortSaoPaulo(dateStr)}</div>
-              </div>
+  const renderWeekView = () => {
+    if (!calendarRefDate) return null;
+    const startStr = getStartOfWeekSaoPaulo(calendarRefDate);
+    const weekDays: TimeGridDay[] = [];
+    for (let i = 0; i < 7; i++) {
+      weekDays.push(buildGridDay(addDaysSaoPaulo(startStr, i), true));
+    }
 
-              {/* Slots List */}
-              <div className="flex-1 space-y-2 max-h-[500px] overflow-y-auto pr-1">
-                {isPast ? (
-                  <div className="text-center py-8 text-slate-600 text-[10px] font-semibold">Dia passado</div>
-                ) : sortedSlots.length === 0 ? (
-                  <div className="text-center py-8 text-slate-650 text-[10px] font-semibold">Nenhum slot</div>
-                ) : (
-                  sortedSlots.map(slot => {
-                    const lead = leads.find(l => 
-                      l.status !== "Perdido" &&
-                      l.status !== "Cancelado" &&
-                      l.dataEscolhida === slot.data &&
-                      l.horarioEscolhido === slot.horario
-                    );
-
-                    const coveringLead = lead || leads.find(l => {
-                      if (l.status === "Perdido" || l.status === "Cancelado") return false;
-                      if (l.dataEscolhida !== slot.data) return false;
-                      const start = timeToMinutes(l.horarioInicio || l.horarioEscolhido);
-                      const dur = getLeadDurationInMinutes(l, services, slotDuration);
-                      const end = start + dur;
-                      const slotMin = timeToMinutes(slot.horario);
-                      return slotMin >= start && slotMin < end;
-                    });
-
-                    const isContinuation = coveringLead && (!lead);
-                    const expired = isSlotExpired(slot.horario);
-                    const isOrphanBlocked = !slot.disponivel && !slot.bloqueadoManual && !lead && !isContinuation;
-
-                    if (slot.bloqueadoManual && !slot.disponivel && !lead && !isContinuation) {
-                      return (
-                        <div
-                          key={slot.id}
-                          className="p-2.5 rounded-xl border bg-slate-950/30 border-rose-500/20 flex items-center justify-between text-[11px]"
-                        >
-                          <span className="font-mono text-slate-400">{slot.horario}</span>
-                          <span className="text-[9px] text-rose-400 uppercase tracking-wider font-extrabold">Bloqueado</span>
-                        </div>
-                      );
-                    }
-
-                    if (isOrphanBlocked) {
-                      return (
-                        <div
-                          key={slot.id}
-                          className="p-2.5 rounded-xl border bg-slate-950/10 border-slate-900/30 flex items-center justify-between text-[11px] opacity-50"
-                        >
-                          <span className="font-mono text-slate-400">{slot.horario}</span>
-                          <span className="text-[9px] text-emerald-500/60 uppercase tracking-wider font-bold">Livre</span>
-                        </div>
-                      );
-                    }
-
-                    if (expired) {
-                      return (
-                        <div
-                          key={slot.id}
-                          className="p-2.5 rounded-xl border bg-slate-950/10 border-slate-900/30 flex items-center justify-between text-[11px] opacity-40"
-                        >
-                          <span className="font-mono text-slate-500 line-through">{slot.horario}</span>
-                          <span className="text-[9px] text-slate-600 uppercase tracking-wider font-bold">Expirado</span>
-                        </div>
-                      );
-                    }
-
-                    if (slot.disponivel) {
-                      const style = getCalendarStatusStyle("Disponível", calendarColors);
-                      return (
-                        <div
-                          key={slot.id}
-                          className="p-2.5 rounded-xl border bg-slate-900 border-slate-850 flex items-center justify-between text-[11px] font-bold"
-                        >
-                          <span className="font-mono text-slate-300">{slot.horario}</span>
-                          <span className="px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider font-extrabold" style={{ backgroundColor: style.bg + "20", color: style.bg, border: `1px solid ${style.bg}30` }}>
-                            {style.label}
-                          </span>
-                        </div>
-                      );
-                    }
-
-                    if (lead) {
-                      const style = getCalendarStatusStyle(lead.status, calendarColors);
-                      return (
-                        <div
-                          key={slot.id}
-                          onClick={() => handleOpenEditModal(lead)}
-                          className="p-2.5 rounded-xl border cursor-pointer hover:brightness-110 transition-all text-[11px] space-y-1 relative overflow-hidden"
-                          style={{ backgroundColor: style.bg + "15", borderLeft: `4px solid ${style.bg}`, borderColor: style.bg + "30" }}
-                        >
-                          <div className="flex justify-between items-center font-mono font-black" style={{ color: style.bg }}>
-                            <span>{slot.horario}</span>
-                            <span className="text-[9px] font-extrabold uppercase">{lead.status}</span>
-                          </div>
-                          <div className="font-extrabold text-slate-200 truncate">{lead.nome}</div>
-                        </div>
-                      );
-                    }
-
-                    if (isContinuation) {
-                      return (
-                        <div
-                          key={slot.id}
-                          onClick={() => handleOpenEditModal(coveringLead)}
-                          className="p-2.5 rounded-xl border cursor-pointer hover:brightness-110 transition-all text-[11px] bg-slate-950/20 border-slate-900/60 text-slate-550 flex items-center justify-between font-mono"
-                        >
-                          <span>{slot.horario}</span>
-                          <span className="text-[9px] text-slate-550 italic max-w-[80px] truncate">({coveringLead.nome})</span>
-                        </div>
-                      );
-                    }
-
-                    // Blocked
-                    const style = getCalendarStatusStyle("Bloqueado", calendarColors);
-                    return (
-                      <div
-                        key={slot.id}
-                        className="p-2.5 rounded-xl border bg-slate-955/40 border-slate-900/60 flex items-center justify-between text-[11px] font-mono text-slate-600"
-                      >
-                        <span className="line-through">{slot.horario}</span>
-                        <span className="text-[9px] uppercase tracking-wider font-extrabold text-rose-500/80 bg-rose-500/5 px-1.5 py-0.5 rounded border border-rose-500/10">Bloqueado</span>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-
-              {/* Weekly Cancellation Summary Indicator */}
-              {!isPast && cancelledCount > 0 && (
-                <div
-                  onClick={() => {
-                    setCalendarRefDate(dateStr);
-                    setCalendarView("day");
-                  }}
-                  className="bg-red-500/5 border border-red-500/10 p-2 rounded-xl text-center text-[10px] font-extrabold text-red-450 cursor-pointer hover:bg-red-500/10 transition-all"
-                >
-                  {cancelledCount} cancelado(s)
-                </div>
-              )}
-            </div>
-          );
-        })}
+    return (
+      <div className="space-y-4">
+        {renderMovingBanner()}
+        <TimeGridCalendar days={weekDays} scrollKey={`week-${startStr}`} />
+        {renderGridSelectionSheet()}
       </div>
     );
   };
@@ -1854,277 +1982,25 @@ export default function SlotsPage() {
     const dateStr = calendarRefDate;
     const today = getSaoPauloToday();
     const isPast = dateStr < today;
-    const daySlots = slotsByDate.get(dateStr) || [];
-    const sortedSlots = [...daySlots].sort((a, b) => timeToMinutes(a.horario) - timeToMinutes(b.horario));
+    const daySlotCount = (slotsByDate.get(dateStr) || []).length;
     const dayCancelledLeads = leads.filter(l => l.status === "Cancelado" && l.dataEscolhida === dateStr);
 
     return (
-      <div className="space-y-6">
-        {movingLead && (
-          <div className="sticky top-2 z-10 flex items-center justify-between gap-3 rounded-2xl border border-indigo-500/40 bg-indigo-950/90 px-4 py-3 text-xs text-indigo-100 backdrop-blur">
-            <span>Toque em um <strong>horário livre</strong> para mover <strong>{movingLead.nome}</strong>.</span>
-            <button type="button" onClick={() => setMovingLead(null)} className="shrink-0 rounded-lg border border-indigo-400/40 px-3 py-1.5 font-semibold">Cancelar</button>
-          </div>
-        )}
-        <div className="border-b border-slate-800 pb-3 flex justify-between items-center">
-          <div>
-            <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-400">Visão Diária</h4>
-            <h3 className={`text-lg font-black mt-0.5 ${isPast ? "text-slate-500" : "text-slate-200"}`}>{formatDateFriendly(dateStr)}</h3>
-          </div>
+      <div className="space-y-4">
+        {renderMovingBanner()}
+        <div className="flex justify-between items-center">
+          <h3 className={`text-base font-black ${isPast ? "text-slate-500" : "text-slate-200"}`}>{formatDateFriendly(dateStr)}</h3>
           <div className="text-xs text-slate-500 font-bold">
             {isPast ? (
               <span className="text-amber-500/70 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg">Dia passado</span>
             ) : (
-              `${sortedSlots.length} slot(s) cadastrado(s)`
+              `${daySlotCount} slot(s) cadastrado(s)`
             )}
           </div>
         </div>
 
-        {isPast && (
-          <div className="flex items-center gap-3 p-4 bg-slate-900/40 border border-slate-800/60 rounded-2xl text-sm text-slate-500">
-            <span>Este dia já passou. Navegue para uma data futura para ver os horários disponíveis.</span>
-          </div>
-        )}
-
-
-        <div className="space-y-2.5 max-h-[600px] overflow-y-auto pr-1">
-          {sortedSlots.length === 0 ? (
-            <div className="text-center py-16 bg-slate-950/20 border border-slate-850 rounded-2xl text-slate-400 text-sm font-semibold">
-              Nenhum slot configurado para este dia.
-            </div>
-          ) : (
-            sortedSlots.map(slot => {
-              const lead = leads.find(l => 
-                l.status !== "Perdido" &&
-                l.status !== "Cancelado" &&
-                l.dataEscolhida === slot.data &&
-                l.horarioEscolhido === slot.horario
-              );
-
-              const coveringLead = lead || leads.find(l => {
-                if (l.status === "Perdido" || l.status === "Cancelado") return false;
-                if (l.dataEscolhida !== slot.data) return false;
-                const start = timeToMinutes(l.horarioInicio || l.horarioEscolhido);
-                const dur = getLeadDurationInMinutes(l, services, slotDuration);
-                const end = start + dur;
-                const slotMin = timeToMinutes(slot.horario);
-                return slotMin >= start && slotMin < end;
-              });
-
-              const isContinuation = coveringLead && (!lead);
-              const expired = isPastDateTimeSaoPaulo(dateStr, slot.horario);
-
-              // Slot bloqueado mas lead está cancelado/perdido (cleanup ainda não rodou)
-              const isOrphanBlocked = !slot.disponivel && !slot.bloqueadoManual && !lead && !isContinuation;
-
-              if (slot.bloqueadoManual && !slot.disponivel && !lead && !isContinuation) {
-                const open = slotMenuId === slot.id;
-                return (
-                  <div
-                    key={slot.id}
-                    onClick={() => setSlotMenuId(open ? null : slot.id)}
-                    className="p-4 bg-slate-950/40 border border-rose-500/20 rounded-2xl text-xs cursor-pointer"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <span className="font-mono text-slate-400 text-sm font-bold">{slot.horario}</span>
-                        <span className="text-[10px] text-slate-500 font-medium">Horário bloqueado</span>
-                      </div>
-                      <span className="text-[10px] text-rose-400 uppercase tracking-wider font-extrabold">Bloqueado</span>
-                    </div>
-                    {open && (
-                      <button
-                        type="button"
-                        disabled={slotActionId === slot.id}
-                        onClick={(e) => { e.stopPropagation(); handleToggleSlot(slot, false); }}
-                        className="mt-3 w-full py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-bold text-xs disabled:opacity-50"
-                      >
-                        {slotActionId === slot.id ? "Reativando..." : "Reativar horário"}
-                      </button>
-                    )}
-                  </div>
-                );
-              }
-
-              if (isOrphanBlocked) {
-                const open = slotMenuId === slot.id;
-                return (
-                  <div
-                    key={slot.id}
-                    onClick={() => setSlotMenuId(open ? null : slot.id)}
-                    className="p-4 bg-slate-950/20 border border-slate-800/30 rounded-2xl text-xs cursor-pointer"
-                  >
-                    <div className="flex items-center justify-between opacity-60">
-                      <div className="flex items-center gap-4">
-                        <span className="font-mono text-slate-400 text-sm">{slot.horario}</span>
-                        <span className="text-[10px] text-slate-500 font-medium">Horário indisponível</span>
-                      </div>
-                      <span className="text-[10px] text-rose-400 uppercase tracking-wider font-bold">Bloqueado</span>
-                    </div>
-                    {open && (
-                      <button
-                        type="button"
-                        disabled={slotActionId === slot.id}
-                        onClick={(e) => { e.stopPropagation(); handleToggleSlot(slot, false); }}
-                        className="mt-3 w-full py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-bold text-xs disabled:opacity-50"
-                      >
-                        {slotActionId === slot.id ? "Liberando..." : "Liberar horário"}
-                      </button>
-                    )}
-                  </div>
-                );
-              }
-
-              if (expired && !lead && !isContinuation) {
-                return (
-                  <div
-                    key={slot.id}
-                    className="p-4 bg-slate-950/20 border border-slate-900/30 rounded-2xl flex items-center justify-between text-xs opacity-35"
-                  >
-                    <div className="flex items-center gap-4">
-                      <span className="font-mono text-slate-500 text-sm line-through">{slot.horario}</span>
-                      <span className="text-[10px] text-slate-600 font-medium">Horário expirado</span>
-                    </div>
-                    <span className="text-[10px] text-slate-600 uppercase tracking-wider font-bold">Expirado</span>
-                  </div>
-                );
-              }
-
-              if (slot.disponivel) {
-                const style = getCalendarStatusStyle("Disponível", calendarColors);
-                const open = slotMenuId === slot.id;
-                return (
-                  <div
-                    key={slot.id}
-                    onClick={() => {
-                      if (movingLead) handleMoveLeadTo(movingLead, slot);
-                      else setSlotMenuId(open ? null : slot.id);
-                    }}
-                    onDragOver={(e) => { if (dragLeadId) e.preventDefault(); }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      const dragged = leads.find((l) => l.id === (dragLeadId || e.dataTransfer.getData("text/plain")));
-                      if (dragged) handleMoveLeadTo(dragged, slot);
-                    }}
-                    className={`p-4 bg-slate-900 border rounded-2xl text-xs font-bold cursor-pointer ${movingLead || dragLeadId ? "border-indigo-500/60 ring-1 ring-indigo-500/30" : "border-slate-850"}`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <span className="font-mono text-slate-200 text-sm font-bold">{slot.horario}</span>
-                        <span className="text-[10px] text-slate-500 font-medium">Horário Livre</span>
-                      </div>
-                      <span
-                        className="px-2.5 py-0.5 rounded text-[10px] uppercase tracking-wider font-extrabold"
-                        style={{ backgroundColor: style.bg + "20", color: style.bg, border: `1px solid ${style.bg}30` }}
-                      >
-                        {style.label}
-                      </span>
-                    </div>
-                    {open && !movingLead && (
-                      <div className="mt-3 flex gap-2">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            bookingPrefillRef.current = { data: slot.data, horario: slot.horario };
-                            setSlotMenuId(null);
-                            setShowBookingModal(true);
-                          }}
-                          className="flex-1 py-2 rounded-xl bg-indigo-600/20 border border-indigo-500/40 text-indigo-300 font-bold text-xs"
-                        >
-                          Agendar
-                        </button>
-                        <button
-                          type="button"
-                          disabled={slotActionId === slot.id}
-                          onClick={(e) => { e.stopPropagation(); handleToggleSlot(slot, true); }}
-                          className="flex-1 py-2 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-400 font-bold text-xs disabled:opacity-50"
-                        >
-                          {slotActionId === slot.id ? "Bloqueando..." : "Bloquear horário"}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                );
-              }
-
-              if (lead) {
-                const style = getCalendarStatusStyle(lead.status, calendarColors);
-                return (
-                  <div
-                    key={slot.id}
-                    onClick={() => handleOpenEditModal(lead)}
-                    draggable={["Novo", "Em contato", "Agendado"].includes(lead.status)}
-                    onDragStart={(e) => { e.dataTransfer.setData("text/plain", lead.id); setDragLeadId(lead.id); }}
-                    onDragEnd={() => setDragLeadId(null)}
-                    className={`p-4 rounded-2xl border cursor-pointer hover:brightness-110 transition-all text-xs flex flex-col relative overflow-hidden ${dragLeadId === lead.id ? "opacity-50" : ""}`}
-                    style={{ backgroundColor: style.bg + "15", borderLeft: `4px solid ${style.bg}`, borderColor: style.bg + "30" }}
-                  >
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                    <div className="flex items-center gap-4">
-                      <span className="text-slate-200 font-mono font-bold text-sm">{slot.horario}</span>
-                      <div>
-                        <div className="font-extrabold text-slate-100 text-sm flex items-center gap-2">
-                          <span>{lead.nome}</span>
-                          <span className="px-1.5 py-0.5 rounded text-[9px] uppercase font-black tracking-wider" style={{ backgroundColor: style.bg + "20", color: style.bg }}>
-                            {lead.status}
-                          </span>
-                          {lead.origem && (
-                            <span className="px-1 py-0.5 rounded text-[9px] bg-slate-850 text-slate-400 font-semibold uppercase tracking-wider">
-                              {lead.origem}
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-slate-450 font-semibold mt-0.5">
-                          {lead.servicoEscolhido} ({lead.duracaoAgendamento || 30} min)
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {lead.telefone && <span className="text-xs text-slate-400 font-mono">Tel: {lead.telefone}</span>}
-                    </div>
-                    </div>
-                    <LeadCardActions
-                      lead={lead}
-                      profId={activeProfId}
-                      moving={movingLead?.id === lead.id}
-                      onReschedule={handleOpenEditModal}
-                      onMove={(l) => setMovingLead((prev: any) => (prev?.id === l.id ? null : l))}
-                      onError={(m) => setError(m)}
-                    />
-                  </div>
-                );
-              }
-
-              if (isContinuation) {
-                return (
-                  <div
-                    key={slot.id}
-                    onClick={() => handleOpenEditModal(coveringLead)}
-                    className="p-3 bg-slate-950/20 border border-slate-900/60 rounded-2xl cursor-pointer hover:border-slate-800 transition-all flex items-center justify-between text-xs font-mono text-slate-500"
-                  >
-                    <div className="flex items-center gap-4">
-                      <span className="text-slate-400 font-bold">{slot.horario}</span>
-                      <span className="text-[10px] text-slate-500 italic">Continuação do atendimento de {coveringLead.nome}</span>
-                    </div>
-                  </div>
-                );
-              }
-
-              // Blocked
-              const style = getCalendarStatusStyle("Bloqueado", calendarColors);
-              return (
-                <div
-                  key={slot.id}
-                  className="p-3 bg-slate-955/20 border border-slate-900/60 rounded-2xl flex items-center justify-between text-xs font-mono text-slate-500"
-                >
-                  <span className="line-through">{slot.horario}</span>
-                  <span className="text-[10px] uppercase font-extrabold text-rose-500/80 bg-rose-500/5 px-2 py-0.5 rounded border border-rose-500/10">Bloqueado</span>
-                </div>
-              );
-            })
-          )}
-        </div>
+        <TimeGridCalendar days={[buildGridDay(dateStr, false)]} scrollKey={`day-${dateStr}`} />
+        {renderGridSelectionSheet()}
 
         {/* Collapsible cancellation history */}
         <CollapsibleCancelledHistory leadsList={dayCancelledLeads} />
@@ -2770,25 +2646,10 @@ export default function SlotsPage() {
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-1.5">
                 {(() => {
-                  const today = getSaoPauloToday();
-                  const todayMonth = today.slice(0, 7);
-                  const todayWeekStart = getStartOfWeekSaoPaulo(today);
-                  const isPrevDisabled =
-                    (calendarView === "month" && calendarRefDate.slice(0, 7) <= todayMonth) ||
-                    (calendarView === "week" && getStartOfWeekSaoPaulo(calendarRefDate) <= todayWeekStart) ||
-                    (calendarView === "day" && calendarRefDate <= today);
+                  const isPrevDisabled = isCalendarPrevDisabled();
                   return (
                     <button
-                      onClick={() => {
-                        if (isPrevDisabled) return;
-                        if (calendarView === "month") {
-                          setCalendarRefDate(prev => shiftMonth(prev, -1));
-                        } else if (calendarView === "week") {
-                          setCalendarRefDate(prev => addDaysSaoPaulo(prev, -7));
-                        } else {
-                          setCalendarRefDate(prev => addDaysSaoPaulo(prev, -1));
-                        }
-                      }}
+                      onClick={() => shiftCalendar(-1)}
                       disabled={isPrevDisabled}
                       className="p-2 bg-slate-950 border border-slate-850 rounded-xl text-slate-400 transition-all disabled:opacity-30 disabled:cursor-not-allowed hover:border-slate-700 hover:text-slate-200 disabled:hover:border-slate-850 disabled:hover:text-slate-400"
                     >
@@ -2803,15 +2664,7 @@ export default function SlotsPage() {
                   Hoje
                 </button>
                 <button
-                  onClick={() => {
-                    if (calendarView === "month") {
-                      setCalendarRefDate(prev => shiftMonth(prev, 1));
-                    } else if (calendarView === "week") {
-                      setCalendarRefDate(prev => addDaysSaoPaulo(prev, 7));
-                    } else {
-                      setCalendarRefDate(prev => addDaysSaoPaulo(prev, 1));
-                    }
-                  }}
+                  onClick={() => shiftCalendar(1)}
                   className="p-2 bg-slate-950 border border-slate-850 hover:border-slate-700 rounded-xl text-slate-400 hover:text-slate-200 transition-all"
                 >
                   <ChevronRight className="h-4 w-4" />
@@ -2835,14 +2688,20 @@ export default function SlotsPage() {
           </div>
 
           {/* Calendar Grid Container */}
-          <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 backdrop-blur-sm">
+          <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-3 md:p-6 backdrop-blur-sm">
             {loading ? (
               <div className="flex flex-col justify-center items-center py-16">
                 <Loader2 className="h-8 w-8 text-indigo-500 animate-spin" />
                 <p className="mt-4 text-slate-400 font-medium">Buscando agenda...</p>
               </div>
             ) : (
-              <div className="animate-fade-in">
+              <div
+                key={`${calendarView}-${calendarRefDate}`}
+                className={swipeDir === 1 ? "animate-slide-from-right" : swipeDir === -1 ? "animate-slide-from-left" : "animate-fade-in"}
+                onTouchStart={handleCalendarTouchStart}
+                onTouchMove={handleCalendarTouchMove}
+                onTouchEnd={handleCalendarTouchEnd}
+              >
                 {calendarView === "month" && renderMonthView()}
                 {calendarView === "week" && renderWeekView()}
                 {calendarView === "day" && renderDayView()}
