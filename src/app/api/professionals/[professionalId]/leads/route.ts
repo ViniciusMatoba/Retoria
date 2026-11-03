@@ -119,6 +119,9 @@ export async function POST(req: NextRequest, { params }: Params) {
       });
       if (conflict) throw Object.assign(new Error("slot-already-booked"), { httpStatus: 409 });
 
+      // Cliente já cadastrado com este telefone (página pública ou agendamento manual anterior)
+      const knownCustomerSnap = await tx.get(profRef.collection("customers").where("telefone", "==", telefoneD).limit(1));
+
       // ── WRITEs ──
       const now = FieldValue.serverTimestamp();
       const newLeadRef = leadsRef.doc();
@@ -146,6 +149,18 @@ export async function POST(req: NextRequest, { params }: Params) {
       });
 
       target.forEach((d: any) => tx.update(d.ref, { disponivel: false, updatedAt: now }));
+
+      // Cadastro do cliente para o preenchimento automático dos próximos agendamentos (mesmo formato da rota pública)
+      const knownCustomer = knownCustomerSnap.empty ? null : knownCustomerSnap.docs[0];
+      const customerRef = knownCustomer?.ref ?? profRef.collection("customers").doc(`phone_${telefoneD}`);
+      tx.set(customerRef, {
+        ...(knownCustomer?.data()?.nome ? {} : { nome: nomeT }),
+        telefone: telefoneD,
+        ...(knownCustomer ? {} : { customerUid: null }),
+        lastBookingId: leadId,
+        lastBookingDate: dataEscolhida,
+        updatedAt: now,
+      }, { merge: true });
 
       // SEC-005: vínculo lead → slots só no índice privado
       tx.set(profRef.collection("slotBookings").doc(leadId), {
