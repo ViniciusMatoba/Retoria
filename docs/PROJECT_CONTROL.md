@@ -63,6 +63,10 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 | F26 | Agenda | Deslizar para o lado troca de dia/semana/mês | Testado (lógica) | Sim | `test:time-grid` (detectSwipe) | Não testada | Não | `timeGrid.ts` (`detectSwipe`), `dashboard/slots/page.tsx` | Teste em aparelho real | Homologar no celular |
 | F27 | Agenda | Duplicar agendamento (abre novo agendamento manual com cliente, serviço, duração e observação copiados) | Implementado | Sim | Build | Não testada | Não | `dashboard/slots/page.tsx` (`handleDuplicateLead`) | Teste manual | Homologar |
 | F28 | Clientes | Agendamento manual grava o cliente em `customers`; preenchimento automático inclui clientes de agendamentos anteriores | Testado (lógica) / Implementado (rota) | Sim | `test:time-grid` (mergeCustomerSuggestions); build | Não testada | Não | `api/professionals/[professionalId]/leads/route.ts`, `src/lib/customerSuggestions.ts` | Teste manual (rota usa Admin SDK; regras inalteradas) | Homologar |
+| F29 | Agenda | Tela Horários só com as abas e o calendário; resumo de horários e Google Agenda na nova tela "Resumo da Agenda" (`/dashboard/resumo`); navegação para meses/semanas/dias anteriores; grade sem cabeçalho fixo nem botões −/+ | Implementado | Sim | Build | Não testada | Não | `dashboard/slots/page.tsx`, `dashboard/resumo/page.tsx`, `TimeGridCalendar.tsx`, callback do Google → `/dashboard/resumo` | Teste manual | Homologar |
+| F30 | Painel | Zoom da página desativado no painel (viewport + bloqueio de gestos do Safari); pinça só na grade da agenda | Implementado | Sim | Build; viewport conferido no HTML local | Não testada | Não | `dashboard/layout.tsx` (servidor), `DashboardShell.tsx` | Teste em aparelho; afeta acessibilidade (zoom) | Usuário avalia |
+| F31 | Clientes | Editar cadastro (nome/telefone); atualiza agendamentos do cliente e move as notas ao trocar telefone | Testado (validação) / Implementado (rota) | Sim | `test:customer-edit` 10/10; build | Não testada | Não | `api/professionals/[professionalId]/customers/route.ts`, `src/lib/customerEdit.ts`, `clientes/page.tsx` | Teste manual; eventos do Google Agenda não são renomeados | Homologar |
+| F32 | Painel | App instalável do administrador (manifesto, ícone Retoria, aviso de instalação) | Implementado | Sim | Build; manifesto e ícone conferidos localmente | Não testada | Não | `dashboard/layout.tsx`, `dashboard/manifest.webmanifest`, `dashboard/app-icon`, `InstallAppBanner.tsx` | Teste em aparelho | Homologar |
 | F14 | Organizações | Controle multi-provider/equipes | Planejado | Não | Não | Não | Não | Roadmap apenas | Suspenso | Não implementar nesta etapa |
 
 ---
@@ -175,3 +179,13 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **Divergência**: o agendamento manual não gravava o cliente em `customers` (só a rota pública gravava), por isso o preenchimento automático não encontrava clientes manuais.
 * **Teste manual na prévia do Vercel** (branch `feat/agenda-estilo-google`, commit `e503a55`): aprovado pelo usuário em 2026-11-03.
 * **Deploy**: merge em `main` e publicação pela integração do Vercel. Teste pós-deploy em produção: NÃO TESTADO.
+
+## Verificação 2026-11-03 (3)
+
+* **Branch**: `feat/painel-resumo-app` (a partir de `main` `7af0790`)
+* **Backup prévio**: `Documentos/Retoria-backups/Retoria-2026-11-03-b.bundle` (verificado com `git bundle verify`)
+* **Alterações**: F29, F30, F31, F32. O layout de `/dashboard` passou a ser de servidor (metadata/viewport); o antigo virou `components/DashboardShell.tsx`.
+* **TypeScript**: sem erros. **Lint**: nenhum erro novo em relação à `main`.
+* **Testes**: `test:customer-edit` 10/10, `test:time-grid` 26/26, `test:slot-stripes` 9/9, `test:themes` 13/13. `test:rules` não executado (regras inalteradas).
+* **Build**: Aprovado. `next start` local: manifesto e ícone respondem; `/dashboard/*` com `user-scalable=no`; páginas fora do painel sem mudança.
+* **Teste manual**: Não executado.

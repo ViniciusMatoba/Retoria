@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import GoogleCalendarIntegration from "../components/GoogleCalendarIntegration";
+import Link from "next/link";
 import LeadCardActions from "../components/LeadCardActions";
 import TimeGridCalendar, { type TimeGridDay, type TimeGridEvent } from "../components/TimeGridCalendar";
 import {
@@ -1602,6 +1602,10 @@ export default function SlotsPage() {
             const reservedCount = futureSlots.filter(s => !s.disponivel).length;
             const cancelledCount = leads.filter(l => l.status === "Cancelado" && l.dataEscolhida === dateStr).length;
             const attendedCount = leads.filter(l => l.status === "Atendido" && l.dataEscolhida === dateStr).length;
+            // Dia passado: agendamentos que não foram marcados como atendidos (Novo, Em contato, Agendado)
+            const pastBookedCount = isPast
+              ? leads.filter(l => l.dataEscolhida === dateStr && ["Novo", "Em contato", "Agendado"].includes(l.status)).length
+              : 0;
             const dayNum = dateStr.split("-")[2];
 
             const styleLivre = getCalendarStatusStyle("Disponível", calendarColors);
@@ -1612,7 +1616,6 @@ export default function SlotsPage() {
               <div
                 key={dateStr}
                 onClick={() => {
-                  if (isPast && attendedCount === 0) return;
                   setCalendarRefDate(dateStr);
                   setCalendarView("day");
                 }}
@@ -1621,7 +1624,7 @@ export default function SlotsPage() {
                   ${isPast
                     ? attendedCount > 0
                       ? "bg-emerald-950/20 border-emerald-500/30 cursor-pointer hover:border-emerald-400/60"
-                      : "bg-slate-950/10 border-slate-900/30 opacity-30 cursor-default"
+                      : "bg-slate-950/10 border-slate-900/30 opacity-50 cursor-pointer hover:border-slate-700"
                     : isToday
                       ? "bg-indigo-950/20 border-indigo-500/50 shadow-md shadow-indigo-500/5 cursor-pointer hover:border-indigo-400/70"
                       : isCurrentMonth
@@ -1645,6 +1648,13 @@ export default function SlotsPage() {
                       <Check className="h-2.5 w-2.5 md:h-3 md:w-3 shrink-0" />
                       <span className="hidden md:inline">{attendedCount} Atendido{attendedCount > 1 ? "s" : ""}</span>
                       <span className="md:hidden">{attendedCount}</span>
+                    </div>
+                  )}
+                  {pastBookedCount > 0 && (
+                    <div className="flex items-center gap-0.5 md:gap-1" style={{ color: styleAgendado.bg }}>
+                      <span className="h-1 w-1 md:h-1.5 md:w-1.5 rounded-full shrink-0" style={{ backgroundColor: styleAgendado.bg }} />
+                      <span className="hidden md:inline">{pastBookedCount} Agendado{pastBookedCount > 1 ? "s" : ""}</span>
+                      <span className="md:hidden">{pastBookedCount}</span>
                     </div>
                   )}
                   {!isPast && availableCount > 0 && (
@@ -1769,7 +1779,7 @@ export default function SlotsPage() {
       isToday: dateStr === today,
       isPast,
       badge: short && !isPast && cancelledCount > 0 ? `${cancelledCount} canc.` : undefined,
-      onHeaderClick: short && !isPast ? () => { setCalendarRefDate(dateStr); setCalendarView("day"); } : undefined,
+      onHeaderClick: short ? () => { setCalendarRefDate(dateStr); setCalendarView("day"); } : undefined,
       events,
     };
   };
@@ -1793,18 +1803,9 @@ export default function SlotsPage() {
     setShowBookingModal(true);
   };
 
-  const isCalendarPrevDisabled = () => {
-    const today = getSaoPauloToday();
-    return (
-      (calendarView === "month" && calendarRefDate.slice(0, 7) <= today.slice(0, 7)) ||
-      (calendarView === "week" && getStartOfWeekSaoPaulo(calendarRefDate) <= getStartOfWeekSaoPaulo(today)) ||
-      (calendarView === "day" && calendarRefDate <= today)
-    );
-  };
-
-  // Avança (1) ou volta (-1) um mês, semana ou dia, conforme a visão atual.
+  // Avança (1) ou volta (-1) um mês, semana ou dia, conforme a visão atual. Períodos passados também
+  // podem ser consultados (histórico de atendimentos).
   const shiftCalendar = (dir: 1 | -1, fromSwipe = false) => {
-    if (dir === -1 && isCalendarPrevDisabled()) return;
     setSwipeDir(fromSwipe ? dir : 0);
     if (calendarView === "month") {
       setCalendarRefDate(prev => shiftMonth(prev, dir));
@@ -2037,17 +2038,11 @@ export default function SlotsPage() {
     })
     .sort();
 
-  const totalAvailable = slots.filter(s => s.disponivel).length;
-  const totalReserved = slots.filter(s => !s.disponivel).length;
   const upcomingSlots = slots.filter(s => s.disponivel).slice(0, 6);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-extrabold tracking-tight text-white md:text-4xl">Horários Disponíveis</h1>
-        <p className="text-sm text-slate-400 mt-1">Configure os períodos de funcionamento, crie horários avulsos ou gerencie a agenda.</p>
-      </div>
+      {/* A tela fica só com as abas e o calendário; resumo e Google Agenda estão em "Resumo da Agenda" (/dashboard/resumo) */}
 
       {/* Seletor de profissional — visível apenas quando há equipe */}
       {teamMembers.length > 0 && activeProfId && (
@@ -2076,13 +2071,12 @@ export default function SlotsPage() {
       {googleNeedsReconnect && (
         <div className="flex items-center justify-between gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
           <span>O Google Agenda foi desconectado e precisa ser reconectado.</span>
-          <button
-            type="button"
-            onClick={() => document.getElementById("google-card")?.scrollIntoView({ behavior: "smooth" })}
+          <Link
+            href="/dashboard/resumo"
             className="shrink-0 rounded-lg border border-amber-400/40 px-3 py-1.5 font-semibold"
           >
             Reconectar
-          </button>
+          </Link>
         </div>
       )}
 
@@ -2645,18 +2639,12 @@ export default function SlotsPage() {
 
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-1.5">
-                {(() => {
-                  const isPrevDisabled = isCalendarPrevDisabled();
-                  return (
-                    <button
-                      onClick={() => shiftCalendar(-1)}
-                      disabled={isPrevDisabled}
-                      className="p-2 bg-slate-950 border border-slate-850 rounded-xl text-slate-400 transition-all disabled:opacity-30 disabled:cursor-not-allowed hover:border-slate-700 hover:text-slate-200 disabled:hover:border-slate-850 disabled:hover:text-slate-400"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </button>
-                  );
-                })()}
+                <button
+                  onClick={() => shiftCalendar(-1)}
+                  className="p-2 bg-slate-950 border border-slate-850 rounded-xl text-slate-400 transition-all hover:border-slate-700 hover:text-slate-200"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
                 <button
                   onClick={() => setCalendarRefDate(getSaoPauloToday())}
                   className="px-3.5 py-2 bg-slate-950 border border-slate-850 text-slate-300 text-xs font-bold rounded-xl transition-all hover:bg-slate-900"
@@ -2709,44 +2697,8 @@ export default function SlotsPage() {
             )}
           </div>
 
-          {/* Metrics summary cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-slate-900/40 border border-slate-800 p-6 rounded-3xl backdrop-blur-sm relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-3 text-emerald-500/10"><Check className="h-16 w-16" /></div>
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Horários Disponíveis (Livres)</span>
-              <h3 className="text-3xl font-black text-emerald-400 mt-2">{totalAvailable}</h3>
-              <p className="text-[11px] text-slate-400 mt-1">Livres para pré-agendamentos.</p>
-            </div>
-            <div className="bg-slate-900/40 border border-slate-800 p-6 rounded-3xl backdrop-blur-sm relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-3 text-amber-500/10"><X className="h-16 w-16" /></div>
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Horários Ocupados / Reservados</span>
-              <h3 className="text-3xl font-black text-amber-500 mt-2">{totalReserved}</h3>
-              <p className="text-[11px] text-slate-400 mt-1">Slots agendados por clientes.</p>
-            </div>
-            <div className="bg-slate-900/40 border border-slate-800 p-6 rounded-3xl backdrop-blur-sm relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-3 text-indigo-500/10"><CalendarIcon className="h-16 w-16" /></div>
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total de Slots na Agenda</span>
-              <h3 className="text-3xl font-black text-indigo-400 mt-2">{slots.length}</h3>
-              <p className="text-[11px] text-slate-400 mt-1">Soma de todos os horários criados.</p>
-            </div>
-          </div>
         </div>
       )}
-
-      <div id="google-card">
-      {/* Integração Google Calendar (movida para o fim da página) */}
-      <div className="relative rounded-3xl overflow-hidden shadow-xl" style={{ background: "linear-gradient(135deg,#1e3a5f 0%,#1e2d5a 60%,#2d1b6e 100%)", border: "2px solid #3b82f6" }}>
-        <div className="flex items-center gap-2 px-5 pt-4 pb-2">
-          <span className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest px-3 py-1 rounded-full" style={{ background: "#2563eb", color: "#fff", boxShadow: "0 0 12px rgba(59,130,246,0.5)" }}>
-            <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
-            Funcionalidade Importante
-          </span>
-        </div>
-        <div className="px-3 pb-3">
-          <GoogleCalendarIntegration />
-        </div>
-      </div>
-      </div>
 
       {/* MODAL 1: SMART GENERATOR PREVIEW */}
       {showPreview && (

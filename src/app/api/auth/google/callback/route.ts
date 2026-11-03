@@ -11,16 +11,16 @@ export async function GET(req: NextRequest) {
 
   if (error || !code || !state) {
     const reason = error ?? "missing_code";
-    return NextResponse.redirect(`${APP_URL}/dashboard/slots?google_error=${reason}`);
+    return NextResponse.redirect(`${APP_URL}/dashboard/resumo?google_error=${reason}`);
   }
 
   try {
     const oauth2Client = await createOAuthClient();
     const { tokens } = await oauth2Client.getToken(code);
     await saveTokens(state, tokens);
-    return NextResponse.redirect(`${APP_URL}/dashboard/slots?google_connected=1`);
+    return NextResponse.redirect(`${APP_URL}/dashboard/resumo?google_connected=1`);
   } catch (err: any) {
     console.error("[google/callback]", err);
-    return NextResponse.redirect(`${APP_URL}/dashboard/slots?google_error=token_exchange`);
+    return NextResponse.redirect(`${APP_URL}/dashboard/resumo?google_error=token_exchange`);
   }
 }
