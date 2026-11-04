@@ -1766,6 +1766,21 @@ export default function SlotsPage() {
     setShowBookingModal(true);
   };
 
+  // Título curto da barra do calendário no celular: "Nov 2026", "01–07/11" ou "Qua, 04/11".
+  const formatCalendarTitleShort = () => {
+    if (!calendarRefDate) return "";
+    const [y, m, d] = calendarRefDate.split("-").map(Number);
+    const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+    if (calendarView === "month") return `${months[m - 1]} ${y}`;
+    if (calendarView === "week") {
+      const start = getStartOfWeekSaoPaulo(calendarRefDate);
+      const end = addDaysSaoPaulo(start, 6);
+      return `${start.slice(8, 10)}/${start.slice(5, 7)}–${end.slice(8, 10)}/${end.slice(5, 7)}`;
+    }
+    const weekday = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"][new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay()];
+    return `${weekday}, ${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}`;
+  };
+
   // Avança (1) ou volta (-1) um mês, semana ou dia, conforme a visão atual. Períodos passados também
   // podem ser consultados (histórico de atendimentos).
   const shiftCalendar = (dir: 1 | -1, fromSwipe = false) => {
@@ -2047,42 +2062,46 @@ export default function SlotsPage() {
           As abas Agenda Atual / Gerador / Horário Avulso e o Novo Agendamento ficam abaixo. */}
       <div className="-mx-4 md:mx-0 bg-slate-900 md:rounded-3xl border-y md:border border-slate-800 overflow-hidden">
         {/* Barra do calendário: período, setas, Hoje e visão */}
-        <div className="flex items-center gap-1.5 px-3 py-2.5 border-b border-slate-800">
+        <div className="flex items-center gap-1 px-2 py-2 border-b border-slate-800">
           <button
             type="button"
             aria-label="Anterior"
             onClick={() => shiftCalendar(-1)}
-            className="p-2 rounded-full text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+            className="p-1.5 rounded-full text-slate-400 hover:bg-slate-800 hover:text-slate-200 shrink-0"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
-          <span className="flex-1 min-w-0 truncate font-extrabold text-base md:text-lg text-slate-100 capitalize">
-            {calendarView === "month" && getMonthNameSaoPaulo(calendarRefDate)}
-            {calendarView === "week" && `${formatDate(getStartOfWeekSaoPaulo(calendarRefDate)).slice(0, 5)} – ${formatDate(addDaysSaoPaulo(getStartOfWeekSaoPaulo(calendarRefDate), 6)).slice(0, 5)}`}
-            {calendarView === "day" && formatDateFriendly(calendarRefDate)}
+          {/* Formato curto no celular para caber na mesma faixa (ex.: "Qua, 04/11"); completo no computador */}
+          <span className="flex-1 min-w-0 text-center font-extrabold text-sm md:text-lg text-slate-100 whitespace-nowrap">
+            <span className="md:hidden">{formatCalendarTitleShort()}</span>
+            <span className="hidden md:inline capitalize">
+              {calendarView === "month" && getMonthNameSaoPaulo(calendarRefDate)}
+              {calendarView === "week" && `${formatDate(getStartOfWeekSaoPaulo(calendarRefDate)).slice(0, 5)} – ${formatDate(addDaysSaoPaulo(getStartOfWeekSaoPaulo(calendarRefDate), 6)).slice(0, 5)}`}
+              {calendarView === "day" && formatDateFriendly(calendarRefDate)}
+            </span>
           </span>
           <button
             type="button"
             aria-label="Próximo"
             onClick={() => shiftCalendar(1)}
-            className="p-2 rounded-full text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+            className="p-1.5 rounded-full text-slate-400 hover:bg-slate-800 hover:text-slate-200 shrink-0"
           >
             <ChevronRight className="h-5 w-5" />
           </button>
           <button
             type="button"
             onClick={() => setCalendarRefDate(getSaoPauloToday())}
-            className="px-3 py-1.5 rounded-full border border-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-800"
+            className="px-2.5 py-1.5 rounded-full border border-slate-800 text-slate-300 text-[11px] font-bold hover:bg-slate-800 shrink-0"
           >
             Hoje
           </button>
-          <div className="flex rounded-full border border-slate-800 p-0.5">
+          <div className="flex rounded-full border border-slate-800 p-0.5 shrink-0">
             {([["month", "Mês"], ["week", "Sem."], ["day", "Dia"]] as const).map(([v, label]) => (
               <button
                 key={v}
                 type="button"
                 onClick={() => setCalendarView(v)}
-                className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${calendarView === v ? "bg-indigo-600 text-white" : "text-slate-400"}`}
+                className={`px-2 py-1 rounded-full text-[11px] font-bold ${calendarView === v ? "bg-indigo-600 text-white" : "text-slate-400"}`}
               >
                 {label}
               </button>

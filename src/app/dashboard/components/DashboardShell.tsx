@@ -23,6 +23,7 @@ import {
   BellRing,
   QrCode,
   LayoutDashboard,
+  DollarSign,
 } from "lucide-react";
 import {
   normalizeThemeConfig,
@@ -155,11 +156,12 @@ export default function DashboardShell({
 
   const navItems = [
     { name: "Horários", href: "/dashboard/slots", icon: Calendar },
-    { name: "Resumo da Agenda", href: "/dashboard/resumo", icon: LayoutDashboard },
+    { name: "Faturamento", href: "/dashboard/faturamento", icon: DollarSign },
     { name: "Leads / Contatos", href: "/dashboard/leads", icon: Users },
-    { name: "Clientes", href: "/dashboard/clientes", icon: BookUser },
     { name: "Lembretes", href: "/dashboard/lembretes", icon: BellRing },
+    { name: "Clientes", href: "/dashboard/clientes", icon: BookUser },
     { name: "Serviços", href: "/dashboard/services", icon: Briefcase },
+    { name: "Resumo da Agenda", href: "/dashboard/resumo", icon: LayoutDashboard },
     ...(!isTeamMember ? [
       ...(maxMembers !== 0 ? [{ name: "Equipe", href: "/dashboard/team", icon: UserCog }] : []),
       { name: "Personalização da Página", href: "/dashboard/personalization", icon: Palette },

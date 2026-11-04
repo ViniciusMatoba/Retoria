@@ -12,6 +12,7 @@
     "test:slot-stripes": "npx tsx scripts/test-slot-stripes.ts",
     "test:time-grid": "npx tsx scripts/test-time-grid.ts",
     "test:customer-edit": "npx tsx scripts/test-customer-edit.ts",
+    "test:revenue": "npx tsx scripts/test-revenue.ts",
     "check:governance": "node scripts/check-project-governance.mjs"
   },
   "dependencies": {

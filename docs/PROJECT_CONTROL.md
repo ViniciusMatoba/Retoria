@@ -68,6 +68,10 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 | F31 | Clientes | Editar cadastro (nome/telefone); atualiza agendamentos do cliente e move as notas ao trocar telefone | Testado (validação) / Implementado (rota) | Sim | `test:customer-edit` 10/10; build | Não testada | Não | `api/professionals/[professionalId]/customers/route.ts`, `src/lib/customerEdit.ts`, `clientes/page.tsx` | Teste manual; eventos do Google Agenda não são renomeados | Homologar |
 | F32 | Painel | App instalável do administrador (manifesto, ícone Retoria, aviso de instalação) | Implementado | Sim | Build; manifesto e ícone conferidos localmente | Não testada | Não | `dashboard/layout.tsx`, `dashboard/manifest.webmanifest`, `dashboard/app-icon`, `InstallAppBanner.tsx` | Teste em aparelho | Homologar |
 | F33 | Agenda | Horários: calendário no topo (largura da tela no celular) com barra compacta (período, setas, Hoje, Mês/Sem./Dia); abas e "+" flutuante (Novo agendamento) abaixo/fixo; Mês estilo Google Agenda mostrando só os agendamentos (nome do cliente na cor do status, "+N"); painel do horário centralizado na tela | Implementado | Sim | Build | Não testada | Não | `dashboard/slots/page.tsx`, `TimeGridCalendar.tsx` | Teste manual | Homologar |
+| F34 | Financeiro | Tela Faturamento (`/dashboard/faturamento`): hoje (faturado, a receber, atendimentos), período Dia/Semana/Mês/Ano com navegação, realizado com variação vs. período anterior, atendimentos, ticket médio, a receber, clientes novos/recorrentes, cancelamentos, a confirmar; gráfico de evolução (realizado × previsto) com tabela; por serviço, origem, dia da semana, turno; top 5 clientes. Inclui equipe | Testado (cálculos) / Implementado (tela) | Sim | `test:revenue` 41/41; build | Não testada | Não | `src/lib/revenue.ts`, `dashboard/faturamento/page.tsx` | Teste manual com dados reais | Homologar |
+| F35 | Leads | Resumo de faturamento (real, previsto, histórico 4 meses) removido da tela de Leads; menu reordenado (Horários, Faturamento, Leads, Lembretes, Clientes, Serviços, demais) | Implementado | Sim | Build | Não testada | Não | `leads/page.tsx`, `DashboardShell.tsx` | Teste manual | Homologar |
+| F36 | Página Pública | Avisos do passo de dados (pré-agendamento, cadastro encontrado) com texto do tema sobre tom leve da cor principal, no lugar de amarelo/verde | Implementado | Sim | Build | Não testada | Não | `PublicBookingExperience.tsx` | Teste manual | Homologar |
+| F37 | Agenda | Barra do calendário com título curto no celular (ex.: "Qua, 04/11") para a data caber na mesma faixa | Implementado | Sim | Build | Não testada | Não | `dashboard/slots/page.tsx` | Teste manual | Homologar |
 | F14 | Organizações | Controle multi-provider/equipes | Planejado | Não | Não | Não | Não | Roadmap apenas | Suspenso | Não implementar nesta etapa |
 
 ---
@@ -198,4 +202,14 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **Divergência**: o painel do horário abria preso dentro do cartão do calendário (o `backdrop-blur` do cartão vira referência do `position: fixed`); agora é renderizado fora do cartão.
 * **TypeScript**: sem erros. **Lint**: igual à `main`. **Build**: Aprovado.
 * **Testes automatizados**: não executados nesta rodada, a pedido do usuário. **Teste manual**: Não executado.
+
+## Verificação 2026-11-04
+
+* **Branch**: `feat/faturamento` (a partir de `main` `8196207`), sem merge até autorização do usuário.
+* **Backup prévio**: `Documentos/Retoria-backups/Retoria-2026-11-04.bundle` (verificado com `git bundle verify`).
+* **Alterações**: F34, F35, F36, F37.
+* **TypeScript**: sem erros. **Lint**: nenhum erro novo em relação à `main`.
+* **Testes**: `test:revenue` 41/41, `test:customer-edit` 10/10, `test:time-grid` 26/26, `test:slot-stripes` 9/9, `test:themes` 13/13. `test:rules` não executado (regras inalteradas).
+* **Build**: Aprovado. Cores dos gráficos validadas (daltonismo/contraste) em fundo claro e escuro.
+* **Teste manual**: Não executado (tela de Faturamento não vista com dados reais).
 * **Deploy**: merge em `main` e publicação pela integração do Vercel. Teste pós-deploy em produção: NÃO TESTADO.
