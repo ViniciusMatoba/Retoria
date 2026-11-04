@@ -172,7 +172,7 @@ export default function TimeGridCalendar({ days, scrollKey }: Props) {
   const multiDay = days.length > 1;
 
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-950/20 overflow-hidden">
+    <div className="overflow-hidden">
       {/* Cabeçalho dos dias (só na semana; no dia a data já aparece acima da grade).
           Fica fora da área que rola; scrollbar-gutter mantém as colunas alinhadas com a grade. */}
       {multiDay && (
@@ -200,7 +200,7 @@ export default function TimeGridCalendar({ days, scrollKey }: Props) {
 
       <div
         ref={scrollRef}
-        className="relative h-[70vh] min-h-[420px] overflow-y-auto overscroll-contain"
+        className="relative h-[calc(100svh-190px)] min-h-[420px] overflow-y-auto overscroll-contain"
         style={{ touchAction: "pan-x pan-y", scrollbarGutter: "stable" }}
       >
         <div className="relative flex" style={{ height: gridHeight }}>
