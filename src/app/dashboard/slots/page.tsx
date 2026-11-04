@@ -1575,111 +1575,74 @@ export default function SlotsPage() {
     );
   };
 
+  // Mês estilo Google Agenda: cada dia mostra só os agendamentos (nome do cliente, na cor do status),
+  // sem contagem de horários livres/ocupados/cancelados. A grade ocupa a altura da tela.
   const renderMonthView = () => {
     if (!calendarRefDate) return null;
     const grid = getMonthGrid(calendarRefDate);
     const currentMonthNum = calendarRefDate.split("-")[1];
-    const weekLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+    const weekLabels = ["D", "S", "T", "Q", "Q", "S", "S"];
+    const today = getSaoPauloToday();
+    const MAX_CHIPS = 3;
+
+    type Lead = (typeof leads)[number];
+    const leadsByDate = new Map<string, Lead[]>();
+    leads.forEach(l => {
+      if (!l.dataEscolhida || l.status === "Cancelado" || l.status === "Perdido") return;
+      const list = leadsByDate.get(l.dataEscolhida) ?? [];
+      list.push(l);
+      leadsByDate.set(l.dataEscolhida, list);
+    });
+    const startOf = (l: Lead): string => l.horarioInicio || l.horarioEscolhido || "";
 
     return (
-      <div className="space-y-4">
-        {/* Weekday headers */}
-        <div className="grid grid-cols-7 gap-2 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">
-          {weekLabels.map(l => <div key={l}>{l}</div>)}
+      <div>
+        <div className="grid grid-cols-7 border-b border-slate-800 text-center text-[11px] font-bold text-slate-500 py-1.5">
+          {weekLabels.map((l, i) => <div key={i}>{l}</div>)}
         </div>
 
-        {/* 42 days grid */}
-        <div className="grid grid-cols-7 gap-2">
-          {grid.map(dateStr => {
-            const today = getSaoPauloToday();
+        <div className="grid grid-cols-7">
+          {grid.map((dateStr, i) => {
             const isCurrentMonth = dateStr.split("-")[1] === currentMonthNum;
             const isToday = dateStr === today;
-            const isPast = dateStr < today;
-
-            const daySlots = slotsByDate.get(dateStr) || [];
-            const futureSlots = daySlots.filter(s => !isPastDateTimeSaoPaulo(dateStr, s.horario));
-            const availableCount = futureSlots.filter(s => s.disponivel).length;
-            const reservedCount = futureSlots.filter(s => !s.disponivel).length;
-            const cancelledCount = leads.filter(l => l.status === "Cancelado" && l.dataEscolhida === dateStr).length;
-            const attendedCount = leads.filter(l => l.status === "Atendido" && l.dataEscolhida === dateStr).length;
-            // Dia passado: agendamentos que não foram marcados como atendidos (Novo, Em contato, Agendado)
-            const pastBookedCount = isPast
-              ? leads.filter(l => l.dataEscolhida === dateStr && ["Novo", "Em contato", "Agendado"].includes(l.status)).length
-              : 0;
-            const dayNum = dateStr.split("-")[2];
-
-            const styleLivre = getCalendarStatusStyle("Disponível", calendarColors);
-            const styleAgendado = getCalendarStatusStyle("Agendado", calendarColors);
-            const styleCancelado = getCalendarStatusStyle("Cancelado", calendarColors);
+            const dayLeads = [...(leadsByDate.get(dateStr) ?? [])].sort((a, b) => startOf(a).localeCompare(startOf(b)));
+            const shown = dayLeads.length > MAX_CHIPS ? dayLeads.slice(0, MAX_CHIPS - 1) : dayLeads;
+            const hidden = dayLeads.length - shown.length;
 
             return (
-              <div
+              <button
                 key={dateStr}
+                type="button"
                 onClick={() => {
                   setCalendarRefDate(dateStr);
                   setCalendarView("day");
                 }}
-                className={`
-                  p-1 md:p-3 rounded-xl md:rounded-2xl border text-left flex flex-col justify-between h-16 md:h-28 transition-all duration-200
-                  ${isPast
-                    ? attendedCount > 0
-                      ? "bg-emerald-950/20 border-emerald-500/30 cursor-pointer hover:border-emerald-400/60"
-                      : "bg-slate-950/10 border-slate-900/30 opacity-50 cursor-pointer hover:border-slate-700"
-                    : isToday
-                      ? "bg-indigo-950/20 border-indigo-500/50 shadow-md shadow-indigo-500/5 cursor-pointer hover:border-indigo-400/70"
-                      : isCurrentMonth
-                        ? "bg-slate-950/40 border-slate-800/80 cursor-pointer hover:border-slate-600"
-                        : "bg-slate-950/10 border-slate-900/60 opacity-40 cursor-pointer hover:border-slate-700"
-                  }
-                `}
+                className={`flex flex-col items-stretch gap-0.5 px-0.5 pt-1 pb-1 text-left border-slate-800 ${i % 7 !== 6 ? "border-r" : ""} border-b hover:bg-slate-800/50 transition-colors`}
+                style={{ minHeight: "max(88px, calc((100svh - 230px) / 6))" }}
               >
-                <div className="flex justify-between items-center">
-                  <span className={`text-xs md:text-sm font-black ${isToday ? "text-indigo-400" : isPast ? "text-slate-600" : "text-slate-300"}`}>
-                    {parseInt(dayNum, 10)}
-                  </span>
-                  {isToday && (
-                    <span className="hidden md:inline text-[9px] font-black text-indigo-400 uppercase tracking-widest bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/20">Hoje</span>
-                  )}
-                </div>
-
-                <div className="space-y-0.5 md:space-y-1 mt-1 md:mt-2 text-[8px] md:text-[10px] font-bold">
-                  {isPast && attendedCount > 0 && (
-                    <div className="flex items-center gap-0.5 md:gap-1 text-emerald-400">
-                      <Check className="h-2.5 w-2.5 md:h-3 md:w-3 shrink-0" />
-                      <span className="hidden md:inline">{attendedCount} Atendido{attendedCount > 1 ? "s" : ""}</span>
-                      <span className="md:hidden">{attendedCount}</span>
-                    </div>
-                  )}
-                  {pastBookedCount > 0 && (
-                    <div className="flex items-center gap-0.5 md:gap-1" style={{ color: styleAgendado.bg }}>
-                      <span className="h-1 w-1 md:h-1.5 md:w-1.5 rounded-full shrink-0" style={{ backgroundColor: styleAgendado.bg }} />
-                      <span className="hidden md:inline">{pastBookedCount} Agendado{pastBookedCount > 1 ? "s" : ""}</span>
-                      <span className="md:hidden">{pastBookedCount}</span>
-                    </div>
-                  )}
-                  {!isPast && availableCount > 0 && (
-                    <div className="flex items-center gap-0.5 md:gap-1" style={{ color: styleLivre.bg }}>
-                      <span className="h-1 w-1 md:h-1.5 md:w-1.5 rounded-full shrink-0" style={{ backgroundColor: styleLivre.bg }} />
-                      <span className="hidden md:inline">{availableCount} {styleLivre.label}</span>
-                      <span className="md:hidden">{availableCount}</span>
-                    </div>
-                  )}
-                  {!isPast && reservedCount > 0 && (
-                    <div className="flex items-center gap-0.5 md:gap-1" style={{ color: styleAgendado.bg }}>
-                      <span className="h-1 w-1 md:h-1.5 md:w-1.5 rounded-full shrink-0" style={{ backgroundColor: styleAgendado.bg }} />
-                      <span className="hidden md:inline">{reservedCount} Ocupados</span>
-                      <span className="md:hidden">{reservedCount}</span>
-                    </div>
-                  )}
-                  {!isPast && cancelledCount > 0 && (
-                    <div className="flex items-center gap-0.5 md:gap-1" style={{ color: styleCancelado.bg }}>
-                      <span className="h-1 w-1 md:h-1.5 md:w-1.5 rounded-full shrink-0" style={{ backgroundColor: styleCancelado.bg }} />
-                      <span className="hidden md:inline">{cancelledCount} Cancelados</span>
-                      <span className="md:hidden">{cancelledCount}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
+                <span
+                  className={`mx-auto flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
+                    isToday ? "bg-indigo-600 text-white" : isCurrentMonth ? "text-slate-200" : "text-slate-500 opacity-60"
+                  }`}
+                >
+                  {parseInt(dateStr.split("-")[2], 10)}
+                </span>
+                {shown.map(l => {
+                  const style = getCalendarStatusStyle(l.status, calendarColors);
+                  return (
+                    <span
+                      key={l.id}
+                      className={`block truncate rounded px-1 py-px text-[10px] font-semibold leading-tight ${isCurrentMonth ? "" : "opacity-60"}`}
+                      style={{ backgroundColor: style.bg, color: style.text }}
+                      title={`${startOf(l)} ${l.nome}`}
+                    >
+                      <span className="hidden md:inline font-mono mr-1 opacity-80">{startOf(l)}</span>
+                      {l.nome || "Cliente"}
+                    </span>
+                  );
+                })}
+                {hidden > 0 && <span className="px-1 text-[10px] font-bold text-slate-400">+{hidden}</span>}
+              </button>
             );
           })}
         </div>
@@ -1845,7 +1808,7 @@ export default function SlotsPage() {
       </div>
     );
 
-  // Painel inferior (como o do Google Agenda) com os detalhes e ações do bloco tocado na grade.
+  // Painel no meio da tela com os detalhes e ações do bloco tocado na grade.
   const renderGridSelectionSheet = () => {
     if (!gridSelection) return null;
     const close = () => setGridSelection(null);
@@ -1948,10 +1911,9 @@ export default function SlotsPage() {
     }
 
     return (
-      <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center" role="dialog" aria-modal="true">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
         <button type="button" aria-label="Fechar" onClick={close} className="absolute inset-0 bg-black/40" />
-        <div className="relative w-full md:max-w-md max-h-[80vh] overflow-y-auto rounded-t-3xl md:rounded-3xl border border-slate-800 bg-slate-900 p-5 pb-8 shadow-2xl animate-fade-in">
-          <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-700 md:hidden" />
+        <div className="relative w-full max-w-md max-h-[80vh] overflow-y-auto rounded-3xl border border-slate-800 bg-slate-900 p-5 shadow-2xl animate-fade-in">
           <button type="button" aria-label="Fechar" onClick={close} className="absolute right-3 top-3 p-1.5 rounded-lg text-slate-400 hover:text-slate-200">
             <X className="h-4 w-4" />
           </button>
@@ -1970,10 +1932,9 @@ export default function SlotsPage() {
     }
 
     return (
-      <div className="space-y-4">
+      <div>
         {renderMovingBanner()}
         <TimeGridCalendar days={weekDays} scrollKey={`week-${startStr}`} />
-        {renderGridSelectionSheet()}
       </div>
     );
   };
@@ -1981,30 +1942,18 @@ export default function SlotsPage() {
   const renderDayView = () => {
     if (!calendarRefDate) return null;
     const dateStr = calendarRefDate;
-    const today = getSaoPauloToday();
-    const isPast = dateStr < today;
-    const daySlotCount = (slotsByDate.get(dateStr) || []).length;
     const dayCancelledLeads = leads.filter(l => l.status === "Cancelado" && l.dataEscolhida === dateStr);
 
+    // A data do dia já aparece na barra do calendário, acima da grade
     return (
-      <div className="space-y-4">
+      <div>
         {renderMovingBanner()}
-        <div className="flex justify-between items-center">
-          <h3 className={`text-base font-black ${isPast ? "text-slate-500" : "text-slate-200"}`}>{formatDateFriendly(dateStr)}</h3>
-          <div className="text-xs text-slate-500 font-bold">
-            {isPast ? (
-              <span className="text-amber-500/70 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg">Dia passado</span>
-            ) : (
-              `${daySlotCount} slot(s) cadastrado(s)`
-            )}
-          </div>
-        </div>
-
         <TimeGridCalendar days={[buildGridDay(dateStr, false)]} scrollKey={`day-${dateStr}`} />
-        {renderGridSelectionSheet()}
-
-        {/* Collapsible cancellation history */}
-        <CollapsibleCancelledHistory leadsList={dayCancelledLeads} />
+        {dayCancelledLeads.length > 0 && (
+          <div className="p-3">
+            <CollapsibleCancelledHistory leadsList={dayCancelledLeads} />
+          </div>
+        )}
       </div>
     );
   };
@@ -2093,6 +2042,86 @@ export default function SlotsPage() {
           <p className="font-semibold text-xs md:text-sm">{success}</p>
         </div>
       )}
+
+      {/* CALENDÁRIO (sempre no topo, ocupando a largura da tela no celular, como no Google Agenda).
+          As abas Agenda Atual / Gerador / Horário Avulso e o Novo Agendamento ficam abaixo. */}
+      <div className="-mx-4 md:mx-0 bg-slate-900 md:rounded-3xl border-y md:border border-slate-800 overflow-hidden">
+        {/* Barra do calendário: período, setas, Hoje e visão */}
+        <div className="flex items-center gap-1.5 px-3 py-2.5 border-b border-slate-800">
+          <button
+            type="button"
+            aria-label="Anterior"
+            onClick={() => shiftCalendar(-1)}
+            className="p-2 rounded-full text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <span className="flex-1 min-w-0 truncate font-extrabold text-base md:text-lg text-slate-100 capitalize">
+            {calendarView === "month" && getMonthNameSaoPaulo(calendarRefDate)}
+            {calendarView === "week" && `${formatDate(getStartOfWeekSaoPaulo(calendarRefDate)).slice(0, 5)} – ${formatDate(addDaysSaoPaulo(getStartOfWeekSaoPaulo(calendarRefDate), 6)).slice(0, 5)}`}
+            {calendarView === "day" && formatDateFriendly(calendarRefDate)}
+          </span>
+          <button
+            type="button"
+            aria-label="Próximo"
+            onClick={() => shiftCalendar(1)}
+            className="p-2 rounded-full text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setCalendarRefDate(getSaoPauloToday())}
+            className="px-3 py-1.5 rounded-full border border-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-800"
+          >
+            Hoje
+          </button>
+          <div className="flex rounded-full border border-slate-800 p-0.5">
+            {([["month", "Mês"], ["week", "Sem."], ["day", "Dia"]] as const).map(([v, label]) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setCalendarView(v)}
+                className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${calendarView === v ? "bg-indigo-600 text-white" : "text-slate-400"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="flex flex-col justify-center items-center py-16">
+            <Loader2 className="h-8 w-8 text-indigo-500 animate-spin" />
+            <p className="mt-4 text-slate-400 font-medium">Buscando agenda...</p>
+          </div>
+        ) : (
+          <div
+            key={`${calendarView}-${calendarRefDate}`}
+            className={swipeDir === 1 ? "animate-slide-from-right" : swipeDir === -1 ? "animate-slide-from-left" : "animate-fade-in"}
+            onTouchStart={handleCalendarTouchStart}
+            onTouchMove={handleCalendarTouchMove}
+            onTouchEnd={handleCalendarTouchEnd}
+          >
+            {calendarView === "month" && renderMonthView()}
+            {calendarView === "week" && renderWeekView()}
+            {calendarView === "day" && renderDayView()}
+          </div>
+        )}
+      </div>
+
+      {/* Painel do horário/agendamento tocado: fora do cartão do calendário para ficar centralizado na tela */}
+      {renderGridSelectionSheet()}
+
+      {/* Novo agendamento: botão flutuante "+", como no Google Agenda */}
+      <button
+        type="button"
+        aria-label="Novo agendamento"
+        onClick={() => setShowBookingModal(true)}
+        className="fixed bottom-6 right-6 z-40 h-14 w-14 rounded-2xl bg-indigo-600 text-white shadow-xl shadow-indigo-500/30 flex items-center justify-center active:scale-95 transition-transform"
+      >
+        <Plus className="h-7 w-7" />
+      </button>
 
       {/* Navigation Tabs (Top-level full-width navigation) */}
       <div className="flex bg-slate-900 border border-slate-800 p-1.5 rounded-2xl max-w-xl">
@@ -2607,96 +2636,6 @@ export default function SlotsPage() {
               )}
             </button>
           </div>
-        </div>
-      )}
-
-      {/* TAB 3: AGENDA ATUAL (Calendar Visual View) */}
-      {activeTab === "agenda" && (
-        <div className="space-y-6 animate-fade-in">
-          
-          {/* Calendar Controls & Navigation */}
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-slate-900/40 border border-slate-800 p-5 rounded-3xl backdrop-blur-sm">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setCalendarView("month")}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${calendarView === "month" ? "bg-indigo-600 text-white" : "bg-slate-950 text-slate-400 border border-slate-800 hover:text-slate-200"}`}
-              >
-                Mês
-              </button>
-              <button
-                onClick={() => setCalendarView("week")}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${calendarView === "week" ? "bg-indigo-600 text-white" : "bg-slate-950 text-slate-400 border border-slate-800 hover:text-slate-200"}`}
-              >
-                Semana
-              </button>
-              <button
-                onClick={() => setCalendarView("day")}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${calendarView === "day" ? "bg-indigo-600 text-white" : "bg-slate-950 text-slate-400 border border-slate-800 hover:text-slate-200"}`}
-              >
-                Dia
-              </button>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => shiftCalendar(-1)}
-                  className="p-2 bg-slate-950 border border-slate-850 rounded-xl text-slate-400 transition-all hover:border-slate-700 hover:text-slate-200"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => setCalendarRefDate(getSaoPauloToday())}
-                  className="px-3.5 py-2 bg-slate-950 border border-slate-850 text-slate-300 text-xs font-bold rounded-xl transition-all hover:bg-slate-900"
-                >
-                  Hoje
-                </button>
-                <button
-                  onClick={() => shiftCalendar(1)}
-                  className="p-2 bg-slate-950 border border-slate-850 hover:border-slate-700 rounded-xl text-slate-400 hover:text-slate-200 transition-all"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
-
-              <span className="font-extrabold text-sm text-indigo-300 ml-1">
-                {calendarView === "month" && getMonthNameSaoPaulo(calendarRefDate)}
-                {calendarView === "week" && `Semana de ${formatDate(getStartOfWeekSaoPaulo(calendarRefDate))} a ${formatDate(addDaysSaoPaulo(getStartOfWeekSaoPaulo(calendarRefDate), 6))}`}
-                {calendarView === "day" && formatDateFriendly(calendarRefDate)}
-              </span>
-            </div>
-
-            <button
-              onClick={() => setShowBookingModal(true)}
-              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all active:scale-95 flex items-center gap-1.5 shadow-lg shadow-indigo-500/20 w-full md:w-auto justify-center"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Novo Agendamento</span>
-            </button>
-          </div>
-
-          {/* Calendar Grid Container */}
-          <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-3 md:p-6 backdrop-blur-sm">
-            {loading ? (
-              <div className="flex flex-col justify-center items-center py-16">
-                <Loader2 className="h-8 w-8 text-indigo-500 animate-spin" />
-                <p className="mt-4 text-slate-400 font-medium">Buscando agenda...</p>
-              </div>
-            ) : (
-              <div
-                key={`${calendarView}-${calendarRefDate}`}
-                className={swipeDir === 1 ? "animate-slide-from-right" : swipeDir === -1 ? "animate-slide-from-left" : "animate-fade-in"}
-                onTouchStart={handleCalendarTouchStart}
-                onTouchMove={handleCalendarTouchMove}
-                onTouchEnd={handleCalendarTouchEnd}
-              >
-                {calendarView === "month" && renderMonthView()}
-                {calendarView === "week" && renderWeekView()}
-                {calendarView === "day" && renderDayView()}
-              </div>
-            )}
-          </div>
-
         </div>
       )}
 

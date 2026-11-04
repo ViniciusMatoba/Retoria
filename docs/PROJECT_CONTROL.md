@@ -67,6 +67,7 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 | F30 | Painel | Zoom da página desativado no painel (viewport + bloqueio de gestos do Safari); pinça só na grade da agenda | Implementado | Sim | Build; viewport conferido no HTML local | Não testada | Não | `dashboard/layout.tsx` (servidor), `DashboardShell.tsx` | Teste em aparelho; afeta acessibilidade (zoom) | Usuário avalia |
 | F31 | Clientes | Editar cadastro (nome/telefone); atualiza agendamentos do cliente e move as notas ao trocar telefone | Testado (validação) / Implementado (rota) | Sim | `test:customer-edit` 10/10; build | Não testada | Não | `api/professionals/[professionalId]/customers/route.ts`, `src/lib/customerEdit.ts`, `clientes/page.tsx` | Teste manual; eventos do Google Agenda não são renomeados | Homologar |
 | F32 | Painel | App instalável do administrador (manifesto, ícone Retoria, aviso de instalação) | Implementado | Sim | Build; manifesto e ícone conferidos localmente | Não testada | Não | `dashboard/layout.tsx`, `dashboard/manifest.webmanifest`, `dashboard/app-icon`, `InstallAppBanner.tsx` | Teste em aparelho | Homologar |
+| F33 | Agenda | Horários: calendário no topo (largura da tela no celular) com barra compacta (período, setas, Hoje, Mês/Sem./Dia); abas e "+" flutuante (Novo agendamento) abaixo/fixo; Mês estilo Google Agenda mostrando só os agendamentos (nome do cliente na cor do status, "+N"); painel do horário centralizado na tela | Implementado | Sim | Build | Não testada | Não | `dashboard/slots/page.tsx`, `TimeGridCalendar.tsx` | Teste manual | Homologar |
 | F14 | Organizações | Controle multi-provider/equipes | Planejado | Não | Não | Não | Não | Roadmap apenas | Suspenso | Não implementar nesta etapa |
 
 ---
@@ -189,4 +190,12 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **Testes**: `test:customer-edit` 10/10, `test:time-grid` 26/26, `test:slot-stripes` 9/9, `test:themes` 13/13. `test:rules` não executado (regras inalteradas).
 * **Build**: Aprovado. `next start` local: manifesto e ícone respondem; `/dashboard/*` com `user-scalable=no`; páginas fora do painel sem mudança.
 * **Teste manual na prévia do Vercel** (branch `feat/painel-resumo-app`, commit `4bb016e`): aprovado pelo usuário em 2026-11-03.
+
+## Verificação 2026-11-03 (4)
+
+* **Branch**: `feat/agenda-mes-google` (a partir de `main` `8e6c693`), sem merge até autorização do usuário.
+* **Alterações**: F33.
+* **Divergência**: o painel do horário abria preso dentro do cartão do calendário (o `backdrop-blur` do cartão vira referência do `position: fixed`); agora é renderizado fora do cartão.
+* **TypeScript**: sem erros. **Lint**: igual à `main`. **Build**: Aprovado.
+* **Testes automatizados**: não executados nesta rodada, a pedido do usuário. **Teste manual**: Não executado.
 * **Deploy**: merge em `main` e publicação pela integração do Vercel. Teste pós-deploy em produção: NÃO TESTADO.
