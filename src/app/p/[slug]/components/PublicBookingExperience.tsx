@@ -21,7 +21,7 @@ import PublicThemeProvider from "./PublicThemeProvider";
 import PublicServiceCard from "./PublicServiceCard";
 import PublicProfessionalHeader from "./PublicProfessionalHeader";
 import { getDefaultThemeConfig, ThemeConfig, getBestTextColor } from "@/lib/themeUtils";
-import { getSlotDayStripeStyles } from "@/lib/slotDayStripes";
+import { getSlotDayStripeStyles, hexToRgba } from "@/lib/slotDayStripes";
 import { getWhatsAppLink } from "@/lib/whatsapp";
 import { isTooSoonForPublicBooking, getSaoPauloToday, timeToMinutes, minutesToTime } from "@/lib/timezone";
 import type { PublicAddress, ServiceLocationType } from "@/lib/contactUtils";
@@ -468,6 +468,13 @@ export default function PublicBookingExperience({
 
   const cardRadiusStyle = { borderRadius: `${theme.cardRadius}px` };
   const slotDayStripes = getSlotDayStripeStyles(theme.primaryColor);
+  // Avisos do passo de dados (pré-agendamento, cadastro encontrado): texto do tema sobre um tom leve da cor
+  // principal, legível em qualquer tema (antes eram amarelo e verde claros, com pouco contraste).
+  const noticeStyle: React.CSSProperties = {
+    backgroundColor: hexToRgba(theme.primaryColor, 0.08) ?? "rgba(128,128,128,0.08)",
+    border: `1px solid ${hexToRgba(theme.primaryColor, 0.3) ?? "rgba(128,128,128,0.3)"}`,
+    color: "var(--theme-text)",
+  };
 
   let cardClass = "";
   switch (theme.cardStyle) {
@@ -945,8 +952,8 @@ export default function PublicBookingExperience({
                     </div>
                   )}
                 </div>
-                <div style={cardRadiusStyle} className="flex items-start gap-2.5 px-3 py-2.5 bg-amber-500/8 border border-amber-500/20 text-amber-300/80 text-xs">
-                  <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                <div style={{ ...cardRadiusStyle, ...noticeStyle }} className="flex items-start gap-2.5 px-3 py-2.5 text-xs">
+                  <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" style={{ color: theme.primaryColor }} />
                   <span>Este é um <strong>pedido de pré-agendamento</strong>. O profissional confirmará o horário com você pelo WhatsApp.</span>
                 </div>
                 <form onSubmit={handleBookAppointment} className="space-y-4">
@@ -958,9 +965,9 @@ export default function PublicBookingExperience({
                     </div>
                   </div>
                   {recognizedName ? (
-                    <div style={cardRadiusStyle} className="flex items-center justify-between gap-3 px-3 py-3 bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300">
+                    <div style={{ ...cardRadiusStyle, ...noticeStyle }} className="flex items-center justify-between gap-3 px-3 py-3 text-xs">
                       <span>Olá, <strong>{recognizedName}</strong>! Encontramos seu cadastro. Vamos usar os seus dados salvos.</span>
-                      <button type="button" onClick={() => setClientTelefone("")} className="shrink-0 underline text-emerald-200">Não sou eu</button>
+                      <button type="button" onClick={() => setClientTelefone("")} className="shrink-0 underline font-semibold" style={{ color: theme.primaryColor }}>Não sou eu</button>
                     </div>
                   ) : (
                   <div>

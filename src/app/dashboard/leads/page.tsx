@@ -8,7 +8,7 @@ import { formatPhoneFriendly, getWhatsAppLink } from "@/lib/whatsapp";
 import { LEAD_STATUSES, type LeadStatus } from "@/lib/leadTypes";
 import {
   Search, Filter, MessageSquare, Trash2, Clock, CalendarCheck,
-  DollarSign, Inbox, AlertCircle, Loader2, CalendarClock, X,
+  Inbox, AlertCircle, Loader2, CalendarClock, X,
   Building2, User, Users, CheckCircle2, ChevronDown,
 } from "lucide-react";
 import { useAppModal } from "@/components/ModalProvider";
@@ -108,10 +108,6 @@ export default function DashboardHome() {
 
   const [updatingLeadId, setUpdatingLeadId] = useState<string | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
-
-  // Filters for revenue cards
-  const [revenueFilter, setRevenueFilter] = useState<"hoje" | "semana" | "mes" | "ano">("mes");
-  const [projectionFilter, setProjectionFilter] = useState<"amanha" | "7d" | "30d" | "todos">("todos");
 
   // Search autocomplete
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -323,59 +319,12 @@ export default function DashboardHome() {
   const thisWeekStart = (() => {
     const d = new Date(); d.setDate(d.getDate() - d.getDay()); return d.toISOString().split("T")[0];
   })();
-  const thisYearStr = new Date().getFullYear().toString();
 
   const attendedThisMonth = metricLeads.filter(
     l => l.status === "Atendido" && l.dataEscolhida?.startsWith(thisMonthStr)
   ).length;
 
-  // Revenue filtered by revenueFilter
-  const revenueAtendidos = metricLeads.filter(l => {
-    if (l.status !== "Atendido") return false;
-    const d = l.dataEscolhida ?? "";
-    if (revenueFilter === "hoje") return d === todayStr;
-    if (revenueFilter === "semana") return d >= thisWeekStart && d <= todayStr;
-    if (revenueFilter === "mes") return d.startsWith(thisMonthStr);
-    if (revenueFilter === "ano") return d.startsWith(thisYearStr);
-    return true;
-  });
-  const realRevenue = revenueAtendidos.reduce((s, l) => s + (l.valorTotal ?? 0), 0);
-
-  // Projection filtered by projectionFilter
-  const tomorrowStr = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split("T")[0]; })();
-  const in7dStr = (() => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().split("T")[0]; })();
-  const in30dStr = (() => { const d = new Date(); d.setDate(d.getDate() + 30); return d.toISOString().split("T")[0]; })();
-
-  const projectionLeads = metricLeads.filter(l => {
-    if (l.status !== "Agendado") return false;
-    const d = l.dataEscolhida ?? "";
-    if (projectionFilter === "amanha") return d === tomorrowStr;
-    if (projectionFilter === "7d") return d >= todayStr && d <= in7dStr;
-    if (projectionFilter === "30d") return d >= todayStr && d <= in30dStr;
-    return true; // "todos"
-  });
-  const projectedRevenue = projectionLeads.reduce((s, l) => s + (l.valorTotal ?? 0), 0);
-  const projectedCount = projectionLeads.length;
-
-  // Histórico mensal — últimos 4 meses
-  const monthlyHistory = (() => {
-    const now = new Date();
-    return Array.from({ length: 4 }, (_, i) => {
-      const d = new Date(now.getFullYear(), now.getMonth() - (3 - i), 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      const label = d.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" });
-      const atendidos = metricLeads.filter(l => l.status === "Atendido" && l.dataEscolhida?.startsWith(key));
-      return {
-        key,
-        label: label.charAt(0).toUpperCase() + label.slice(1),
-        count: atendidos.length,
-        real: atendidos.reduce((s, l) => s + (l.valorTotal ?? 0), 0),
-      };
-    });
-  })();
-
-  const formatBRL = (v: number) =>
-    v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  // Faturamento: tela própria em /dashboard/faturamento
 
   // ── Search autocomplete ────────────────────────────────────────────────────
   const searchSuggestions = searchTerm.length >= 2
@@ -459,9 +408,6 @@ export default function DashboardHome() {
           <div className="grid grid-cols-3 gap-4 animate-pulse">
             {[...Array(3)].map((_, i) => <div key={i} className="h-24 bg-slate-900/50 border border-slate-800 rounded-2xl" />)}
           </div>
-          <div className="grid grid-cols-2 gap-4 animate-pulse">
-            {[...Array(2)].map((_, i) => <div key={i} className="h-24 bg-slate-900/50 border border-slate-800 rounded-2xl" />)}
-          </div>
         </div>
       ) : (
         <div className="space-y-4">
@@ -490,80 +436,6 @@ export default function DashboardHome() {
             </div>
           </div>
 
-          {/* Linha 2 — faturamento */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-stretch">
-            {/* Faturamento Real */}
-            <div className="rounded-2xl p-4 flex flex-col gap-3 bg-emerald-50 border border-emerald-200 dark:bg-emerald-950/60 dark:border-emerald-800/60">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl shrink-0 bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400">
-                  <DollarSign className="h-5 w-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Faturamento Real</p>
-                  <h3 className="text-lg font-extrabold mt-0.5 text-emerald-900 dark:text-emerald-50">{formatBRL(realRevenue)}</h3>
-                  <p className="text-[10px] mt-0.5 text-emerald-600 dark:text-emerald-400">{revenueAtendidos.length} atendimento{revenueAtendidos.length !== 1 ? "s" : ""}</p>
-                </div>
-              </div>
-              <div className="flex gap-1 flex-wrap">
-                {(["hoje", "semana", "mes", "ano"] as const).map(f => (
-                  <button key={f} onClick={() => setRevenueFilter(f)}
-                    className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all border ${
-                      revenueFilter === f
-                        ? "bg-emerald-600 border-emerald-700 text-white dark:bg-emerald-600 dark:border-emerald-700"
-                        : "bg-transparent border-emerald-300 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700/50 dark:text-emerald-400 dark:hover:bg-emerald-900/40"
-                    }`}>
-                    {f === "hoje" ? "Hoje" : f === "semana" ? "Semana" : f === "mes" ? "Mês" : "Ano"}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Faturamento Previsto */}
-            <div className="rounded-2xl p-4 flex flex-col gap-3 bg-amber-50 border border-amber-200 dark:bg-amber-950/60 dark:border-amber-800/60">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl shrink-0 bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">
-                  <CalendarClock className="h-5 w-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">Faturamento Previsto</p>
-                  <h3 className="text-lg font-extrabold mt-0.5 text-amber-900 dark:text-amber-50">{formatBRL(projectedRevenue)}</h3>
-                  <p className="text-[10px] mt-0.5 text-amber-600 dark:text-amber-400">{projectedCount} agendamento{projectedCount !== 1 ? "s" : ""} confirmado{projectedCount !== 1 ? "s" : ""}</p>
-                </div>
-              </div>
-              <div className="flex gap-1 flex-wrap">
-                {(["amanha", "7d", "30d", "todos"] as const).map(f => (
-                  <button key={f} onClick={() => setProjectionFilter(f)}
-                    className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all border ${
-                      projectionFilter === f
-                        ? "bg-amber-600 border-amber-700 text-white dark:bg-amber-600 dark:border-amber-700"
-                        : "bg-transparent border-amber-300 text-amber-700 hover:bg-amber-100 dark:border-amber-700/50 dark:text-amber-400 dark:hover:bg-amber-900/40"
-                    }`}>
-                    {f === "amanha" ? "Amanhã" : f === "7d" ? "7 dias" : f === "30d" ? "30 dias" : "Todos"}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Histórico mensal */}
-          <div className="bg-slate-900/40 border border-slate-800/60 rounded-2xl p-4">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Histórico — últimos 4 meses</p>
-            <div className="grid grid-cols-4 gap-3">
-              {monthlyHistory.map(m => (
-                <div key={m.key} className={`rounded-xl p-3 text-center ${m.key === thisMonthStr ? "bg-indigo-500/10 border border-indigo-500/20" : "bg-slate-900/60 border border-slate-800/40"}`}>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{m.label}</p>
-                  <p className="text-base font-extrabold text-white mt-1">{m.count}</p>
-                  <p className="text-[10px] text-slate-500">atend.</p>
-                  {m.real > 0 && (
-                    <p className="text-[10px] font-semibold text-emerald-400 mt-1">{formatBRL(m.real)}</p>
-                  )}
-                  {m.real === 0 && (
-                    <p className="text-[10px] text-slate-600 mt-1">—</p>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       )}
 
