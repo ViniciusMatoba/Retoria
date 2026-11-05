@@ -7,6 +7,7 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "../../providers";
 import { formatPhoneFriendly, getWhatsAppLink } from "@/lib/whatsapp";
 import { addDaysSaoPaulo, getSaoPauloToday } from "@/lib/timezone";
+import { ACTIVE_WITHIN_DAYS, INACTIVE_AFTER_DAYS, getCustomerInsight, type CustomerInsight } from "@/lib/customerStats";
 
 interface LeadRow {
   id: string;
@@ -32,6 +33,9 @@ const formatDate = (d?: string) => {
   return y && m && day ? `${day}/${m}/${y}` : d;
 };
 
+type Segment = "todos" | "novos" | "ativos" | "sem-retorno" | "marcados";
+type SortBy = "recentes" | "nome" | "gasto" | "sem-visita";
+
 const brl = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
 const STATUS_STYLE: Record<string, string> = {
@@ -56,6 +60,8 @@ export default function ClientesPage() {
   const [rankBy, setRankBy] = useState<"valor" | "atendimentos">("valor");
   const [periodDays, setPeriodDays] = useState<0 | 30 | 90 | 365>(0);
   const [editing, setEditing] = useState<CustomerRow | null>(null);
+  const [segment, setSegment] = useState<Segment>("todos");
+  const [sortBy, setSortBy] = useState<SortBy>("recentes");
 
   useEffect(() => {
     if (!user) return;
@@ -158,14 +164,52 @@ export default function ClientesPage() {
     return rows.slice(0, 10);
   }, [leads, customers, rankBy, periodDays]);
 
+  // Situação de cada cliente (novo no mês, ativo, sem retorno, com horário marcado)
+  const insights = useMemo(() => {
+    const today = getSaoPauloToday();
+    const map = new Map<string, CustomerInsight>();
+    customers.forEach((c) => map.set(c.telefone, getCustomerInsight(leadsByPhone.get(c.telefone) ?? [], today)));
+    return map;
+  }, [customers, leadsByPhone]);
+
+  const counts = useMemo(() => {
+    const all = [...insights.values()];
+    return {
+      todos: customers.length,
+      novos: all.filter((i) => i.isNewThisMonth).length,
+      ativos: all.filter((i) => i.isActive).length,
+      "sem-retorno": all.filter((i) => i.isInactive).length,
+      marcados: all.filter((i) => !!i.nextBooking).length,
+    };
+  }, [customers, insights]);
+
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
     const digits = term.replace(/\D/g, "");
-    if (!term) return customers;
-    return customers.filter(
-      (c) => c.nome.toLowerCase().includes(term) || (digits && c.telefone.includes(digits))
-    );
-  }, [customers, search]);
+    const rows = customers.filter((c) => {
+      const ins = insights.get(c.telefone);
+      if (segment === "novos" && !ins?.isNewThisMonth) return false;
+      if (segment === "ativos" && !ins?.isActive) return false;
+      if (segment === "sem-retorno" && !ins?.isInactive) return false;
+      if (segment === "marcados" && !ins?.nextBooking) return false;
+      if (!term) return true;
+      return c.nome.toLowerCase().includes(term) || (!!digits && c.telefone.includes(digits));
+    });
+    if (sortBy === "nome") return [...rows].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+    if (sortBy === "gasto") return [...rows].sort((a, b) => (insights.get(b.telefone)?.spent ?? 0) - (insights.get(a.telefone)?.spent ?? 0));
+    if (sortBy === "sem-visita") {
+      return [...rows].sort((a, b) => (insights.get(b.telefone)?.daysSinceLastVisit ?? -1) - (insights.get(a.telefone)?.daysSinceLastVisit ?? -1));
+    }
+    return rows; // já vem do mais recente para o mais antigo
+  }, [customers, search, segment, sortBy, insights]);
+
+  const SEGMENTS: { key: Segment; label: string; hint: string }[] = [
+    { key: "todos", label: "Cadastrados", hint: "todos os clientes" },
+    { key: "novos", label: "Novos no mês", hint: "1º agendamento neste mês" },
+    { key: "ativos", label: "Ativos", hint: `atendidos em ${ACTIVE_WITHIN_DAYS} dias ou com horário` },
+    { key: "sem-retorno", label: "Sem retorno", hint: `+${INACTIVE_AFTER_DAYS} dias sem vir` },
+    { key: "marcados", label: "Com horário", hint: "agendamento futuro" },
+  ];
 
   return (
     <div className="space-y-6">
@@ -174,8 +218,32 @@ export default function ClientesPage() {
           <BookUser className="h-6 w-6 text-indigo-400" />
           Clientes
         </h1>
-        <p className="text-sm text-slate-400 mt-1">Toque em um cliente para ver o histórico de agendamentos e o valor gasto.</p>
+        <p className="text-sm text-slate-400 mt-1">
+          {loading ? "Carregando..." : <><strong className="text-slate-200">{customers.length}</strong> cliente{customers.length !== 1 ? "s" : ""} cadastrado{customers.length !== 1 ? "s" : ""}.</>}{" "}
+          Toque em um cliente para ver o histórico de agendamentos e o valor gasto.
+        </p>
       </div>
+
+      {/* Resumo da carteira: cada número também filtra a lista */}
+      {!loading && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
+          {SEGMENTS.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              onClick={() => { setSegment(s.key); setView("lista"); }}
+              aria-pressed={segment === s.key}
+              className={`text-left rounded-2xl border p-3 transition-all ${
+                segment === s.key ? "border-indigo-500 bg-indigo-500/10" : "border-slate-800 bg-slate-900/40 hover:border-slate-700"
+              } ${s.key === "todos" ? "col-span-2 sm:col-span-1" : ""}`}
+            >
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{s.label}</div>
+              <div className="text-2xl font-extrabold text-slate-100 mt-0.5">{counts[s.key]}</div>
+              <div className="text-[10px] text-slate-500 leading-tight">{s.hint}</div>
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="inline-flex rounded-xl border border-slate-800 p-1 bg-slate-900/50">
         {(["lista", "ranking"] as const).map((v) => (
@@ -246,16 +314,35 @@ export default function ClientesPage() {
       )}
 
       {view === "lista" && (<>
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar por nome ou telefone"
-          className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
-        />
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por nome ou telefone"
+            className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
+          />
+        </div>
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as SortBy)}
+          aria-label="Ordenar clientes"
+          className="rounded-xl bg-slate-900 border border-slate-800 px-3 py-2.5 text-sm text-slate-200"
+        >
+          <option value="recentes">Agendamento mais recente</option>
+          <option value="nome">Nome (A–Z)</option>
+          <option value="gasto">Quem mais gastou</option>
+          <option value="sem-visita">Há mais tempo sem vir</option>
+        </select>
       </div>
+      {segment !== "todos" && (
+        <p className="text-xs text-slate-400">
+          Mostrando {filtered.length} de {customers.length}: <strong className="text-slate-200">{SEGMENTS.find((s) => s.key === segment)?.label}</strong>.{" "}
+          <button type="button" onClick={() => setSegment("todos")} className="text-indigo-400 underline">Ver todos</button>
+        </p>
+      )}
 
       {error && <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>}
 
@@ -263,7 +350,7 @@ export default function ClientesPage() {
         <p className="text-sm text-slate-400">Carregando clientes...</p>
       ) : filtered.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-800 p-10 text-center text-sm text-slate-400">
-          {customers.length === 0 ? "Nenhum cliente ainda. Eles aparecem aqui após o primeiro agendamento." : "Nenhum cliente encontrado para essa busca."}
+          {customers.length === 0 ? "Nenhum cliente ainda. Eles aparecem aqui após o primeiro agendamento." : "Nenhum cliente encontrado com esse filtro ou busca."}
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-slate-800 divide-y divide-slate-800/60">
@@ -273,6 +360,12 @@ export default function ClientesPage() {
             const canceled = history.filter((l) => l.status === "Cancelado" || l.status === "Perdido");
             const spent = done.reduce((sum, l) => sum + l.valorTotal, 0);
             const isOpen = openId === c.id;
+            const ins = insights.get(c.telefone);
+            const firstName = c.nome.split(" ")[0];
+            // Para quem sumiu, a mensagem já convida a voltar
+            const waMessage = ins?.isInactive
+              ? `Olá ${firstName}! Sentimos sua falta por aqui. Que tal agendar um horário?`
+              : `Olá ${firstName}!`;
 
             const servicesDone = new Map<string, number>();
             done.forEach((l) => {
@@ -294,9 +387,22 @@ export default function ClientesPage() {
                     <div className="text-xs text-slate-500 mt-0.5">
                       {history.length} agendamento(s) · {done.length} concluído(s) · {canceled.length} cancelado(s) · Gasto: {brl(spent)}
                     </div>
+                    {ins && (ins.isNewThisMonth || ins.nextBooking || ins.isInactive) && (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {ins.isNewThisMonth && (
+                          <span className="rounded-full border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5 text-[10px] font-bold text-indigo-400">Novo</span>
+                        )}
+                        {ins.nextBooking && (
+                          <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-[10px] font-bold text-sky-500">Próximo: {formatDate(ins.nextBooking)}</span>
+                        )}
+                        {ins.isInactive && (
+                          <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-600">Sem retorno há {ins.daysSinceLastVisit} dias</span>
+                        )}
+                      </div>
+                    )}
                   </button>
                   <a
-                    href={getWhatsAppLink(c.telefone, `Olá ${c.nome.split(" ")[0]}!`)}
+                    href={getWhatsAppLink(c.telefone, waMessage)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="shrink-0 inline-flex items-center gap-1.5 rounded-xl border border-slate-700 hover:bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-200"

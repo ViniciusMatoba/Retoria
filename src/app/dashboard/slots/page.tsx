@@ -58,7 +58,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Building2,
-  Copy
+  Copy,
+  Lock,
+  Unlock
 } from "lucide-react";
 import { useAppModal } from "@/components/ModalProvider";
 
@@ -1168,6 +1170,50 @@ export default function SlotsPage() {
     }
   };
 
+  // Bloqueia (ou libera) o dia inteiro: todos os horários livres que ainda não passaram viram "bloqueado",
+  // ou todos os bloqueados manualmente voltam a ficar livres. Horários com agendamento não são tocados;
+  // a transação relê cada horário para não bloquear um que acabou de ser reservado.
+  const handleToggleWholeDay = (dateStr: string, block: boolean) => {
+    if (!user) return;
+    const targets = (slotsByDate.get(dateStr) || []).filter(s =>
+      block ? s.disponivel && !isPastDateTimeSaoPaulo(dateStr, s.horario) : !s.disponivel && s.bloqueadoManual
+    );
+    if (targets.length === 0) return;
+    showConfirmationModal({
+      title: block ? "Bloquear o dia todo" : "Liberar o dia",
+      description: block
+        ? `Bloquear os ${targets.length} horário(s) livre(s) de ${formatDate(dateStr)}? Os clientes não poderão agendar nesse dia. Agendamentos já marcados continuam.`
+        : `Liberar os ${targets.length} horário(s) bloqueado(s) de ${formatDate(dateStr)}? Eles voltam a aparecer para os clientes.`,
+      confirmLabel: block ? "Bloquear dia" : "Liberar dia",
+      cancelLabel: "Voltar",
+      variant: block ? "danger" : "info",
+      onConfirm: async () => {
+        setSlotActionId(`day-${dateStr}`);
+        try {
+          const changed = await runTransaction(db, async (tx) => {
+            const refs = targets.map(s => doc(db, "professionals", activeProfId, "availableSlots", s.id));
+            const snaps = await Promise.all(refs.map(r => tx.get(r)));
+            let count = 0;
+            snaps.forEach((snap, i) => {
+              if (!snap.exists()) return;
+              const cur = snap.data();
+              if (block ? cur.disponivel !== true : !(cur.disponivel === false && cur.bloqueadoManual === true)) return;
+              tx.update(refs[i], { disponivel: !block, bloqueadoManual: block, updatedAt: new Date() });
+              count++;
+            });
+            return count;
+          });
+          setSuccess(block ? `${changed} horário(s) de ${formatDate(dateStr)} bloqueado(s).` : `${changed} horário(s) de ${formatDate(dateStr)} liberado(s).`);
+        } catch (err) {
+          console.error("Error toggling day:", err);
+          setError(block ? "Erro ao bloquear o dia." : "Erro ao liberar o dia.");
+        } finally {
+          setSlotActionId(null);
+        }
+      },
+    });
+  };
+
   // Aviso no topo quando o Google Agenda precisa ser reconectado (o cartão de integração fica no fim da página)
   useEffect(() => {
     if (!user) return;
@@ -1958,11 +2004,41 @@ export default function SlotsPage() {
     if (!calendarRefDate) return null;
     const dateStr = calendarRefDate;
     const dayCancelledLeads = leads.filter(l => l.status === "Cancelado" && l.dataEscolhida === dateStr);
+    const daySlots = slotsByDate.get(dateStr) || [];
+    const freeToBlock = daySlots.filter(s => s.disponivel && !isPastDateTimeSaoPaulo(dateStr, s.horario)).length;
+    const manuallyBlocked = daySlots.filter(s => !s.disponivel && s.bloqueadoManual).length;
+    const dayBusy = slotActionId === `day-${dateStr}`;
 
     // A data do dia já aparece na barra do calendário, acima da grade
     return (
       <div>
         {renderMovingBanner()}
+        {(freeToBlock > 0 || manuallyBlocked > 0) && (
+          <div className="flex flex-wrap items-center justify-end gap-2 px-3 py-2 border-b border-slate-800">
+            {manuallyBlocked > 0 && (
+              <button
+                type="button"
+                disabled={dayBusy}
+                onClick={() => handleToggleWholeDay(dateStr, false)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-emerald-500/40 text-emerald-500 text-[11px] font-bold disabled:opacity-50"
+              >
+                <Unlock className="h-3.5 w-3.5" />
+                Liberar dia ({manuallyBlocked})
+              </button>
+            )}
+            {freeToBlock > 0 && (
+              <button
+                type="button"
+                disabled={dayBusy}
+                onClick={() => handleToggleWholeDay(dateStr, true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-rose-500/40 text-rose-500 text-[11px] font-bold disabled:opacity-50"
+              >
+                <Lock className="h-3.5 w-3.5" />
+                {dayBusy ? "Salvando..." : `Bloquear dia todo (${freeToBlock})`}
+              </button>
+            )}
+          </div>
+        )}
         <TimeGridCalendar days={[buildGridDay(dateStr, false)]} scrollKey={`day-${dateStr}`} />
         {dayCancelledLeads.length > 0 && (
           <div className="p-3">
