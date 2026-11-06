@@ -14,6 +14,7 @@
     "test:customer-edit": "npx tsx scripts/test-customer-edit.ts",
     "test:revenue": "npx tsx scripts/test-revenue.ts",
     "test:customer-stats": "npx tsx scripts/test-customer-stats.ts",
+    "test:other-times": "npx tsx scripts/test-other-times.ts",
     "check:governance": "node scripts/check-project-governance.mjs"
   },
   "dependencies": {

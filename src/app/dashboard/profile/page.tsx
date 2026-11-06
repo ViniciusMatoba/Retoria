@@ -984,7 +984,10 @@ function SlotSuggestionSettings({ initial, onSave }: {
           maxLength={500}
           className="w-full rounded-xl bg-slate-950 border border-slate-800 p-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
         />
-        <p className="text-[11px] text-slate-500">Use {"{servico}"} para inserir o serviço escolhido pelo cliente.</p>
+        <p className="text-[11px] text-slate-500">
+          Use {"{servico}"} para o serviço escolhido, {"{data}"} e {"{horario}"} para a data e o horário que o cliente gostaria.
+          Sem esses marcadores, a data e o horário escolhidos são adicionados no fim da mensagem.
+        </p>
       </div>
 
       <div className="space-y-1.5">
