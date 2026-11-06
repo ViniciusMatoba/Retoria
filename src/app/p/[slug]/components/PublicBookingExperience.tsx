@@ -22,6 +22,7 @@ import PublicServiceCard from "./PublicServiceCard";
 import PublicProfessionalHeader from "./PublicProfessionalHeader";
 import { getDefaultThemeConfig, ThemeConfig, getBestTextColor } from "@/lib/themeUtils";
 import { getSlotDayStripeStyles, hexToRgba } from "@/lib/slotDayStripes";
+import { DESIRED_HOURS, buildOtherTimesMessage } from "@/lib/otherTimesMessage";
 import { getWhatsAppLink } from "@/lib/whatsapp";
 import { isTooSoonForPublicBooking, getSaoPauloToday, timeToMinutes, minutesToTime } from "@/lib/timezone";
 import type { PublicAddress, ServiceLocationType } from "@/lib/contactUtils";
@@ -150,6 +151,8 @@ export default function PublicBookingExperience({
   const [selectedServices, setSelectedServices] = useState<Service[]>([]);
   const [selectedDate, setSelectedDate] = useState("");
   const [desiredDate, setDesiredDate] = useState("");
+  const [desiredTime, setDesiredTime] = useState("");
+  const serviceFooterRef = React.useRef<HTMLDivElement>(null);
   const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null);
   const [clientNome, setClientNome] = useState("");
   const [clientTelefone, setClientTelefone] = useState("");
@@ -161,12 +164,17 @@ export default function PublicBookingExperience({
   const [whatsappUrl, setWhatsappUrl] = useState("");
 
   const toggleService = (service: Service) => {
+    const adding = !selectedServices.some(s => s.id === service.id);
     setSelectedServices(prev =>
       prev.some(s => s.id === service.id)
         ? prev.filter(s => s.id !== service.id)
         : [...prev, service]
     );
     setError("");
+    // Ao escolher um serviço, desce até o resumo e o botão "Escolher Data & Horário"
+    if (adding) {
+      window.setTimeout(() => serviceFooterRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }), 50);
+    }
   };
 
   const totalPreco = selectedServices.reduce((sum, s) => sum + (s.preco ?? 0), 0);
@@ -322,13 +330,12 @@ export default function PublicBookingExperience({
   }, [clientTelefone, currentProfId, previewMode]);
 
   const handleRequestOtherTimes = () => {
-    const servicos = selectedServices.map(s => s.nome).join(", ");
-    const template = professional.slotSuggestion?.requestMessage?.trim()
-      || "Olá! Gostaria de agendar {servico}, mas nenhum dos horários sugeridos serve para mim. Poderia me enviar outras opções de horário?";
-    const [dy, dm, dd] = desiredDate.split("-");
-    const desiredLabel = desiredDate && dy && dm && dd ? `${dd}/${dm}/${dy}` : "";
-    let message = template.replace(/{servico}/g, servicos || "um horário").replace(/{data}/g, desiredLabel || "uma data a combinar");
-    if (desiredLabel && !template.includes("{data}")) message += ` Data que eu gostaria: ${desiredLabel}.`;
+    const message = buildOtherTimesMessage({
+      template: professional.slotSuggestion?.requestMessage,
+      servicos: selectedServices.map(s => s.nome).join(", "),
+      desiredDate,
+      desiredTime,
+    });
     window.open(getWhatsAppLink(activeWhatsapp ?? professional.telefoneWhatsapp, message), "_blank", "noopener,noreferrer");
   };
 
@@ -683,7 +690,7 @@ export default function PublicBookingExperience({
                   </div>
                 )}
 
-                <div className={`pt-2 flex gap-3 ${hasTeam ? "justify-between" : ""}`}>
+                <div ref={serviceFooterRef} className={`pt-2 flex gap-3 scroll-mb-6 ${hasTeam ? "justify-between" : ""}`}>
                   {hasTeam && (
                     <button
                       type="button"
@@ -878,15 +885,33 @@ export default function PublicBookingExperience({
                 {!previewMode && (
                   <div style={cardRadiusStyle} className="border border-[rgba(128,128,128,0.35)] bg-[var(--theme-surface)] p-4 space-y-3">
                     <p className="text-sm font-bold text-[var(--theme-text)]">Não encontrou o dia ou horário que queria?</p>
-                    <p className="text-xs text-[var(--theme-text)] opacity-75">Informe a data desejada e peça outras opções pelo WhatsApp.</p>
-                    <input
-                      type="date"
-                      min={todaySP}
-                      value={desiredDate}
-                      onChange={(e) => setDesiredDate(e.target.value)}
-                      aria-label="Data desejada"
-                      className="w-full px-3 py-2.5 rounded-xl bg-[var(--theme-surface)] border border-[rgba(128,128,128,0.45)] text-sm text-[var(--theme-text)]"
-                    />
+                    <p className="text-xs text-[var(--theme-text)] opacity-75">Informe a data e o horário desejados e peça outras opções pelo WhatsApp.</p>
+                    {/* min-w-0 + appearance-none: no iPhone o campo de data tem largura própria e saía da caixa */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="min-w-0 block">
+                        <span className="block text-[11px] font-semibold text-[var(--theme-muted-text)] mb-1">Data</span>
+                        <input
+                          type="date"
+                          min={todaySP}
+                          value={desiredDate}
+                          onChange={(e) => setDesiredDate(e.target.value)}
+                          aria-label="Data desejada"
+                          className="block w-full min-w-0 max-w-full box-border appearance-none h-11 px-3 rounded-xl bg-[var(--theme-surface)] border border-[rgba(128,128,128,0.45)] text-sm text-left text-[var(--theme-text)]"
+                        />
+                      </label>
+                      <label className="min-w-0 block">
+                        <span className="block text-[11px] font-semibold text-[var(--theme-muted-text)] mb-1">Horário</span>
+                        <select
+                          value={desiredTime}
+                          onChange={(e) => setDesiredTime(e.target.value)}
+                          aria-label="Horário desejado"
+                          className="block w-full min-w-0 max-w-full box-border appearance-none h-11 px-3 rounded-xl bg-[var(--theme-surface)] border border-[rgba(128,128,128,0.45)] text-sm text-[var(--theme-text)]"
+                        >
+                          <option value="">Qualquer</option>
+                          {DESIRED_HOURS.map(h => <option key={h} value={h}>{h}</option>)}
+                        </select>
+                      </label>
+                    </div>
                     <button
                       type="button"
                       onClick={handleRequestOtherTimes}

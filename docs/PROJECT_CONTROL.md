@@ -74,6 +74,8 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 | F37 | Agenda | Barra do calendário com título curto no celular (ex.: "Qua, 04/11") para a data caber na mesma faixa | Implementado | Sim | Build | Não testada | Não | `dashboard/slots/page.tsx` | Teste manual | Homologar |
 | F38 | Agenda | Bloquear o dia todo / Liberar o dia na visão Dia (transação: só horários ainda livres e futuros; agendamentos intactos) | Implementado | Sim | Build | Não testada | Não | `dashboard/slots/page.tsx` (`handleToggleWholeDay`) | Teste manual | Homologar |
 | F39 | Clientes | Total de clientes cadastrados; resumo clicável (Cadastrados, Novos no mês, Ativos, Sem retorno 60+ dias, Com horário) que filtra a lista; ordenação; selos Novo / Próximo / Sem retorno; WhatsApp com convite para quem sumiu | Testado (classificação) / Implementado (tela) | Sim | `test:customer-stats` 14/14; build | Não testada | Não | `src/lib/customerStats.ts`, `clientes/page.tsx` | Teste manual | Homologar |
+| F40 | Página Pública | Ao escolher um serviço, a tela desce até o resumo e o botão "Escolher Data & Horário" | Implementado | Sim | Build | Não testada | Não | `PublicBookingExperience.tsx` | Teste manual | Homologar |
+| F41 | Página Pública | "Não encontrou o dia ou horário": campo de data corrigido (saía da caixa no iPhone) e novo campo de horário desejado, de hora em hora (06:00–21:00), enviado na mensagem do WhatsApp; marcador `{horario}` na mensagem do perfil | Testado (mensagem) / Implementado (tela) | Sim | `test:other-times` 9/9; build | Não testada | Não | `src/lib/otherTimesMessage.ts`, `PublicBookingExperience.tsx`, `profile/page.tsx` | Teste manual no iPhone | Homologar |
 | F14 | Organizações | Controle multi-provider/equipes | Planejado | Não | Não | Não | Não | Roadmap apenas | Suspenso | Não implementar nesta etapa |
 
 ---
@@ -222,4 +224,12 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **TypeScript**: sem erros. **Lint**: nenhum erro novo em relação à `main`.
 * **Testes**: `test:customer-stats` 14/14, `test:revenue` 41/41, `test:customer-edit` 10/10, `test:time-grid` 26/26, `test:slot-stripes` 9/9, `test:themes` 13/13. `test:rules` não executado (regras inalteradas).
 * **Build**: Aprovado. **Teste manual**: Não executado.
+
+## Verificação 2026-11-06
+
+* **Branch**: `feat/agendamento-cliente-ajustes` (a partir de `main` `b82d340`), sem merge até autorização do usuário.
+* **Alterações**: F40, F41.
+* **TypeScript**: sem erros. **Lint**: nenhum erro novo em relação à `main`.
+* **Testes**: `test:other-times` 9/9, `test:customer-stats` 14/14, `test:revenue` 41/41, `test:customer-edit` 10/10, `test:time-grid` 26/26, `test:slot-stripes` 9/9, `test:themes` 13/13. `test:rules` não executado (regras inalteradas).
+* **Build**: Aprovado. **Teste manual**: Não executado (campo de data no iPhone só verificável no aparelho).
 * **Deploy**: merge em `main` e publicação pela integração do Vercel. Teste pós-deploy em produção: NÃO TESTADO.
