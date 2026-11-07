@@ -35,6 +35,7 @@ import {
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
 import { getGoogleFontsLink } from "../../p/[slug]/components/PublicThemeProvider";
+import { REPRICE_MIGRATION } from "@/lib/repricing";
 
 function hexToRgba(hex: string, alpha: number): string {
   if (!hex) return `rgba(15, 23, 42, ${alpha})`;
@@ -112,6 +113,26 @@ export default function DashboardShell({
       setLicenseEnd(end ? (end.toDate ? end.toDate() : new Date(end)) : null);
     });
     return unsub;
+  }, [user, profile]);
+
+  // Correção única dos valores (agendamentos desde 01/11/2026 com o preço atual dos serviços).
+  // O servidor só aplica uma vez por profissional; aqui evita chamar de novo na mesma sessão do navegador.
+  useEffect(() => {
+    if (!user || !profile || profile.professionalStatus === "onboarding") return;
+    const flag = `retoria_reprice_${REPRICE_MIGRATION.key}`;
+    try { if (sessionStorage.getItem(flag)) return; } catch {}
+    (async () => {
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch(`/api/professionals/${user.uid}/reprice-leads`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) { try { sessionStorage.setItem(flag, "1"); } catch {} }
+      } catch {
+        // silencioso: tenta de novo na próxima abertura do painel
+      }
+    })();
   }, [user, profile]);
 
   // Zoom da página desativado no painel (o viewport já pede isso; o Safari do iPhone ignora,

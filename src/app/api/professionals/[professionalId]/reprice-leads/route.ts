@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dbAdmin, authAdmin } from "@/lib/firebaseAdmin";
 import { FieldValue, type QueryDocumentSnapshot } from "firebase-admin/firestore";
-import { repriceLead, type ServicePrice } from "@/lib/repricing";
+import { REPRICE_MIGRATION, repriceLead, type ServicePrice } from "@/lib/repricing";
 
 type Params = { params: Promise<{ professionalId: string }> };
 
 const BATCH_LIMIT = 400;
 
-// Atualiza o valor dos agendamentos a partir de uma data para o preço atual dos serviços.
-// { fromDate, apply: false } só devolve a prévia (nada é gravado). Com apply: true grava,
-// guardando o valor anterior em `valorAnterior` para conferência ou para desfazer.
+// Correção única, pedida pelo usuário em 06/11/2026: agendamentos a partir de 01/11/2026 passam a ter
+// o valor do preço atual dos serviços. O painel chama esta rota sozinho ao abrir; ela roda uma vez por
+// profissional (marca em `migracoes.<key>` no perfil) e guarda o valor antigo em `valorAnterior`.
 export async function POST(req: NextRequest, { params }: Params) {
   if (!dbAdmin || !authAdmin) {
     return NextResponse.json({ error: "Erro de configuração no servidor." }, { status: 500 });
@@ -31,18 +31,15 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
   }
 
-  let body: { fromDate?: unknown; apply?: unknown };
-  try { body = await req.json(); } catch {
-    return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
-  }
-  const fromDate = typeof body.fromDate === "string" ? body.fromDate : "";
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(fromDate)) {
-    return NextResponse.json({ error: "Informe a data inicial." }, { status: 400 });
-  }
-  const apply = body.apply === true;
+  const { key, fromDate } = REPRICE_MIGRATION;
 
   try {
     const profRef = dbAdmin.collection("professionals").doc(professionalId);
+    const profSnap = await profRef.get();
+    if (profSnap.data()?.migracoes?.[key]) {
+      return NextResponse.json({ ok: true, alreadyDone: true, updated: 0 });
+    }
+
     const [leadsSnap, servicesSnap] = await Promise.all([
       profRef.collection("leads").where("dataEscolhida", ">=", fromDate).get(),
       profRef.collection("services").get(),
@@ -57,47 +54,32 @@ export async function POST(req: NextRequest, { params }: Params) {
         const l = d.data();
         const result = repriceLead(l, services);
         if (!result?.changed) return null;
-        return {
-          ref: d.ref,
-          servicos: result.servicos,
-          row: {
-            id: d.id,
-            nome: String(l.nome ?? ""),
-            data: String(l.dataEscolhida ?? ""),
-            horario: String(l.horarioInicio || l.horarioEscolhido || ""),
-            status: String(l.status ?? ""),
-            servico: result.servicos.map((s) => s.nome).filter(Boolean).join(" + ") || String(l.servicoEscolhido ?? ""),
-            valorAntigo: typeof l.valorTotal === "number" ? l.valorTotal : null,
-            valorNovo: result.valorTotal,
-          },
-        };
+        return { ref: d.ref, servicos: result.servicos, valorNovo: result.valorTotal, valorAntigo: typeof l.valorTotal === "number" ? l.valorTotal : null };
       })
-      .filter((c): c is NonNullable<typeof c> => c !== null)
-      .sort((a, b) => `${a.row.data} ${a.row.horario}`.localeCompare(`${b.row.data} ${b.row.horario}`));
+      .filter((c): c is NonNullable<typeof c> => c !== null);
 
-    if (apply) {
-      for (let i = 0; i < changes.length; i += BATCH_LIMIT) {
-        const batch = dbAdmin.batch();
-        changes.slice(i, i + BATCH_LIMIT).forEach((c) => {
-          batch.update(c.ref, {
-            servicos: c.servicos,
-            valorTotal: c.row.valorNovo,
-            valorAnterior: c.row.valorAntigo,
-            valorOrigem: "preco-atual-servico",
-            valorAtualizadoEm: FieldValue.serverTimestamp(),
-            updatedAt: FieldValue.serverTimestamp(),
-          });
+    for (let i = 0; i < changes.length; i += BATCH_LIMIT) {
+      const batch = dbAdmin.batch();
+      changes.slice(i, i + BATCH_LIMIT).forEach((c) => {
+        batch.update(c.ref, {
+          servicos: c.servicos,
+          valorTotal: c.valorNovo,
+          valorAnterior: c.valorAntigo,
+          valorOrigem: "preco-atual-servico",
+          valorAtualizadoEm: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
         });
-        await batch.commit();
-      }
+      });
+      await batch.commit();
     }
 
-    return NextResponse.json({
-      ok: true,
-      applied: apply,
-      total: leadsSnap.size,
-      changes: changes.map((c) => c.row),
-    });
+    // Marca como feita só depois de gravar tudo: se algo falhar no meio, a próxima abertura do painel tenta de novo
+    await profRef.set(
+      { migracoes: { [key]: { feitoEm: FieldValue.serverTimestamp(), atualizados: changes.length, verificados: leadsSnap.size } } },
+      { merge: true }
+    );
+
+    return NextResponse.json({ ok: true, alreadyDone: false, updated: changes.length, checked: leadsSnap.size });
   } catch (err) {
     console.error("[reprice-leads]", (err as { code?: string; message?: string }).code ?? (err as Error).message);
     return NextResponse.json({ error: "Erro interno ao atualizar os valores." }, { status: 500 });

@@ -1,5 +1,9 @@
-// Atualiza o valor de agendamentos para o preço atual dos serviços (Faturamento → "Atualizar valores").
+// Atualiza o valor de agendamentos para o preço atual dos serviços.
 // Função pura usada pela rota /api/professionals/[id]/reprice-leads; testada em scripts/test-repricing.ts.
+
+// Correção única pedida em 06/11/2026: agendamentos a partir de 01/11/2026 com o preço atual.
+// Roda sozinha ao abrir o painel, uma vez por profissional (marca em `migracoes.<key>` no perfil).
+export const REPRICE_MIGRATION = { key: "precoAtual_2026_11_01", fromDate: "2026-11-01" } as const;
 
 export interface ServicePrice {
   nome?: string;
