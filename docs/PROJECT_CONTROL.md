@@ -77,6 +77,7 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 | F40 | Página Pública | Ao escolher um serviço, a tela desce até o resumo e o botão "Escolher Data & Horário" | Implementado | Sim | Build | Não testada | Não | `PublicBookingExperience.tsx` | Teste manual | Homologar |
 | F41 | Página Pública | "Não encontrou o dia ou horário": campo de data corrigido (saía da caixa no iPhone) e novo campo de horário desejado, de hora em hora (06:00–21:00), enviado na mensagem do WhatsApp; marcador `{horario}` na mensagem do perfil | Testado (mensagem) / Implementado (tela) | Sim | `test:other-times` 9/9; build | Não testada | Não | `src/lib/otherTimesMessage.ts`, `PublicBookingExperience.tsx`, `profile/page.tsx` | Teste manual no iPhone | Homologar |
 | F42 | Financeiro | Correção única pedida pelo usuário: agendamentos a partir de 01/11/2026 passam a ter o valor do preço atual dos serviços. Roda sozinha ao abrir o painel, uma vez por profissional (marca `migracoes.precoAtual_2026_11_01` no perfil), guardando o valor antigo em `valorAnterior` | Testado (cálculo) / Implementado (rota) | Sim | `test:repricing` 11/11; build | Não testada | Não | `src/lib/repricing.ts`, `api/professionals/[professionalId]/reprice-leads/route.ts`, `DashboardShell.tsx` | Executa só após publicar e abrir o painel; cada membro da equipe corrige os próprios agendamentos ao abrir o painel | Conferir valores em Faturamento após publicar |
+| F43 | Geral | Datas no horário de Brasília onde ainda se usava UTC (`toISOString`): Leads (Hoje/Semana/Mês, Atendidos no mês), Gerador Automático (dia/hora inicial e intervalo), data padrão do agendamento manual e do horário avulso, área do cliente (próximos/passados), admin (datas de expiração) | Testado | Sim | `test:timezone` 12/12 (simula 23h30 e virada de mês); build | Não testada | Não | `leads/page.tsx`, `slots/page.tsx`, `customer/appointments/page.tsx`, `admin/page.tsx` | Nenhum | Conferir Leads depois das 21h |
 | F14 | Organizações | Controle multi-provider/equipes | Planejado | Não | Não | Não | Não | Roadmap apenas | Suspenso | Não implementar nesta etapa |
 
 ---
@@ -240,6 +241,16 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **Branch**: `feat/atualizar-valores` (a partir de `main` `8776496`), sem merge até autorização do usuário.
 * **Backup prévio**: `Documentos/Retoria-backups/Retoria-2026-11-06.bundle` (verificado).
 * **Alterações**: F42. Nenhum dado foi alterado pelo agente nesta verificação; a correção roda sozinha quando o painel for aberto após a publicação (a pedido do usuário, sem botão nem tela).
+
+## Verificação 2026-11-06 (3)
+
+* **Branch**: `fix/fuso-brasilia` (a partir de `main` `b2f6695`), sem merge até autorização do usuário.
+* **Backup prévio**: `Documentos/Retoria-backups/Retoria-2026-11-06-b.bundle` (verificado).
+* **Divergência**: Leads, Gerador Automático, agendamento manual, área do cliente e admin calculavam "hoje" em UTC; entre 21h e 0h (Brasília) usavam o dia seguinte. Servidores do Vercel rodam em UTC (edge `gru1`).
+* **Alterações**: F43.
+* **TypeScript**: sem erros. **Lint**: igual à `main` nos arquivos alterados.
+* **Testes**: `test:timezone` 12/12 (novo) e demais scripts aprovados. `test:rules` não executado (regras inalteradas).
+* **Build**: Aprovado. **Teste manual**: Não executado.
 * **TypeScript**: sem erros. **Lint**: arquivos alterados sem problemas.
 * **Testes**: `test:repricing` 11/11 e demais scripts aprovados. `test:rules` não executado (regras inalteradas; escrita via Admin SDK).
 * **Build**: Aprovado. **Teste manual**: Não executado.

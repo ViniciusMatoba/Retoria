@@ -6,6 +6,7 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "../../providers";
 import { formatPhoneFriendly, getWhatsAppLink } from "@/lib/whatsapp";
 import { LEAD_STATUSES, type LeadStatus } from "@/lib/leadTypes";
+import { getSaoPauloToday, getStartOfWeekSaoPaulo } from "@/lib/timezone";
 import {
   Search, Filter, MessageSquare, Trash2, Clock, CalendarCheck,
   Inbox, AlertCircle, Loader2, CalendarClock, X,
@@ -314,11 +315,10 @@ export default function DashboardHome() {
   const newLeads = metricLeads.filter(l => l.status === "Novo").length;
   const scheduledLeads = metricLeads.filter(l => l.status === "Agendado").length;
 
-  const todayStr = new Date().toISOString().split("T")[0];
-  const thisMonthStr = new Date().toISOString().slice(0, 7);
-  const thisWeekStart = (() => {
-    const d = new Date(); d.setDate(d.getDate() - d.getDay()); return d.toISOString().split("T")[0];
-  })();
+  // Datas no horário de Brasília (toISOString é UTC e virava o dia seguinte depois das 21h)
+  const todayStr = getSaoPauloToday();
+  const thisMonthStr = todayStr.slice(0, 7);
+  const thisWeekStart = getStartOfWeekSaoPaulo(todayStr);
 
   const attendedThisMonth = metricLeads.filter(
     l => l.status === "Atendido" && l.dataEscolhida?.startsWith(thisMonthStr)

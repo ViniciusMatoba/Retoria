@@ -35,7 +35,7 @@ import {
   getMonthNameSaoPaulo 
 } from "@/lib/timezone";
 import { mergeCustomerSuggestions } from "@/lib/customerSuggestions";
-import { detectSwipe } from "@/lib/timeGrid";
+import { detectSwipe, getSaoPauloNowMinutes } from "@/lib/timeGrid";
 import { useAuth } from "../../providers";
 import { 
   Calendar as CalendarIcon,
@@ -495,7 +495,7 @@ export default function SlotsPage() {
       setBookingTelefone(prefill?.telefone ? formatPhoneFriendly(prefill.telefone) : "");
       setBookingObservacao(prefill?.observacao || "");
       setBookingServicoId(prefill?.servicoId || "");
-      setBookingData(prefill?.data || agendaDateFilter || new Date().toISOString().split("T")[0]);
+      setBookingData(prefill?.data || agendaDateFilter || getSaoPauloToday());
       setBookingHorario(prefill?.horario || "");
       setCustomerSuggestField(null);
       setBookingOrigem(prefill?.origem || "whatsapp");
@@ -773,18 +773,16 @@ export default function SlotsPage() {
   // Generate candidate list based strictly on agendaConfig
   const calculateCandidates = () => {
     const candidates: Array<{ date: string; time: string }> = [];
-    const today = new Date();
     let pastCount = 0;
 
-    const nowMinutes = today.getHours() * 60 + today.getMinutes();
-    const todayStr = today.toISOString().split("T")[0];
+    // Dia e hora de Brasília (antes usava UTC e, depois das 21h, começava a gerar pelo dia seguinte)
+    const nowMinutes = getSaoPauloNowMinutes();
+    const todayStr = getSaoPauloToday();
 
     for (let i = 0; i < periodDays; i++) {
-      const currentDate = new Date();
-      currentDate.setDate(today.getDate() + i);
-      
-      const dateStr = currentDate.toISOString().split("T")[0];
-      const weekdayIndex = currentDate.getDay(); // Sunday=0, ..., Saturday=6
+      const dateStr = addDaysSaoPaulo(todayStr, i);
+      const [cy, cm, cd] = dateStr.split("-").map(Number);
+      const weekdayIndex = new Date(Date.UTC(cy, cm - 1, cd, 12)).getUTCDay(); // Sunday=0, ..., Saturday=6
       const dayKey = weekdayKeys[weekdayIndex];
       const config = agendaConfig[dayKey];
 
@@ -914,11 +912,8 @@ export default function SlotsPage() {
 
       // 4. Fetch existing slots in range to compute duplicates
       const slotsRef = collection(db, "professionals", activeProfId, "availableSlots");
-      const todayStr = new Date().toISOString().split("T")[0];
-      
-      const futureDate = new Date();
-      futureDate.setDate(futureDate.getDate() + periodDays - 1);
-      const futureStr = futureDate.toISOString().split("T")[0];
+      const todayStr = getSaoPauloToday();
+      const futureStr = addDaysSaoPaulo(todayStr, periodDays - 1);
 
       const q = query(slotsRef, where("data", ">=", todayStr), where("data", "<=", futureStr));
       const snap = await getDocs(q);
@@ -2643,7 +2638,7 @@ export default function SlotsPage() {
                 <input
                   type="date"
                   value={manualDate}
-                  min={new Date().toISOString().split("T")[0]}
+                  min={getSaoPauloToday()}
                   onChange={(e) => setManualDate(e.target.value)}
                   className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500 text-slate-100 text-sm font-mono"
                 />
