@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../providers";
 import { PLANS, type PlanId, type LicenseStatus } from "@/lib/licenseTypes";
+import { addDaysSaoPaulo, getSaoPauloToday } from "@/lib/timezone";
 import {
   Users, Plus, Copy, Check, Loader2, AlertCircle, LogOut,
   RefreshCw, Ban, PlayCircle, ChevronRight, X, Trash2,
@@ -85,11 +86,8 @@ const daysFrom = (ts: any): number | null => {
   } catch { return null; }
 };
 
-const addDays = (days: number): string => {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.toISOString().split("T")[0];
-};
+// Data de hoje + N dias no horário de Brasília
+const addDays = (days: number): string => addDaysSaoPaulo(getSaoPauloToday(), days);
 
 export default function AdminPage() {
   const router = useRouter();

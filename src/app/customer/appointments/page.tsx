@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "../../providers";
-import { formatDateFriendlySaoPaulo } from "@/lib/timezone";
+import { formatDateFriendlySaoPaulo, getSaoPauloToday } from "@/lib/timezone";
 import {
   CalendarCheck, Clock, Briefcase, MapPin, ChevronRight,
   Loader2, CalendarX, ExternalLink, XCircle,
@@ -94,7 +94,7 @@ export default function CustomerAppointmentsPage() {
     );
   }
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = getSaoPauloToday(); // horário de Brasília (UTC virava o dia seguinte depois das 21h)
   const upcoming = bookings.filter(
     (b) => b.date >= today && !["Cancelado", "Perdido", "Atendido"].includes(b.status)
   );
