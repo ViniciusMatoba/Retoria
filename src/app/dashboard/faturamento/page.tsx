@@ -4,8 +4,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import { collection, getDocs, onSnapshot, query, where } from "firebase/firestore";
 import {
   AlertTriangle, ArrowDownRight, ArrowUpRight, CalendarClock, ChevronLeft, ChevronRight,
-  DollarSign, Receipt, Table2, UserPlus, Users, XCircle, BarChart3,
+  DollarSign, Receipt, Table2, UserPlus, Users, XCircle, BarChart3, RefreshCw,
 } from "lucide-react";
+import { useAppModal } from "@/components/ModalProvider";
 import { db } from "@/lib/firebase";
 import { useAuth } from "../../providers";
 import { getSaoPauloToday } from "@/lib/timezone";
@@ -200,9 +201,157 @@ export default function FaturamentoPage() {
             Faturamento realizado considera os agendamentos com status <strong>Atendido</strong>, pelo valor do agendamento.
             Previsto são os agendamentos ativos (Novo, Em contato, Agendado) de hoje em diante.
           </p>
+
+          <RepriceCard defaultFrom={`${today.slice(0, 8)}01`} />
         </div>
       )}
     </div>
+  );
+}
+
+interface RepriceRow {
+  id: string;
+  nome: string;
+  data: string;
+  horario: string;
+  status: string;
+  servico: string;
+  valorAntigo: number | null;
+  valorNovo: number;
+}
+
+// Atualiza o valor dos agendamentos a partir de uma data para o preço atual dos serviços.
+// Primeiro mostra a prévia (nada é gravado); só grava depois da confirmação. O valor antigo fica salvo no agendamento.
+function RepriceCard({ defaultFrom }: { defaultFrom: string }) {
+  const { user } = useAuth();
+  const { showConfirmationModal } = useAppModal();
+  const [fromDate, setFromDate] = useState(defaultFrom);
+  const [rows, setRows] = useState<RepriceRow[] | null>(null);
+  const [checked, setChecked] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const call = async (apply: boolean) => {
+    if (!user) return null;
+    const token = await user.getIdToken();
+    const res = await fetch(`/api/professionals/${user.uid}/reprice-leads`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ fromDate, apply }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Não foi possível consultar os agendamentos.");
+    return data as { total: number; changes: RepriceRow[] };
+  };
+
+  const preview = async () => {
+    setLoading(true);
+    setMessage(null);
+    try {
+      const data = await call(false);
+      if (data) { setRows(data.changes); setChecked(data.total); }
+    } catch (err) {
+      setMessage({ ok: false, text: (err as Error).message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const apply = () => {
+    if (!rows || rows.length === 0) return;
+    const diff = rows.reduce((s, r) => s + r.valorNovo - (r.valorAntigo ?? 0), 0);
+    showConfirmationModal({
+      title: "Atualizar valores",
+      description: `Atualizar o valor de ${rows.length} agendamento(s) a partir de ${fromDate.split("-").reverse().join("/")} para o preço atual dos serviços? Diferença total: ${diff >= 0 ? "+" : ""}${brl(diff)}. O valor antigo fica guardado em cada agendamento.`,
+      confirmLabel: "Atualizar valores",
+      cancelLabel: "Voltar",
+      variant: "warning",
+      onConfirm: async () => {
+        setLoading(true);
+        try {
+          const data = await call(true);
+          setMessage({ ok: true, text: `${data?.changes.length ?? 0} agendamento(s) atualizado(s) para o preço atual.` });
+          setRows(null);
+        } catch (err) {
+          setMessage({ ok: false, text: (err as Error).message });
+        } finally {
+          setLoading(false);
+        }
+      },
+    });
+  };
+
+  const diffTotal = rows ? rows.reduce((s, r) => s + r.valorNovo - (r.valorAntigo ?? 0), 0) : 0;
+
+  return (
+    <Card title="Atualizar valores para o preço atual" icon={RefreshCw}>
+      <p className="text-xs text-slate-400 mb-3">
+        Use quando um serviço mudou de preço e há agendamentos com o valor antigo. Vale para todos os agendamentos a partir da data
+        escolhida (qualquer status). Primeiro você vê a lista do que vai mudar; nada é alterado sem confirmar.
+      </p>
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="block">
+          <span className="block text-[11px] font-semibold text-slate-400 mb-1">A partir de</span>
+          <input
+            type="date"
+            value={fromDate}
+            onChange={(e) => { setFromDate(e.target.value); setRows(null); setMessage(null); }}
+            className="block h-10 px-3 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-200"
+          />
+        </label>
+        <button
+          type="button"
+          onClick={preview}
+          disabled={loading || !fromDate}
+          className="h-10 px-4 rounded-xl border border-slate-700 text-xs font-bold text-slate-200 disabled:opacity-50"
+        >
+          {loading && !rows ? "Consultando..." : "Ver o que vai mudar"}
+        </button>
+      </div>
+
+      {message && (
+        <p className={`mt-3 text-xs font-semibold ${message.ok ? "text-emerald-500" : "text-red-500"}`}>{message.text}</p>
+      )}
+
+      {rows && (
+        <div className="mt-4">
+          {rows.length === 0 ? (
+            <p className="text-sm text-slate-400">Todos os {checked} agendamento(s) desde essa data já estão com o preço atual.</p>
+          ) : (
+            <>
+              <p className="text-sm text-slate-300 mb-2">
+                <strong className="text-slate-100">{rows.length}</strong> de {checked} agendamento(s) com valor diferente do preço atual ·
+                diferença total <strong className="text-slate-100">{diffTotal >= 0 ? "+" : ""}{brl(diffTotal)}</strong>
+              </p>
+              <div className="max-h-80 overflow-y-auto rounded-xl border border-slate-800 divide-y divide-slate-800/60">
+                {rows.map((r) => (
+                  <div key={r.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                    <div className="min-w-0">
+                      <div className="text-slate-200 truncate">{r.nome || "Sem nome"}</div>
+                      <div className="text-[11px] text-slate-500 truncate">
+                        {r.data.split("-").reverse().join("/")} {r.horario} · {r.status} · {r.servico}
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right tabular-nums">
+                      <div className="text-[11px] text-slate-500 line-through">{r.valorAntigo === null ? "sem valor" : brl(r.valorAntigo)}</div>
+                      <div className="font-bold text-slate-100">{brl(r.valorNovo)}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={apply}
+                disabled={loading}
+                className="mt-3 w-full h-11 rounded-xl bg-indigo-600 text-white text-sm font-bold disabled:opacity-50"
+              >
+                {loading ? "Atualizando..." : `Atualizar ${rows.length} agendamento(s)`}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </Card>
   );
 }
 
