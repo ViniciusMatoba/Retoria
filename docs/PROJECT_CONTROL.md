@@ -76,6 +76,7 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 | F39 | Clientes | Total de clientes cadastrados; resumo clicável (Cadastrados, Novos no mês, Ativos, Sem retorno 60+ dias, Com horário) que filtra a lista; ordenação; selos Novo / Próximo / Sem retorno; WhatsApp com convite para quem sumiu | Testado (classificação) / Implementado (tela) | Sim | `test:customer-stats` 14/14; build | Não testada | Não | `src/lib/customerStats.ts`, `clientes/page.tsx` | Teste manual | Homologar |
 | F40 | Página Pública | Ao escolher um serviço, a tela desce até o resumo e o botão "Escolher Data & Horário" | Implementado | Sim | Build | Não testada | Não | `PublicBookingExperience.tsx` | Teste manual | Homologar |
 | F41 | Página Pública | "Não encontrou o dia ou horário": campo de data corrigido (saía da caixa no iPhone) e novo campo de horário desejado, de hora em hora (06:00–21:00), enviado na mensagem do WhatsApp; marcador `{horario}` na mensagem do perfil | Testado (mensagem) / Implementado (tela) | Sim | `test:other-times` 9/9; build | Não testada | Não | `src/lib/otherTimesMessage.ts`, `PublicBookingExperience.tsx`, `profile/page.tsx` | Teste manual no iPhone | Homologar |
+| F42 | Financeiro | Correção única pedida pelo usuário: agendamentos a partir de 01/11/2026 passam a ter o valor do preço atual dos serviços. Roda sozinha ao abrir o painel, uma vez por profissional (marca `migracoes.precoAtual_2026_11_01` no perfil), guardando o valor antigo em `valorAnterior` | Testado (cálculo) / Implementado (rota) | Sim | `test:repricing` 11/11; build | Não testada | Não | `src/lib/repricing.ts`, `api/professionals/[professionalId]/reprice-leads/route.ts`, `DashboardShell.tsx` | Executa só após publicar e abrir o painel; cada membro da equipe corrige os próprios agendamentos ao abrir o painel | Conferir valores em Faturamento após publicar |
 | F14 | Organizações | Controle multi-provider/equipes | Planejado | Não | Não | Não | Não | Roadmap apenas | Suspenso | Não implementar nesta etapa |
 
 ---
@@ -232,4 +233,14 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **TypeScript**: sem erros. **Lint**: nenhum erro novo em relação à `main`.
 * **Testes**: `test:other-times` 9/9, `test:customer-stats` 14/14, `test:revenue` 41/41, `test:customer-edit` 10/10, `test:time-grid` 26/26, `test:slot-stripes` 9/9, `test:themes` 13/13. `test:rules` não executado (regras inalteradas).
 * **Build**: Aprovado. **Teste manual**: Não executado (campo de data no iPhone só verificável no aparelho).
+
+## Verificação 2026-11-06 (2)
+
+* **Pasta do projeto**: `C:\Users\t31382\Projetos\Retoria` (movida para fora do OneDrive; `.next` travava com EPERM).
+* **Branch**: `feat/atualizar-valores` (a partir de `main` `8776496`), sem merge até autorização do usuário.
+* **Backup prévio**: `Documentos/Retoria-backups/Retoria-2026-11-06.bundle` (verificado).
+* **Alterações**: F42. Nenhum dado foi alterado pelo agente nesta verificação; a correção roda sozinha quando o painel for aberto após a publicação (a pedido do usuário, sem botão nem tela).
+* **TypeScript**: sem erros. **Lint**: arquivos alterados sem problemas.
+* **Testes**: `test:repricing` 11/11 e demais scripts aprovados. `test:rules` não executado (regras inalteradas; escrita via Admin SDK).
+* **Build**: Aprovado. **Teste manual**: Não executado.
 * **Deploy**: merge em `main` e publicação pela integração do Vercel. Teste pós-deploy em produção: NÃO TESTADO.
