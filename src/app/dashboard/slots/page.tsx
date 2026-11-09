@@ -228,7 +228,8 @@ export default function SlotsPage() {
 
   // Team / profissional selector
   const [teamMembers, setTeamMembers] = useState<TeamMemberTab[]>([]);
-  const [activeProfId, setActiveProfId] = useState<string>("");
+  // Já começa no próprio profissional: a agenda não espera a consulta da equipe para carregar
+  const [activeProfId, setActiveProfId] = useState<string>(user?.uid ?? "");
 
   // Navigation Tabs
   const [activeTab, setActiveTab] = useState<"smart" | "manual" | "agenda">("agenda");
@@ -412,6 +413,12 @@ export default function SlotsPage() {
   // Limpeza automática de slots bloqueados por leads cancelados/deletados
   useEffect(() => {
     if (!user) return;
+    // Uma vez por sessão do navegador: a rota lê todos os agendamentos ativos a cada chamada
+    const cleanupFlag = `retoria_slots_cleanup_${user.uid}`;
+    try {
+      if (sessionStorage.getItem(cleanupFlag)) return;
+      sessionStorage.setItem(cleanupFlag, "1");
+    } catch {}
     user.getIdToken().then(token => {
       fetch(`/api/professionals/${user.uid}/slots/cleanup`, {
         method: "POST",
@@ -432,7 +439,10 @@ export default function SlotsPage() {
     if (!user || !activeProfId) return;
 
     const slotsRef = collection(db, "professionals", activeProfId, "availableSlots");
-    const q = query(slotsRef, orderBy("data", "asc"), orderBy("horario", "asc"));
+    // Só do mês atual em diante: horários vagos de meses passados não servem para nada e pesavam a cada abertura.
+    // Os agendamentos passados continuam visíveis, pois vêm dos leads.
+    const fromDate = `${getSaoPauloToday().slice(0, 8)}01`;
+    const q = query(slotsRef, where("data", ">=", fromDate), orderBy("data", "asc"), orderBy("horario", "asc"));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const slotsData: AvailableSlot[] = [];
@@ -2075,6 +2085,16 @@ export default function SlotsPage() {
 
   const upcomingSlots = slots.filter(s => s.disponivel).slice(0, 6);
 
+  // O calendário só é redesenhado quando os dados dele mudam, não a cada letra digitada nos formulários desta página
+  const calendarBody = React.useMemo(() => (
+    <>
+      {calendarView === "month" && renderMonthView()}
+      {calendarView === "week" && renderWeekView()}
+      {calendarView === "day" && renderDayView()}
+    </>
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [calendarView, calendarRefDate, leads, slotsByDate, services, slotDuration, calendarColors, movingLead, dragLeadId, slotActionId, activeProfId]);
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
       {/* A tela fica só com as abas e o calendário; resumo e Google Agenda estão em "Resumo da Agenda" (/dashboard/resumo) */}
@@ -2188,14 +2208,12 @@ export default function SlotsPage() {
         ) : (
           <div
             key={`${calendarView}-${calendarRefDate}`}
-            className={swipeDir === 1 ? "animate-slide-from-right" : swipeDir === -1 ? "animate-slide-from-left" : "animate-fade-in"}
+            className={swipeDir === 1 ? "animate-slide-from-right" : swipeDir === -1 ? "animate-slide-from-left" : "animate-calendar-in"}
             onTouchStart={handleCalendarTouchStart}
             onTouchMove={handleCalendarTouchMove}
             onTouchEnd={handleCalendarTouchEnd}
           >
-            {calendarView === "month" && renderMonthView()}
-            {calendarView === "week" && renderWeekView()}
-            {calendarView === "day" && renderDayView()}
+            {calendarBody}
           </div>
         )}
       </div>

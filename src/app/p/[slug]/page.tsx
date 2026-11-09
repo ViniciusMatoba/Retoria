@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, use } from "react";
-import { collection, query, orderBy, getDocs } from "firebase/firestore";
+import { collection, query, orderBy, getDocs, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { getSaoPauloToday, addDaysSaoPaulo } from "@/lib/timezone";
 import { Loader2, AlertCircle } from "lucide-react";
@@ -80,8 +80,11 @@ export default function PublicBookingPage({ params }: PageProps) {
       const slotsRef = collection(db, "professionals", profId, "availableSlots");
       const todayStr = getSaoPauloToday();
       const maxDateStr = addDaysSaoPaulo(todayStr, windowDays);
+      // Só a janela de agendamento: antes baixava todo o histórico de horários e filtrava no celular do cliente
       const q = query(
         slotsRef,
+        where("data", ">=", todayStr),
+        where("data", "<=", maxDateStr),
         orderBy("data", "asc"),
         orderBy("horario", "asc")
       );

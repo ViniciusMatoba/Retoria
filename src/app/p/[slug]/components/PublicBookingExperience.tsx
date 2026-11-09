@@ -560,7 +560,7 @@ export default function PublicBookingExperience({
           )}
 
           {/* Wizard card */}
-          <div style={cardRadiusStyle} className={`p-6 md:p-8 shadow-2xl relative backdrop-blur-xl ${cardClass}`}>
+          <div style={cardRadiusStyle} className={`p-6 md:p-8 shadow-2xl relative ${cardClass}`}>
             {error && (
               <div className="mb-4 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex gap-3 items-center">
                 <AlertCircle className="h-5 w-5 shrink-0" />
