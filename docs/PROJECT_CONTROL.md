@@ -78,6 +78,7 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 | F41 | Página Pública | "Não encontrou o dia ou horário": campo de data corrigido (saía da caixa no iPhone) e novo campo de horário desejado, de hora em hora (06:00–21:00), enviado na mensagem do WhatsApp; marcador `{horario}` na mensagem do perfil | Testado (mensagem) / Implementado (tela) | Sim | `test:other-times` 9/9; build | Não testada | Não | `src/lib/otherTimesMessage.ts`, `PublicBookingExperience.tsx`, `profile/page.tsx` | Teste manual no iPhone | Homologar |
 | F42 | Financeiro | Correção única pedida pelo usuário: agendamentos a partir de 01/11/2026 passam a ter o valor do preço atual dos serviços. Roda sozinha ao abrir o painel, uma vez por profissional (marca `migracoes.precoAtual_2026_11_01` no perfil), guardando o valor antigo em `valorAnterior` | Testado (cálculo) / Implementado (rota) | Sim | `test:repricing` 11/11; build | Não testada | Não | `src/lib/repricing.ts`, `api/professionals/[professionalId]/reprice-leads/route.ts`, `DashboardShell.tsx` | Executa só após publicar e abrir o painel; cada membro da equipe corrige os próprios agendamentos ao abrir o painel | Conferir valores em Faturamento após publicar |
 | F43 | Geral | Datas no horário de Brasília onde ainda se usava UTC (`toISOString`): Leads (Hoje/Semana/Mês, Atendidos no mês), Gerador Automático (dia/hora inicial e intervalo), data padrão do agendamento manual e do horário avulso, área do cliente (próximos/passados), admin (datas de expiração) | Testado | Sim | `test:timezone` 12/12 (simula 23h30 e virada de mês); build | Não testada | Não | `leads/page.tsx`, `slots/page.tsx`, `customer/appointments/page.tsx`, `admin/page.tsx` | Nenhum | Conferir Leads depois das 21h |
+| F44 | Geral | Desempenho: cache local do Firestore no painel (página pública sem cache), perfil exibido da cópia local, agenda não espera a consulta da equipe, horários só do mês atual em diante, página pública baixa só a janela de agendamento, calendário memorizado, desfoque removido, animação da agenda mais curta, limpeza de horários uma vez por sessão, branding com `cache()` | Implementado | Sim | Build; carregamento sem login conferido com `next start` | Não testada | Não | `firebase.ts`, `providers.tsx`, `DashboardShell.tsx`, `slots/page.tsx`, `p/[slug]/page.tsx`, `appBranding.ts` | Ganho só mensurável logado no aparelho real | Homologar no celular |
 | F14 | Organizações | Controle multi-provider/equipes | Planejado | Não | Não | Não | Não | Roadmap apenas | Suspenso | Não implementar nesta etapa |
 
 ---
@@ -251,6 +252,18 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **TypeScript**: sem erros. **Lint**: igual à `main` nos arquivos alterados.
 * **Testes**: `test:timezone` 12/12 (novo) e demais scripts aprovados. `test:rules` não executado (regras inalteradas).
 * **Build**: Aprovado. **Teste manual**: Não executado.
+
+## Verificação 2026-11-09
+
+* **Branch**: `fix/desempenho` (a partir de `main` `897204e`), sem merge até autorização do usuário.
+* **Backup prévio**: `Documentos/Retoria-backups/Retoria-2026-11-09.bundle` (verificado).
+* **Medições em produção (sem login)**: páginas estáticas ~0,25 s (edge `gru1`); funções/API rodam em `iad1` (EUA), ~0,3–1,0 s, com partida a frio de até ~2,3 s. JavaScript da tela Horários: ~1,47 MB sem compressão (SDK do Firebase é o maior bloco, ~700 KB).
+* **Causas tratadas**: F44.
+* **Não alterado**: região das funções. Depende de saber o local do Firestore (dado não acessível daqui); mover sem isso pode piorar.
+* **TypeScript**: sem erros. **Lint**: igual à `main` nos arquivos alterados.
+* **Testes**: scripts `test:*` aprovados (exceto `test:rules`, não executado; regras inalteradas).
+* **Build**: Aprovado. `next start` local: painel sem login redireciona para `/login` sem erro de cache.
+* **Teste manual logado**: Não executado; ganho real ainda não medido.
 * **TypeScript**: sem erros. **Lint**: arquivos alterados sem problemas.
 * **Testes**: `test:repricing` 11/11 e demais scripts aprovados. `test:rules` não executado (regras inalteradas; escrita via Admin SDK).
 * **Build**: Aprovado. **Teste manual**: Não executado.

@@ -156,7 +156,8 @@ export default function DashboardShell({
     }
   };
 
-  if (loading || !user || !profile) {
+  // Com o perfil já disponível (cópia local), abre o painel sem esperar o restante do login
+  if (!user || !profile) {
     return (
       <div className="flex-1 flex flex-col justify-center items-center bg-slate-950 min-h-screen">
         <Loader2 className="h-8 w-8 text-indigo-500 animate-spin" />
@@ -229,9 +230,10 @@ export default function DashboardShell({
       
       {/* Dynamic overlay glass layer to protect readability of the dashboard */}
       <div 
-        className="absolute inset-0 z-0 backdrop-blur-[12px] pointer-events-none transition-colors duration-200"
+        className="absolute inset-0 z-0 pointer-events-none transition-colors duration-200"
         style={{
-          backgroundColor: hexToRgba(themeConfig.backgroundColor, 0.85)
+          // Sem desfoque (pesado no celular); com imagem de fundo a camada fica mais opaca para manter a leitura
+          backgroundColor: hexToRgba(themeConfig.backgroundColor, themeConfig.backgroundType === "image" ? 0.93 : 0.85)
         }}
       />
 
@@ -250,6 +252,12 @@ export default function DashboardShell({
         
         .font-sans {
           font-family: var(--theme-body-font) !important;
+        }
+
+        /* Desfoque desligado em todo o painel: é o efeito que mais pesa na rolagem do celular */
+        [class*="backdrop-blur"] {
+          -webkit-backdrop-filter: none !important;
+          backdrop-filter: none !important;
         }
 
         /* Override main layouts backgrounds to match theme */

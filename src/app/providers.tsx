@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, User, signOut } from "firebase/auth";
-import { doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, getDocFromCache, setDoc, updateDoc, arrayUnion, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import type { Account, CustomerAccount } from "@/lib/accountUtils";
 import { AppModalProvider } from "@/components/ModalProvider";
@@ -99,6 +99,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   // Retorna o perfil para uso no onAuthStateChanged (sem depender de setState assíncrono)
   const fetchProfile = async (uid: string): Promise<ProfessionalProfile | null> => {
+    // Mostra o perfil guardado no aparelho enquanto o servidor responde: o painel abre sem esperar a rede
+    try {
+      const cached = await getDocFromCache(doc(db, "professionals", uid));
+      if (cached.exists()) setProfile(cached.data() as ProfessionalProfile);
+    } catch {
+      // ainda não há cópia local (ou cache indisponível): segue para o servidor
+    }
     try {
       const snap = await getDoc(doc(db, "professionals", uid));
       const data = snap.exists() ? (snap.data() as ProfessionalProfile) : null;

@@ -153,7 +153,7 @@ export default function PublicProfessionalHeader({
     <>
       <div
         style={cardRadiusStyle}
-        className={`p-6 text-center flex flex-col items-center shadow-lg relative overflow-hidden backdrop-blur-sm ${cardClass}`}
+        className={`p-6 text-center flex flex-col items-center shadow-lg relative overflow-hidden ${cardClass}`}
       >
         {/* Top brand accent line */}
         <div className="absolute top-0 inset-x-0 h-1.5" style={{ backgroundColor: corBrand }} />

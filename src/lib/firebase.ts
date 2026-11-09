@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 // During build/prerendering time, env vars are empty. We use dummy placeholders
@@ -22,8 +22,20 @@ const isConfigured = !!(
 );
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+
+// Painel com cache local: agenda, leads e clientes aparecem na hora ao abrir e o Firestore só baixa o que mudou.
+// A página pública (/p/...) fica sem cache: quem agenda precisa sempre dos horários livres do momento.
+function createDb() {
+  if (typeof window === "undefined" || window.location.pathname.startsWith("/p/")) return getFirestore(app);
+  try {
+    return initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
+  } catch {
+    return getFirestore(app); // já inicializado (recarga em desenvolvimento)
+  }
+}
+
 const auth = getAuth(app);
-const db = getFirestore(app);
+const db = createDb();
 const storage = getStorage(app);
 
 export { app, auth, db, storage, isConfigured };
