@@ -79,6 +79,7 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 | F42 | Financeiro | Correção única pedida pelo usuário: agendamentos a partir de 01/11/2026 passam a ter o valor do preço atual dos serviços. Roda sozinha ao abrir o painel, uma vez por profissional (marca `migracoes.precoAtual_2026_11_01` no perfil), guardando o valor antigo em `valorAnterior` | Testado (cálculo) / Implementado (rota) | Sim | `test:repricing` 11/11; build | Não testada | Não | `src/lib/repricing.ts`, `api/professionals/[professionalId]/reprice-leads/route.ts`, `DashboardShell.tsx` | Executa só após publicar e abrir o painel; cada membro da equipe corrige os próprios agendamentos ao abrir o painel | Conferir valores em Faturamento após publicar |
 | F43 | Geral | Datas no horário de Brasília onde ainda se usava UTC (`toISOString`): Leads (Hoje/Semana/Mês, Atendidos no mês), Gerador Automático (dia/hora inicial e intervalo), data padrão do agendamento manual e do horário avulso, área do cliente (próximos/passados), admin (datas de expiração) | Testado | Sim | `test:timezone` 12/12 (simula 23h30 e virada de mês); build | Não testada | Não | `leads/page.tsx`, `slots/page.tsx`, `customer/appointments/page.tsx`, `admin/page.tsx` | Nenhum | Conferir Leads depois das 21h |
 | F44 | Geral | Desempenho: cache local do Firestore no painel (página pública sem cache), perfil exibido da cópia local, agenda não espera a consulta da equipe, horários só do mês atual em diante, página pública baixa só a janela de agendamento, calendário memorizado, desfoque removido, animação da agenda mais curta, limpeza de horários uma vez por sessão, branding com `cache()` | Implementado | Sim | Build; carregamento sem login conferido com `next start` | Não testada | Não | `firebase.ts`, `providers.tsx`, `DashboardShell.tsx`, `slots/page.tsx`, `p/[slug]/page.tsx`, `appBranding.ts` | Ganho só mensurável logado no aparelho real | Homologar no celular |
+| F45 | Página Pública | Botão "Consultar meus agendamentos": busca pelo WhatsApp e mostra próximos e já realizados (estabelecimento e equipe). Resposta mínima: data, horário, serviço, situação | Testado (separação e dados expostos) / Implementado (rota e tela) | Sim | `test:customer-appointments` 15/15; build | Não testada | Não | `src/lib/customerAppointments.ts`, `api/p/[slug]/appointments/route.ts`, `AppointmentLookup.tsx` | Sem senha: ver RISKS_AND_LIMITATIONS | Homologar com número real |
 | F14 | Organizações | Controle multi-provider/equipes | Planejado | Não | Não | Não | Não | Roadmap apenas | Suspenso | Não implementar nesta etapa |
 
 ---
@@ -264,6 +265,15 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **Testes**: scripts `test:*` aprovados (exceto `test:rules`, não executado; regras inalteradas).
 * **Build**: Aprovado. `next start` local: painel sem login redireciona para `/login` sem erro de cache.
 * **Teste manual logado**: Não executado; ganho real ainda não medido.
+
+## Verificação 2026-11-09 (2)
+
+* **Branch**: `feat/consulta-agendamentos` (a partir de `main` `a76e063`), sem merge até autorização do usuário.
+* **Backup prévio**: `Documentos/Retoria-backups/Retoria-2026-11-09-b.bundle` (verificado).
+* **Alterações**: F45.
+* **TypeScript**: sem erros. **Lint**: arquivos novos sem problemas; `PublicBookingExperience.tsx` igual à `main`.
+* **Testes**: `test:customer-appointments` 15/15 (novo) e demais scripts aprovados. `test:rules` não executado (regras inalteradas; leitura via Admin SDK).
+* **Build**: Aprovado. **Teste manual**: Não executado (rota depende das credenciais do servidor).
 * **TypeScript**: sem erros. **Lint**: arquivos alterados sem problemas.
 * **Testes**: `test:repricing` 11/11 e demais scripts aprovados. `test:rules` não executado (regras inalteradas; escrita via Admin SDK).
 * **Build**: Aprovado. **Teste manual**: Não executado.
