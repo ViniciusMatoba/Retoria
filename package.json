@@ -17,6 +17,7 @@
     "test:other-times": "npx tsx scripts/test-other-times.ts",
     "test:repricing": "npx tsx scripts/test-repricing.ts",
     "test:timezone": "npx tsx scripts/test-timezone.ts",
+    "test:customer-appointments": "npx tsx scripts/test-customer-appointments.ts",
     "check:governance": "node scripts/check-project-governance.mjs"
   },
   "dependencies": {

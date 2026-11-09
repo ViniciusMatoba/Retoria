@@ -20,6 +20,7 @@ import {
 import PublicThemeProvider from "./PublicThemeProvider";
 import PublicServiceCard from "./PublicServiceCard";
 import PublicProfessionalHeader from "./PublicProfessionalHeader";
+import AppointmentLookup from "./AppointmentLookup";
 import { getDefaultThemeConfig, ThemeConfig, getBestTextColor } from "@/lib/themeUtils";
 import { getSlotDayStripeStyles, hexToRgba } from "@/lib/slotDayStripes";
 import { DESIRED_HOURS, buildOtherTimesMessage } from "@/lib/otherTimesMessage";
@@ -524,6 +525,16 @@ export default function PublicBookingExperience({
             theme={theme}
             isPreview={previewMode}
           />
+
+          {!previewMode && step < 4 && professional.slugPublico && (
+            <AppointmentLookup
+              slug={professional.slugPublico}
+              primaryColor={theme.primaryColor}
+              primaryTextColor={getBestTextColor(theme.primaryColor)}
+              btnRadiusClass={btnRadiusClass}
+              cardRadius={theme.cardRadius}
+            />
+          )}
 
           {/* Step indicator */}
           {step < 4 && (
