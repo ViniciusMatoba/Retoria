@@ -16,3 +16,10 @@ Este documento registra as principais decisões de design de software e escolhas
 * **Consequências**:
   * Qualquer tema incompleto ou legado que contenha dados faltantes ou inválidos é automaticamente sanetizado em memória durante o carregamento.
   * Segurança aprimorada contra injeção manual de URLs externas proibidas ou formatos de cores errados no banco de dados.
+
+## ADR 3: Custos e Materiais gravados só pelo servidor
+* **Contexto**: A tela Custos e Materiais precisa de coleções novas (`materials`, `expenses`). Publicar regras do Firestore exige `firebase deploy`, separado do deploy do app no Vercel.
+* **Decisão**: Ler e gravar essas coleções apenas por rotas `/api/professionals/[id]/...` com Admin SDK e verificação do token do dono (`src/lib/apiOwner.ts`), como já ocorre com `customers`. As regras atuais negam o acesso direto do navegador por padrão.
+* **Consequências**:
+  * A funcionalidade sobe só com o deploy do app, sem passo manual de regras.
+  * Cada leitura passa pelo servidor (sem tempo real nem cache local do Firestore); a validação fica em `src/lib/costs.ts`.

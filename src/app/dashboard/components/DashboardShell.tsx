@@ -24,6 +24,7 @@ import {
   QrCode,
   LayoutDashboard,
   DollarSign,
+  Wallet,
 } from "lucide-react";
 import {
   normalizeThemeConfig,
@@ -179,6 +180,7 @@ export default function DashboardShell({
   const navItems = [
     { name: "Horários", href: "/dashboard/slots", icon: Calendar },
     { name: "Faturamento", href: "/dashboard/faturamento", icon: DollarSign },
+    { name: "Custos e Materiais", href: "/dashboard/custos", icon: Wallet },
     { name: "Leads / Contatos", href: "/dashboard/leads", icon: Users },
     { name: "Lembretes", href: "/dashboard/lembretes", icon: BellRing },
     { name: "Clientes", href: "/dashboard/clientes", icon: BookUser },
