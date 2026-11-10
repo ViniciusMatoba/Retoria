@@ -4,8 +4,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import { collection, getDocs, onSnapshot, query, where } from "firebase/firestore";
 import {
   AlertTriangle, ArrowDownRight, ArrowUpRight, CalendarClock, ChevronLeft, ChevronRight,
-  DollarSign, Receipt, Table2, UserPlus, Users, XCircle, BarChart3,
+  DollarSign, Receipt, Table2, UserPlus, Users, XCircle, BarChart3, Wallet,
 } from "lucide-react";
+import Link from "next/link";
+import { profitOf, summarizeCosts, type CostSummary, type Expense } from "@/lib/costs";
 import { db } from "@/lib/firebase";
 import { useAuth } from "../../providers";
 import { getSaoPauloToday } from "@/lib/timezone";
@@ -86,6 +88,30 @@ export default function FaturamentoPage() {
   const summary = useMemo(() => (leads ? summarizeRevenue(leads, period, today) : null), [leads, period, today]);
   const todaySummary = useMemo(() => (leads ? summarizeRevenue(leads, getPeriod("dia", 0, today), today) : null), [leads, today]);
 
+  // Custos do período (tela Custos e Materiais) para o lucro. undefined = carregando; null = não foi possível carregar.
+  const [expenses, setExpenses] = useState<Expense[] | null | undefined>(undefined);
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch(`/api/professionals/${user.uid}/expenses?from=${period.prevStart}&to=${period.end}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!cancelled) setExpenses(res.ok ? data.expenses : null);
+      } catch {
+        if (!cancelled) setExpenses(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user, period.prevStart, period.end]);
+  const costSummary = useMemo(
+    () => (expenses === undefined ? undefined : expenses === null ? null : summarizeCosts(expenses, period)),
+    [expenses, period]
+  );
+
   const isLight = profile?.themeConfig?.mode === "light";
   // Cores dos gráficos validadas (daltonismo e contraste) para fundo claro e escuro
   const vizVars = {
@@ -153,6 +179,8 @@ export default function FaturamentoPage() {
         <div className={`space-y-6 transition-opacity`}>
           <KpiGrid s={summary} prevLabel={period.prevLabel} />
 
+          <ProfitCard realized={summary.realized} costs={costSummary} prevLabel={period.prevLabel} />
+
           <Card title="Evolução do faturamento" icon={BarChart3}>
             <EvolutionChart s={summary} kind={kind} />
           </Card>
@@ -170,6 +198,14 @@ export default function FaturamentoPage() {
             <Card title="Por turno" icon={CalendarClock}>
               <BarList rows={summary.byShift} empty="Nenhum atendimento concluído no período." showShare />
               <p className="mt-3 text-[11px] text-slate-500">Manhã: até 12h · Tarde: 12h–18h · Noite: a partir das 18h</p>
+            </Card>
+            <Card title="Custos por categoria" icon={Wallet}>
+              {costSummary === undefined ? (
+                <p className="text-sm text-slate-400">Carregando custos...</p>
+              ) : (
+                <BarList rows={costSummary?.byCategory ?? []} empty="Nenhum custo lançado no período." showShare countLabel="lançamento" />
+              )}
+              <Link href="/dashboard/custos" className="mt-3 inline-block text-xs font-semibold text-indigo-400 underline">Lançar ou ver custos</Link>
             </Card>
           </div>
 
@@ -261,6 +297,53 @@ function KpiGrid({ s, prevLabel }: { s: RevenueSummary; prevLabel: string }) {
         icon={AlertTriangle}
       />
     </div>
+  );
+}
+
+// Resultado do período: faturamento realizado − custos lançados em "Custos e Materiais" = lucro.
+function ProfitCard({ realized, costs, prevLabel }: { realized: number; costs: CostSummary | null | undefined; prevLabel: string }) {
+  if (costs === undefined) {
+    return <div className="h-28 bg-slate-900/40 border border-slate-800 rounded-3xl animate-pulse" />;
+  }
+  if (costs === null) {
+    return (
+      <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-5 text-sm text-slate-400">
+        Não foi possível carregar os custos agora. O lucro aparece aqui quando os custos carregarem.
+      </div>
+    );
+  }
+  const { lucro, margem } = profitOf(realized, costs.total);
+  return (
+    <section className="bg-slate-900/40 border border-slate-800 rounded-3xl p-5">
+      <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+        <Wallet className="h-4 w-4" />
+        Lucro do período
+      </h2>
+      <div className="grid grid-cols-3 gap-2 text-center">
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Faturamento</p>
+          <p className="text-sm md:text-lg font-extrabold text-slate-100 mt-1 truncate">{brl(realized)}</p>
+        </div>
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">− Custos</p>
+          <p className="text-sm md:text-lg font-extrabold text-slate-100 mt-1 truncate">{brl(costs.total)}</p>
+        </div>
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">= Lucro</p>
+          <p className={`text-sm md:text-lg font-black mt-1 truncate ${lucro < 0 ? "text-red-500" : "text-emerald-500"}`}>{brl(lucro)}</p>
+        </div>
+      </div>
+      <p className="mt-3 text-xs text-slate-400">
+        {margem === null
+          ? "Sem faturamento realizado no período."
+          : lucro < 0
+            ? `Prejuízo: os custos passaram o faturamento em ${brl(-lucro)}.`
+            : `Margem de ${pct(margem)}: de cada R$ 100 faturados, sobram ${brl(margem * 100)}.`}
+        {costs.count === 0 && " Nenhum custo lançado neste período."}
+        {costs.deltaPct !== null && ` Custos ${costs.deltaPct >= 0 ? "+" : ""}${pct(costs.deltaPct)} em relação ao ${prevLabel}.`}
+      </p>
+      <Link href="/dashboard/custos" className="mt-2 inline-block text-xs font-semibold text-indigo-400 underline">Lançar ou ver custos</Link>
+    </section>
   );
 }
 
@@ -404,7 +487,7 @@ function EvolutionChart({ s, kind }: { s: RevenueSummary; kind: PeriodKind }) {
 }
 
 // Barras horizontais de uma série (sempre a mesma cor): valor à direita, quantidade e participação abaixo.
-function BarList({ rows, empty, showShare, compact }: { rows: Breakdown[]; empty: string; showShare?: boolean; compact?: boolean }) {
+function BarList({ rows, empty, showShare, compact, countLabel = "atendimento" }: { rows: Breakdown[]; empty: string; showShare?: boolean; compact?: boolean; countLabel?: string }) {
   const max = Math.max(0, ...rows.map((r) => r.value));
   if (max === 0) return <p className="text-sm text-slate-400">{empty}</p>;
   return (
@@ -420,7 +503,7 @@ function BarList({ rows, empty, showShare, compact }: { rows: Breakdown[]; empty
           </div>
           {!compact && (
             <p className="mt-0.5 text-[11px] text-slate-500">
-              {r.count} atendimento{r.count !== 1 ? "s" : ""}{showShare ? ` · ${pct(r.share)} do total` : ""}
+              {r.count} {countLabel}{r.count !== 1 ? "s" : ""}{showShare ? ` · ${pct(r.share)} do total` : ""}
             </p>
           )}
         </li>
