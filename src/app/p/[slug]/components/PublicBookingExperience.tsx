@@ -167,7 +167,7 @@ export default function PublicBookingExperience({
   const [pendingRebook, setPendingRebook] = useState<{ pid?: string; servicoIds: string[] } | null>(null);
   const [rescheduleOf, setRescheduleOf] = useState<{ id: string; data: string; horario: string } | null>(null);
   const [rebookNotice, setRebookNotice] = useState("");
-  const [bookingOutcome, setBookingOutcome] = useState<{ confirmado: boolean; remarcado: boolean }>({ confirmado: false, remarcado: false });
+  const [wasRescheduled, setWasRescheduled] = useState(false);
 
   const startRebook = (request: RebookRequest) => {
     setError("");
@@ -487,10 +487,8 @@ export default function PublicBookingExperience({
       const oldDay = rescheduleOf ? rescheduleOf.data.split("-").reverse().join("/") : "";
       const message = rescheduleOf
         ? `Olá, meu nome é ${trimmedNome}. Remarquei meu horário de ${oldDay} às ${rescheduleOf.horario} para ${friendlyDate} às ${selectedSlot.horario}:\n\n${linhasServicos}${totalLine}`
-        : resData.confirmado
-          ? `Olá, meu nome é ${trimmedNome}. Agendei para ${friendlyDate} às ${selectedSlot.horario}:\n\n${linhasServicos}${totalLine}`
-          : `Olá, meu nome é ${trimmedNome}. Gostaria de verificar disponibilidade para ${friendlyDate} às ${selectedSlot.horario}:\n\n${linhasServicos}${totalLine}`;
-      setBookingOutcome({ confirmado: resData.confirmado === true, remarcado: !!rescheduleOf });
+        : `Olá, meu nome é ${trimmedNome}. Gostaria de verificar disponibilidade para ${friendlyDate} às ${selectedSlot.horario}:\n\n${linhasServicos}${totalLine}`;
+      setWasRescheduled(!!rescheduleOf);
       setRescheduleOf(null);
       const redirectUrl = getWhatsAppLink(activeWhatsapp ?? professional.telefoneWhatsapp, message);
       setWhatsappUrl(redirectUrl);
@@ -1100,16 +1098,14 @@ export default function PublicBookingExperience({
                 </div>
                 <div>
                   <h2 className="text-xl font-bold text-[var(--theme-text)]" style={{ fontFamily: "var(--theme-heading-font)" }}>
-                    {previewMode ? "Prévia: pedido registrado!" : bookingOutcome.remarcado ? "Horário remarcado!" : bookingOutcome.confirmado ? "Agendamento confirmado!" : "Pedido registrado!"}
+                    {previewMode ? "Prévia: pedido registrado!" : wasRescheduled ? "Remarcação registrada!" : "Pedido registrado!"}
                   </h2>
                   <p className="text-sm text-[var(--theme-muted-text)] max-w-sm mt-2 leading-relaxed">
                     {previewMode
                       ? "Na página real o cliente enviaria a mensagem pelo WhatsApp para confirmar o horário."
-                      : bookingOutcome.confirmado
-                        ? "Seu horário está reservado. Se quiser, avise o profissional pelo WhatsApp."
-                        : bookingOutcome.remarcado
-                          ? "O horário anterior foi cancelado. Envie a mensagem para o profissional pelo WhatsApp para confirmar o novo horário."
-                          : "Agora envie a mensagem para o profissional pelo WhatsApp. Ele confirmará o horário com você em breve."}
+                      : wasRescheduled
+                        ? "O horário anterior foi cancelado. Envie a mensagem para o profissional pelo WhatsApp: ele confirmará o novo horário com você."
+                        : "Agora envie a mensagem para o profissional pelo WhatsApp. Ele confirmará o horário com você em breve."}
                   </p>
                 </div>
                 {!previewMode && (

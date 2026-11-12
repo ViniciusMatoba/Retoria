@@ -375,7 +375,7 @@ export default function DashboardHome() {
         <p className="text-sm text-slate-400">Gerencie contatos e atualize os status de pré-atendimento.</p>
       </div>
 
-      {user && profile && <BookingAlertsCard user={user} autoConfirmInitial={profile.autoConfirmBookings === true} />}
+      {user && <BookingAlertsCard user={user} />}
 
       {/* Seletor de profissional — só quando há equipe */}
       {hasTeam && initialized && (

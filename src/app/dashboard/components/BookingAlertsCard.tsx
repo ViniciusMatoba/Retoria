@@ -1,19 +1,16 @@
 "use client";
 
 import React, { useState } from "react";
-import { doc, updateDoc } from "firebase/firestore";
 import type { User } from "firebase/auth";
 import { Bell, BellOff, BellRing, ChevronDown, Loader2, Send } from "lucide-react";
-import { db } from "@/lib/firebase";
 import { usePushNotification } from "@/hooks/usePushNotification";
 
-// Cartão da tela de Leads: avisos de agendamento neste aparelho (ligar, testar, desligar)
-// e confirmação automática dos agendamentos feitos pela página pública.
-export default function BookingAlertsCard({ user, autoConfirmInitial }: { user: User; autoConfirmInitial: boolean }) {
+// Cartão da tela de Leads: avisos de agendamento neste aparelho (ligar, testar, desligar).
+// A confirmação continua manual: o agendamento entra como Novo e o profissional marca como Agendado.
+export default function BookingAlertsCard({ user }: { user: User }) {
   const { permission, isRegistered, isLoading, enable, disable } = usePushNotification(user.uid);
   const [open, setOpen] = useState(false);
-  const [autoConfirm, setAutoConfirm] = useState(autoConfirmInitial);
-  const [busy, setBusy] = useState<"" | "test" | "auto">("");
+  const [busy, setBusy] = useState<"" | "test">("");
   const [msg, setMsg] = useState<{ tone: "ok" | "erro"; text: string } | null>(null);
 
   const sendTest = async () => {
@@ -36,21 +33,6 @@ export default function BookingAlertsCard({ user, autoConfirmInitial }: { user: 
     }
   };
 
-  const toggleAutoConfirm = async (value: boolean) => {
-    setBusy("auto");
-    setMsg(null);
-    setAutoConfirm(value);
-    try {
-      await updateDoc(doc(db, "professionals", user.uid), { autoConfirmBookings: value });
-      setMsg({ tone: "ok", text: value ? "Novos agendamentos da página pública já entram como Agendado." : "Novos agendamentos voltam a esperar a sua confirmação." });
-    } catch {
-      setAutoConfirm(!value);
-      setMsg({ tone: "erro", text: "Não foi possível salvar. Tente novamente." });
-    } finally {
-      setBusy("");
-    }
-  };
-
   const turnOn = async () => {
     setMsg(null);
     const ok = await enable();
@@ -61,7 +43,7 @@ export default function BookingAlertsCard({ user, autoConfirmInitial }: { user: 
   };
 
   const alertsOn = permission === "granted" && isRegistered;
-  const summary = [alertsOn ? "Avisos ligados neste aparelho" : "Avisos desligados neste aparelho", autoConfirm ? "confirmação automática" : "confirmação manual"].join(" · ");
+  const summary = alertsOn ? "Ligados neste aparelho" : "Desligados neste aparelho";
 
   return (
     <section className="rounded-2xl border border-slate-800 bg-slate-900/40">
@@ -69,7 +51,7 @@ export default function BookingAlertsCard({ user, autoConfirmInitial }: { user: 
         <div className="flex min-w-0 items-center gap-3">
           {alertsOn ? <BellRing className="h-5 w-5 shrink-0 text-emerald-400" /> : <BellOff className="h-5 w-5 shrink-0 text-slate-500" />}
           <div className="min-w-0">
-            <div className="font-semibold text-slate-200">Avisos e confirmação</div>
+            <div className="font-semibold text-slate-200">Avisos de agendamento</div>
             <div className={`truncate text-xs ${alertsOn ? "text-emerald-400" : "text-slate-500"}`}>{summary}</div>
           </div>
         </div>
@@ -81,7 +63,7 @@ export default function BookingAlertsCard({ user, autoConfirmInitial }: { user: 
           <div className="space-y-2">
             <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">Avisos neste aparelho</div>
             <p className="text-xs text-slate-400">
-              Você recebe um aviso quando uma cliente agenda, cancela ou remarca pela página pública, mesmo com o app fechado. Ative em cada aparelho que usar.
+              Você recebe um aviso quando uma cliente agenda, cancela ou remarca pela página pública, mesmo com o app fechado. Ative em cada aparelho que usar. O agendamento continua entrando como Novo, para você conferir e marcar como Agendado.
             </p>
             {permission === "unsupported" ? (
               <p className="rounded-xl border border-sky-500/30 bg-sky-500/10 p-3 text-xs text-sky-200">
@@ -108,23 +90,6 @@ export default function BookingAlertsCard({ user, autoConfirmInitial }: { user: 
                 Ativar avisos neste aparelho
               </button>
             )}
-          </div>
-
-          <div className="space-y-2">
-            <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">Confirmação</div>
-            <label className="flex items-center justify-between gap-3">
-              <span className="text-sm font-medium text-slate-200">Confirmar agendamentos automaticamente</span>
-              <input
-                type="checkbox"
-                checked={autoConfirm}
-                disabled={busy === "auto"}
-                onChange={(e) => toggleAutoConfirm(e.target.checked)}
-                className="relative h-5 w-9 shrink-0 cursor-pointer appearance-none rounded-full bg-slate-700 transition-colors before:absolute before:left-0.5 before:top-0.5 before:h-4 before:w-4 before:rounded-full before:bg-white before:transition-transform checked:bg-emerald-500 checked:before:translate-x-4"
-              />
-            </label>
-            <p className="text-xs text-slate-500">
-              Ligado: o agendamento feito pela cliente já entra como Agendado, sem você precisar confirmar. Desligado: entra como Novo e você confirma, como é hoje.
-            </p>
           </div>
 
           {msg && (

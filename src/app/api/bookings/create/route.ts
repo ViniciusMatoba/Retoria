@@ -308,9 +308,6 @@ export async function POST(req: NextRequest) {
         throw new Error("slot-already-booked");
       }
 
-      // Confirmação automática (opção do profissional): o agendamento já entra como Agendado
-      const initialStatus = profData?.autoConfirmBookings === true ? "Agendado" : "Novo";
-
       // Create Lead
       const newLeadRef = profRef.collection("leads").doc();
       const leadPayload: Record<string, unknown> = {
@@ -324,7 +321,7 @@ export async function POST(req: NextRequest) {
         dataEscolhida,
         horarioEscolhido,
         observacao: trimmedObservacao,
-        status: initialStatus,
+        status: "Novo",
         origem: "web-slug",
         duracaoAgendamento: duration,
         horarioInicio: horarioEscolhido,
@@ -366,7 +363,7 @@ export async function POST(req: NextRequest) {
           date: dataEscolhida,
           startTime: horarioEscolhido,
           endTime: horarioFim,
-          status: initialStatus,
+          status: "Novo",
           createdAt: now,
           updatedAt: now,
         }));
@@ -405,7 +402,6 @@ export async function POST(req: NextRequest) {
 
       return {
         leadId: newLeadRef.id, horarioFim, profData, serviceNome: servicoEscolhido, nome: trimmedNome,
-        autoConfirmed: initialStatus === "Agendado",
         oldWhen: old ? `${formatDateFriendlySaoPaulo(old.dataEscolhida)} às ${old.horarioInicio ?? old.horarioEscolhido}` : null,
       };
     });
@@ -424,9 +420,7 @@ export async function POST(req: NextRequest) {
     const dataFriendly = formatDateFriendlySaoPaulo(dataEscolhida);
     const pushTitle = result.oldWhen
       ? `🔁 Remarcado pela cliente — ${result.nome}`
-      : result.autoConfirmed
-        ? `✅ Novo agendamento confirmado — ${result.nome}`
-        : `📅 Novo agendamento — ${result.nome}`;
+      : `📅 Novo agendamento — ${result.nome}`;
     const pushBody = result.oldWhen
       ? `${result.serviceNome} · de ${result.oldWhen} para ${dataFriendly} às ${horarioEscolhido}`
       : `${result.serviceNome} · ${dataFriendly} às ${horarioEscolhido}`;
@@ -434,7 +428,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true, leadId: result.leadId, horarioFim: result.horarioFim, nome: maskName(result.nome),
-      confirmado: result.autoConfirmed, remarcado: !!result.oldWhen,
+      remarcado: !!result.oldWhen,
     });
 
   } catch (err: any) {
