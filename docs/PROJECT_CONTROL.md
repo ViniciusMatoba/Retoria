@@ -301,3 +301,8 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **TypeScript**: sem erros. **Lint**: arquivos novos sem problemas; alterados com a mesma contagem por regra da `main`.
 * **Testes**: `test:customer-appointments` 25/25 (10 novos) e demais scripts aprovados. `test:rules` não executado (regras inalteradas).
 * **Build**: Aprovado. **Teste manual**: Não executado (rotas dependem das credenciais do servidor; avisos dependem de aparelho real).
+* **Ajuste a pedido do usuário**: confirmação automática removida antes de publicar; o pedido da página pública continua entrando como Novo.
+* **Deploy**: merge em `main` (`294327a`) e publicação pela integração do Vercel (status success).
+* **Pós-deploy em produção (sem login)**: `/`, `/dashboard/leads`, `/firebase-messaging-sw.js` e `/dashboard/app-icon` 200; `push-test` 401 sem login; cancelamento 400 com dados inválidos e 404 para página inexistente; `remarcarDe` inválido 400.
+* **NÃO TESTADO em produção**: cancelar, remarcar e agendar de novo com agendamento real; avisos em aparelho real (Android e iPhone).
+
