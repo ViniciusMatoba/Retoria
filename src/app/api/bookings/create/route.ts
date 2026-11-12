@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { dbAdmin, authAdmin } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import {
@@ -15,6 +15,13 @@ import { isFullName, normalizeName, maskName, FULL_NAME_ERROR } from "@/lib/name
 import { parseServiceDurationMinutes, overlapsActiveLead, overlapsBusy, type LeadLike } from "@/lib/availability";
 import { getBusyIntervals } from "@/lib/googleCalendar";
 import { syncLeadEvent } from "@/lib/leadSync";
+import {
+  afterCustomerCancellation,
+  readChangeableLead,
+  SELF_SERVICE_ERRORS,
+  SelfServiceError,
+  writeCustomerCancellation,
+} from "@/lib/customerSelfService";
 
 export async function POST(req: NextRequest) {
   if (!dbAdmin || !authAdmin) {
@@ -59,7 +66,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
 
     // 1. Strict payload validation
-    const allowedKeys = ["professionalId", "servicos", "serviceId", "nome", "telefone", "dataEscolhida", "horarioEscolhido", "observacao", "usarCadastro"];
+    const allowedKeys = ["professionalId", "servicos", "serviceId", "nome", "telefone", "dataEscolhida", "horarioEscolhido", "observacao", "usarCadastro", "remarcarDe"];
     const payloadKeys = Object.keys(body);
     const hasExtraKeys = payloadKeys.some(k => !allowedKeys.includes(k));
 
@@ -70,6 +77,11 @@ export async function POST(req: NextRequest) {
     const { professionalId, nome, telefone, dataEscolhida, horarioEscolhido, observacao } = body;
     // Cliente reconhecido pelo telefone: usa o nome já cadastrado com este profissional
     const useRegistered = body.usarCadastro === true;
+    // Remarcação pela cliente: id do agendamento atual, que é cancelado na mesma transação (regra das 12 h)
+    const remarcarDe: string | null = body.remarcarDe == null ? null : body.remarcarDe;
+    if (remarcarDe !== null && (typeof remarcarDe !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(remarcarDe))) {
+      return NextResponse.json({ error: "Dados inválidos ou ausentes." }, { status: 400 });
+    }
 
     // Aceita novo formato (servicos[]) ou legado (serviceId string)
     let servicosInput: { id: string }[] = [];
@@ -177,6 +189,11 @@ export async function POST(req: NextRequest) {
       }
       const profData = profSnap.data();
 
+      // Remarcação: o agendamento atual precisa ser desta cliente (mesmo telefone), estar ativo e a 12 h ou mais
+      const oldTarget = remarcarDe
+        ? await readChangeableLead(transaction, professionalId, remarcarDe, formattedPhone, Date.now())
+        : null;
+
       // Telefone amarrado ao nome (por profissional): se já existe cliente com este telefone,
       // o nome cadastrado prevalece sobre o digitado. Cadastros antigos sem nome completo são atualizados.
       const knownCustomerSnap = await transaction.get(
@@ -227,7 +244,8 @@ export async function POST(req: NextRequest) {
 
       // Agendamentos ativos do dia: protege contra slots desatualizados que ainda aparecem como livres
       const dayLeadsSnap = await transaction.get(profRef.collection("leads").where("dataEscolhida", "==", dataEscolhida));
-      const dayLeads = dayLeadsSnap.docs.map((d: any) => d.data() as LeadLike);
+      // Na remarcação, o agendamento que está sendo trocado não conta como ocupado
+      const dayLeads = dayLeadsSnap.docs.filter((d: { id: string }) => d.id !== remarcarDe).map((d: any) => d.data() as LeadLike);
       if (overlapsActiveLead(dayLeads, dataEscolhida, startMin, endMin, slotDuration)) {
         throw new Error("slot-already-booked");
       }
@@ -276,7 +294,16 @@ export async function POST(req: NextRequest) {
       }
 
       // Check slot availability
-      const anyUnavailable = overlappingSlots.some(s => !s.disponivel);
+      // Na remarcação para o mesmo dia, os horários presos pelo agendamento antigo contam como livres
+      const old = oldTarget?.lead;
+      const oldStart = old && old.dataEscolhida === dataEscolhida ? timeToMinutes(old.horarioInicio ?? old.horarioEscolhido) : null;
+      const oldEnd = oldStart === null ? null : old!.horarioFim ? timeToMinutes(old!.horarioFim) : oldStart + (old!.duracaoAgendamento || slotDuration);
+      const heldByOld = (slot: { horario: string }) => {
+        if (oldStart === null || oldEnd === null) return false;
+        const sStart = timeToMinutes(slot.horario);
+        return sStart < oldEnd && sStart + slotDuration > oldStart;
+      };
+      const anyUnavailable = overlappingSlots.some(s => !s.disponivel && !heldByOld(s));
       if (anyUnavailable) {
         throw new Error("slot-already-booked");
       }
@@ -302,9 +329,16 @@ export async function POST(req: NextRequest) {
         createdAt: new Date(),
         updatedAt: new Date(),
         ...(customerUid ? { customerUid } : {}),
+        ...(remarcarDe ? { remarcadoDe: remarcarDe } : {}),
       };
 
       transaction.set(newLeadRef, leadPayload);
+
+      if (oldTarget && remarcarDe) {
+        writeCustomerCancellation(transaction, oldTarget, { remarcadoPara: newLeadRef.id });
+        // Sem o índice, afterCustomerCancellation libera só os horários antigos que o novo agendamento não usa
+        transaction.delete(profRef.collection("slotBookings").doc(remarcarDe));
+      }
 
       // Se autenticado: atualiza perfil do cliente e grava índice do agendamento para ele
       if (customerUid) {
@@ -366,8 +400,14 @@ export async function POST(req: NextRequest) {
         updatedAt: new Date(),
       });
 
-      return { leadId: newLeadRef.id, horarioFim, profData, serviceNome: servicoEscolhido, nome: trimmedNome };
+      return {
+        leadId: newLeadRef.id, horarioFim, profData, serviceNome: servicoEscolhido, nome: trimmedNome,
+        oldWhen: old ? `${formatDateFriendlySaoPaulo(old.dataEscolhida)} às ${old.horarioInicio ?? old.horarioEscolhido}` : null,
+      };
     });
+
+    // Remarcação: libera os horários do agendamento antigo e remove o evento dele do Google Agenda
+    if (remarcarDe) await afterCustomerCancellation(professionalId, remarcarDe);
 
     // Evento provisório no Google Agenda — falha silenciosa, não bloqueia a reserva
     try {
@@ -376,17 +416,26 @@ export async function POST(req: NextRequest) {
       console.warn("[booking] Falha ao criar evento provisório:", calErr);
     }
 
-    // Notificação push — falha silenciosa, não bloqueia a resposta
+    // Notificação push depois da resposta. Com after() a função não é congelada antes de o aviso sair.
     const dataFriendly = formatDateFriendlySaoPaulo(dataEscolhida);
-    sendPushToProf(professionalId, {
-      title: `📅 Novo agendamento — ${result.nome}`,
-      body: `${result.serviceNome} · ${dataFriendly} às ${horarioEscolhido}`,
-      url: "/dashboard",
-    }).catch(() => {});
+    const pushTitle = result.oldWhen
+      ? `🔁 Remarcado pela cliente — ${result.nome}`
+      : `📅 Novo agendamento — ${result.nome}`;
+    const pushBody = result.oldWhen
+      ? `${result.serviceNome} · de ${result.oldWhen} para ${dataFriendly} às ${horarioEscolhido}`
+      : `${result.serviceNome} · ${dataFriendly} às ${horarioEscolhido}`;
+    after(() => sendPushToProf(professionalId, { title: pushTitle, body: pushBody }));
 
-    return NextResponse.json({ success: true, leadId: result.leadId, horarioFim: result.horarioFim, nome: maskName(result.nome) });
+    return NextResponse.json({
+      success: true, leadId: result.leadId, horarioFim: result.horarioFim, nome: maskName(result.nome),
+      remarcado: !!result.oldWhen,
+    });
 
   } catch (err: any) {
+    if (err instanceof SelfServiceError) {
+      const e = SELF_SERVICE_ERRORS[err.code] ?? { status: 400, message: "Não foi possível remarcar." };
+      return NextResponse.json({ error: e.message }, { status: e.status });
+    }
     console.error("Booking api transaction error:", err);
     let friendlyMessage = "Erro ao criar agendamento. Tente novamente.";
     const errMsg = err?.message;

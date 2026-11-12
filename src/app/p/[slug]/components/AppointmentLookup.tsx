@@ -1,9 +1,17 @@
 "use client";
 
 import React, { useState } from "react";
-import { CalendarSearch, Clock, Loader2, X } from "lucide-react";
+import { CalendarClock, CalendarPlus, CalendarSearch, CalendarX2, Clock, Loader2, X } from "lucide-react";
 import { maskPhone } from "@/lib/whatsapp";
-import type { PublicAppointment } from "@/lib/customerAppointments";
+import { CUSTOMER_CHANGE_MIN_HOURS, type PublicAppointment } from "@/lib/customerAppointments";
+
+// Pedido para a tela de agendamento: repetir os serviços (Agendar de novo) ou trocar o horário (Remarcar).
+export interface RebookRequest {
+  pid?: string;
+  servicoIds: string[];
+  telefone: string;
+  reschedule?: { id: string; data: string; horario: string };
+}
 
 const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
@@ -19,27 +27,69 @@ interface Props {
   primaryTextColor: string;
   btnRadiusClass: string;
   cardRadius: number;
+  onRebook: (request: RebookRequest) => void;
 }
 
 // Botão "Consultar meus agendamentos" da página pública: busca pelo WhatsApp e mostra os próximos e os anteriores.
-export default function AppointmentLookup({ slug, primaryColor, primaryTextColor, btnRadiusClass, cardRadius }: Props) {
+// Nos próximos (com 12 h ou mais de antecedência) a cliente cancela ou remarca; nos anteriores, agenda de novo.
+export default function AppointmentLookup({ slug, primaryColor, primaryTextColor, btnRadiusClass, cardRadius, onRebook }: Props) {
   const [open, setOpen] = useState(false);
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<{ upcoming: PublicAppointment[]; past: PublicAppointment[] } | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [notice, setNotice] = useState("");
 
   const close = () => {
     setOpen(false);
     setPhone("");
     setResult(null);
     setError("");
+    setNotice("");
+    setConfirmingId(null);
+  };
+
+  const rebook = (a: PublicAppointment, reschedule: boolean) => {
+    onRebook({
+      pid: a.pid,
+      servicoIds: a.servicoIds,
+      telefone: phone,
+      reschedule: reschedule && a.id ? { id: a.id, data: a.data, horario: a.horario } : undefined,
+    });
+    close();
+  };
+
+  const cancel = async (a: PublicAppointment) => {
+    if (!a.id || !a.pid) return;
+    setCancellingId(a.id);
+    setError("");
+    try {
+      const res = await fetch(`/api/p/${encodeURIComponent(slug)}/appointments/cancel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ telefone: phone, id: a.id, pid: a.pid }),
+        cache: "no-store",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Não foi possível cancelar agora.");
+      setResult((r) => (r ? { ...r, upcoming: r.upcoming.filter((x) => x.id !== a.id) } : r));
+      setNotice(`Agendamento de ${formatDay(a.data)} às ${a.horario} cancelado.`);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setCancellingId(null);
+      setConfirmingId(null);
+    }
   };
 
   const search = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
+    setNotice("");
+    setConfirmingId(null);
     setResult(null);
     try {
       const res = await fetch(`/api/p/${encodeURIComponent(slug)}/appointments`, {
@@ -58,7 +108,60 @@ export default function AppointmentLookup({ slug, primaryColor, primaryTextColor
     }
   };
 
-  const section = (title: string, items: PublicAppointment[], empty: string) => (
+  const smallBtn = "inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[rgba(128,128,128,0.35)] px-2 py-2 text-xs font-semibold text-[var(--theme-text)] active:scale-[0.98] disabled:opacity-50";
+
+  const actions = (a: PublicAppointment, kind: "upcoming" | "past") => {
+    if (kind === "past") {
+      if (a.servicoIds.length === 0) return null;
+      return (
+        <div className="mt-2 flex">
+          <button type="button" onClick={() => rebook(a, false)} className={smallBtn}>
+            <CalendarPlus className="h-3.5 w-3.5" style={{ color: primaryColor }} />
+            Agendar de novo
+          </button>
+        </div>
+      );
+    }
+    if (!a.podeAlterar) {
+      return (
+        <p className="mt-2 text-[11px] text-[var(--theme-muted-text)]">
+          Faltam menos de {CUSTOMER_CHANGE_MIN_HOURS} horas: para cancelar ou remarcar, fale com o profissional.
+        </p>
+      );
+    }
+    if (confirmingId === a.id) {
+      return (
+        <div className="mt-2 space-y-2">
+          <p className="text-xs font-semibold text-[var(--theme-text)]">Cancelar este horário? Ele ficará livre para outra pessoa.</p>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => cancel(a)} disabled={cancellingId === a.id} className={`${smallBtn} !border-red-500/60 !text-red-500`}>
+              {cancellingId === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CalendarX2 className="h-3.5 w-3.5" />}
+              Sim, cancelar
+            </button>
+            <button type="button" onClick={() => setConfirmingId(null)} disabled={cancellingId === a.id} className={smallBtn}>
+              Voltar
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="mt-2 flex gap-2">
+        {a.servicoIds.length > 0 && (
+          <button type="button" onClick={() => rebook(a, true)} className={smallBtn}>
+            <CalendarClock className="h-3.5 w-3.5" style={{ color: primaryColor }} />
+            Remarcar
+          </button>
+        )}
+        <button type="button" onClick={() => { setConfirmingId(a.id ?? null); setNotice(""); }} className={smallBtn}>
+          <CalendarX2 className="h-3.5 w-3.5" />
+          Cancelar
+        </button>
+      </div>
+    );
+  };
+
+  const section = (title: string, items: PublicAppointment[], empty: string, kind: "upcoming" | "past") => (
     <div>
       <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--theme-muted-text)] mb-2">{title}</h3>
       {items.length === 0 ? (
@@ -80,6 +183,7 @@ export default function AppointmentLookup({ slug, primaryColor, primaryTextColor
                 )}
                 <span className="truncate opacity-80">{a.servico}</span>
               </div>
+              {actions(a, kind)}
             </li>
           ))}
         </ul>
@@ -139,11 +243,12 @@ export default function AppointmentLookup({ slug, primaryColor, primaryTextColor
             </form>
 
             {error && <p className="mt-3 text-xs font-semibold text-red-500">{error}</p>}
+            {notice && <p className="mt-3 text-xs font-semibold text-[var(--theme-text)]" role="status">{notice}</p>}
 
             {result && (
               <div className="mt-5 space-y-5">
-                {section("Próximos", result.upcoming, "Nenhum agendamento futuro encontrado.")}
-                {section("Já realizados", result.past, "Nenhum agendamento anterior encontrado.")}
+                {section("Próximos", result.upcoming, "Nenhum agendamento futuro encontrado.", "upcoming")}
+                {section("Já realizados", result.past, "Nenhum agendamento anterior encontrado.", "past")}
               </div>
             )}
           </div>

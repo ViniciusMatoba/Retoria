@@ -13,6 +13,7 @@ import {
   Building2, User, Users, CheckCircle2, ChevronDown,
 } from "lucide-react";
 import { useAppModal } from "@/components/ModalProvider";
+import BookingAlertsCard from "../components/BookingAlertsCard";
 
 interface Lead {
   id: string;
@@ -28,6 +29,9 @@ interface Lead {
   customerUid?: string;
   origem: string;
   valorTotal?: number;
+  canceladoPor?: string; // "cliente" quando cancelado ou remarcado pela página pública
+  remarcadoPara?: string;
+  remarcadoDe?: string;
   createdAt: any;
   updatedAt: any;
   // runtime only
@@ -371,6 +375,8 @@ export default function DashboardHome() {
         <p className="text-sm text-slate-400">Gerencie contatos e atualize os status de pré-atendimento.</p>
       </div>
 
+      {user && <BookingAlertsCard user={user} />}
+
       {/* Seletor de profissional — só quando há equipe */}
       {hasTeam && initialized && (
         <div className="flex flex-wrap gap-2">
@@ -603,6 +609,10 @@ export default function DashboardHome() {
                       <td className="py-4 px-4">
                         <div className="font-semibold text-slate-200">{lead.nome}</div>
                         <div className="text-xs text-slate-500 font-mono mt-0.5">{formatPhoneFriendly(lead.telefone)}</div>
+                        {lead.canceladoPor === "cliente" && (
+                          <div className="text-[11px] font-semibold text-amber-400 mt-0.5">{lead.remarcadoPara ? "Remarcado pela cliente" : "Cancelado pela cliente"}</div>
+                        )}
+                        {lead.remarcadoDe && <div className="text-[11px] font-semibold text-sky-400 mt-0.5">Novo horário de remarcação</div>}
                         <div className="sm:hidden text-xs text-slate-400 mt-1">{lead.servicoEscolhido} · {formatDate(lead.dataEscolhida)} {lead.horarioEscolhido}</div>
                         {lead.observacao && (
                           <div className="mt-1 text-xs text-slate-400 bg-slate-900/60 p-2 rounded-lg max-w-xs border border-slate-800/30">

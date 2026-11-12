@@ -1,4 +1,4 @@
-import { splitAppointments, type AppointmentSource } from "../src/lib/customerAppointments";
+import { canCustomerChange, splitAppointments, type AppointmentSource } from "../src/lib/customerAppointments";
 
 let passed = 0;
 let failed = 0;
@@ -43,12 +43,31 @@ function main() {
   assert("sem data não aparece", ![...upcoming, ...past].some((a) => a.servico === "Sem data"));
 
   const keys = new Set([...upcoming, ...past].flatMap((a) => Object.keys(a)));
-  assert("resposta só traz data, horário, serviço e situação", [...keys].sort().join(",") === "data,horario,servico,situacao", [...keys].join(","));
+  assert("resposta só traz data, horário, serviço, situação e o necessário para alterar", [...keys].sort().join(",") === "data,horario,podeAlterar,servico,servicoIds,situacao", [...keys].join(","));
   const json = JSON.stringify({ upcoming, past });
   assert("nome, telefone, valor e observação nunca saem", !/Ana|11988887777|120|alergia/.test(json), json);
 
   const muitos = Array.from({ length: 30 }, (_, i) => ({ status: "Atendido", dataEscolhida: `2026-01-${String((i % 28) + 1).padStart(2, "0")}`, horarioInicio: "10:00" }));
   assert("limita a 20 itens", splitAppointments(muitos, today).past.length === 20);
+
+  // Cancelar / remarcar pela cliente: só com 12 h ou mais de antecedência
+  const sp = (date: string, time: string) => Date.parse(`${date}T${time}:00-03:00`);
+  const ag = (extra: Partial<AppointmentSource> = {}): AppointmentSource => ({ id: "L1", pid: "P1", status: "Agendado", dataEscolhida: "2026-11-12", horarioInicio: "14:00", servicos: [{ id: "s1", nome: "Design" }, { id: "s2", nome: "Henna" }], ...extra });
+  assert("faltando 12 h exatas: pode alterar", canCustomerChange(ag(), sp("2026-11-12", "02:00")).ok);
+  assert("faltando 11h59: não pode", !canCustomerChange(ag(), sp("2026-11-12", "02:01")).ok);
+  assert("véspera à tarde: pode", canCustomerChange(ag(), sp("2026-11-11", "15:00")).ok);
+  assert("horário já passou: não pode", !canCustomerChange(ag(), sp("2026-11-12", "15:00")).ok);
+  assert("aguardando confirmação (Novo) também pode", canCustomerChange(ag({ status: "Novo" }), sp("2026-11-10", "10:00")).ok);
+  const naoAtivo = canCustomerChange(ag({ status: "Atendido" }), sp("2026-11-10", "10:00"));
+  assert("atendido ou cancelado: não pode", !naoAtivo.ok && naoAtivo.reason === "status" && !canCustomerChange(ag({ status: "Cancelado" }), sp("2026-11-10", "10:00")).ok);
+  assert("sem horário: não pode", !canCustomerChange(ag({ horarioInicio: undefined }), sp("2026-11-10", "10:00")).ok);
+
+  const r1 = splitAppointments([ag()], "2026-11-10", sp("2026-11-10", "10:00")).upcoming[0];
+  assert("próximo traz id, profissional, serviços e podeAlterar", r1.id === "L1" && r1.pid === "P1" && r1.servicoIds.join() === "s1,s2" && r1.podeAlterar === true, JSON.stringify(r1));
+  const r2 = splitAppointments([ag()], "2026-11-12", sp("2026-11-12", "08:00")).upcoming[0];
+  assert("menos de 12 h: aparece, mas sem poder alterar", r2.podeAlterar === false);
+  const r3 = splitAppointments([ag({ status: "Atendido", servicos: undefined, serviceId: "s9" })], "2026-11-20").past[0];
+  assert("anterior traz serviços para agendar de novo (formato antigo) e não traz id", r3.servicoIds.join() === "s9" && r3.id === undefined && r3.pid === "P1", JSON.stringify(r3));
 
   console.log(`\n=== RESULTADO: ${passed} passaram, ${failed} falharam ===`);
   if (failed > 0) process.exit(1);

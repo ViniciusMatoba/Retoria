@@ -18,9 +18,11 @@ export async function requestFcmToken(): Promise<string | null> {
     if (permission !== "granted") return null;
 
     const messaging = getMessaging(app);
-    const token = await getToken(messaging, { vapidKey: VAPID_KEY });
+    // Sem chave própria configurada, o SDK usa a chave padrão do Firebase
+    const token = await getToken(messaging, { vapidKey: VAPID_KEY || undefined });
     return token ?? null;
-  } catch {
+  } catch (err) {
+    console.error("[push] não foi possível registrar o aparelho:", err);
     return null;
   }
 }
