@@ -53,6 +53,8 @@ export interface ProfessionalProfile {
   // Message templates per lead status
   messageTemplates?: Record<string, string>;
   slotSuggestion?: { enabled: boolean; requestMessage?: string; quickReply?: string };
+  // Agendamentos da página pública já entram como Agendado (Leads → Avisos e confirmação)
+  autoConfirmBookings?: boolean;
 
   // Member-level config (set by owner, stored on member's doc)
   teamConfig?: {

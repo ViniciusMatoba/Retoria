@@ -9,15 +9,20 @@ interface PushPayload {
   url?: string;
 }
 
+const ICON = "/dashboard/app-icon";
+const DEFAULT_URL = "/dashboard/leads";
+
 /**
  * Envia notificação push para todos os dispositivos registrados de um profissional.
  * Falha silenciosa — não bloqueia o fluxo principal de agendamento.
+ * Devolve quantos aparelhos estão registrados e quantos receberam.
+ * Em rotas, chamar dentro de after() (next/server): sem isso a função pode ser congelada antes do envio.
  */
 export async function sendPushToProf(
   professionalId: string,
   payload: PushPayload,
-): Promise<void> {
-  if (!dbAdmin) return;
+): Promise<{ total: number; sent: number }> {
+  if (!dbAdmin) return { total: 0, sent: 0 };
 
   try {
     const tokensSnap = await dbAdmin
@@ -26,7 +31,7 @@ export async function sendPushToProf(
       .collection("fcmTokens")
       .get();
 
-    if (tokensSnap.empty) return;
+    if (tokensSnap.empty) return { total: 0, sent: 0 };
 
     const tokens = tokensSnap.docs.map((d: QueryDocumentSnapshot) => d.id);
     const messaging = getMessaging(getApp());
@@ -38,15 +43,16 @@ export async function sendPushToProf(
         body: payload.body,
       },
       data: {
-        url: payload.url ?? "/dashboard",
+        url: payload.url ?? DEFAULT_URL,
       },
       webpush: {
         notification: {
-          icon: "/icon-192.png",
+          icon: ICON,
+          badge: ICON,
           requireInteraction: false,
         },
         fcmOptions: {
-          link: payload.url ?? "/dashboard",
+          link: payload.url ?? DEFAULT_URL,
         },
       },
     });
@@ -64,7 +70,10 @@ export async function sendPushToProf(
       invalidTokenDocs.forEach((d: QueryDocumentSnapshot) => batch.delete(d.ref));
       await batch.commit();
     }
-  } catch {
+    return { total: tokens.length, sent: responses.filter((r: { success: boolean }) => r.success).length };
+  } catch (err) {
     // Notificação falha silenciosamente — agendamento não é afetado
+    console.error("[push]", (err as { code?: string; message?: string }).code ?? (err as Error).message);
+    return { total: 0, sent: 0 };
   }
 }

@@ -20,11 +20,11 @@ import {
 import PublicThemeProvider from "./PublicThemeProvider";
 import PublicServiceCard from "./PublicServiceCard";
 import PublicProfessionalHeader from "./PublicProfessionalHeader";
-import AppointmentLookup from "./AppointmentLookup";
+import AppointmentLookup, { type RebookRequest } from "./AppointmentLookup";
 import { getDefaultThemeConfig, ThemeConfig, getBestTextColor } from "@/lib/themeUtils";
 import { getSlotDayStripeStyles, hexToRgba } from "@/lib/slotDayStripes";
 import { DESIRED_HOURS, buildOtherTimesMessage } from "@/lib/otherTimesMessage";
-import { getWhatsAppLink } from "@/lib/whatsapp";
+import { getWhatsAppLink, maskPhone } from "@/lib/whatsapp";
 import { isTooSoonForPublicBooking, getSaoPauloToday, timeToMinutes, minutesToTime } from "@/lib/timezone";
 import type { PublicAddress, ServiceLocationType } from "@/lib/contactUtils";
 import { auth } from "@/lib/firebase";
@@ -163,6 +163,39 @@ export default function PublicBookingExperience({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [whatsappUrl, setWhatsappUrl] = useState("");
+  // "Agendar de novo" / "Remarcar" vindos da consulta de agendamentos
+  const [pendingRebook, setPendingRebook] = useState<{ pid?: string; servicoIds: string[] } | null>(null);
+  const [rescheduleOf, setRescheduleOf] = useState<{ id: string; data: string; horario: string } | null>(null);
+  const [rebookNotice, setRebookNotice] = useState("");
+  const [bookingOutcome, setBookingOutcome] = useState<{ confirmado: boolean; remarcado: boolean }>({ confirmado: false, remarcado: false });
+
+  const startRebook = (request: RebookRequest) => {
+    setError("");
+    setRebookNotice("");
+    setSelectedDate("");
+    setSelectedSlot(null);
+    setRescheduleOf(request.reschedule ?? null);
+    setClientTelefone(maskPhone(request.telefone));
+    // Com equipe, troca para o profissional do agendamento; os serviços dele chegam depois (ver abaixo)
+    if (hasTeam && request.pid && request.pid !== activeProfessionalId) onSelectMember?.(request.pid);
+    setPendingRebook({ pid: request.pid, servicoIds: request.servicoIds });
+  };
+
+  // Quando os serviços do profissional certo estão carregados, marca os mesmos serviços e vai para data e horário.
+  // (Ajuste de estado durante a renderização, como recomenda o React, em vez de efeito.)
+  if (pendingRebook && !loadingMemberData && (!hasTeam || !pendingRebook.pid || activeProfessionalId === pendingRebook.pid)) {
+    const found = services.filter((sv) => pendingRebook.servicoIds.includes(sv.id) && sv.ativo !== false);
+    setPendingRebook(null);
+    setSelectedServices(found);
+    setStep(found.length > 0 ? 2 : 1);
+    setRebookNotice(
+      found.length === 0
+        ? "O serviço anterior não está mais disponível. Escolha um serviço para continuar."
+        : found.length < pendingRebook.servicoIds.length
+          ? "Um dos serviços anteriores não está mais disponível. Confira os serviços antes de concluir."
+          : ""
+    );
+  }
 
   const toggleService = (service: Service) => {
     const adding = !selectedServices.some(s => s.id === service.id);
@@ -405,6 +438,7 @@ export default function PublicBookingExperience({
           dataEscolhida: selectedSlot.data,
           horarioEscolhido: selectedSlot.horario,
           observacao: trimmedObservacao,
+          remarcarDe: rescheduleOf?.id,
         }),
       });
       const resText = await response.text();
@@ -450,7 +484,14 @@ export default function PublicBookingExperience({
         ? `\n\nTotal: ${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalPreco)} · Duração estimada: ~${formatDuracao(totalDuracaoMin)}`
         : `\n\nDuração estimada: ~${formatDuracao(totalDuracaoMin)}`;
 
-      const message = `Olá, meu nome é ${trimmedNome}. Gostaria de verificar disponibilidade para ${friendlyDate} às ${selectedSlot.horario}:\n\n${linhasServicos}${totalLine}`;
+      const oldDay = rescheduleOf ? rescheduleOf.data.split("-").reverse().join("/") : "";
+      const message = rescheduleOf
+        ? `Olá, meu nome é ${trimmedNome}. Remarquei meu horário de ${oldDay} às ${rescheduleOf.horario} para ${friendlyDate} às ${selectedSlot.horario}:\n\n${linhasServicos}${totalLine}`
+        : resData.confirmado
+          ? `Olá, meu nome é ${trimmedNome}. Agendei para ${friendlyDate} às ${selectedSlot.horario}:\n\n${linhasServicos}${totalLine}`
+          : `Olá, meu nome é ${trimmedNome}. Gostaria de verificar disponibilidade para ${friendlyDate} às ${selectedSlot.horario}:\n\n${linhasServicos}${totalLine}`;
+      setBookingOutcome({ confirmado: resData.confirmado === true, remarcado: !!rescheduleOf });
+      setRescheduleOf(null);
       const redirectUrl = getWhatsAppLink(activeWhatsapp ?? professional.telefoneWhatsapp, message);
       setWhatsappUrl(redirectUrl);
       setStep(4);
@@ -533,6 +574,7 @@ export default function PublicBookingExperience({
               primaryTextColor={getBestTextColor(theme.primaryColor)}
               btnRadiusClass={btnRadiusClass}
               cardRadius={theme.cardRadius}
+              onRebook={startRebook}
             />
           )}
 
@@ -572,6 +614,18 @@ export default function PublicBookingExperience({
 
           {/* Wizard card */}
           <div style={cardRadiusStyle} className={`p-6 md:p-8 shadow-2xl relative ${cardClass}`}>
+            {rescheduleOf && step < 4 && (
+              <div className="mb-4 rounded-xl border border-[rgba(128,128,128,0.35)] p-3 text-xs text-[var(--theme-text)]">
+                <p className="font-bold">Remarcando o horário de {formatDateTitle(rescheduleOf.data)} às {rescheduleOf.horario}</p>
+                <p className="mt-1 text-[var(--theme-muted-text)]">Escolha o novo horário. O horário atual só é cancelado quando você concluir.</p>
+                <button type="button" onClick={() => { setRescheduleOf(null); setRebookNotice(""); }} className="mt-2 font-semibold underline" style={{ color: corBrand }}>
+                  Desistir de remarcar
+                </button>
+              </div>
+            )}
+            {rebookNotice && step < 4 && (
+              <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs font-medium text-[var(--theme-text)]">{rebookNotice}</div>
+            )}
             {error && (
               <div className="mb-4 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex gap-3 items-center">
                 <AlertCircle className="h-5 w-5 shrink-0" />
@@ -598,7 +652,7 @@ export default function PublicBookingExperience({
                       <button
                         key={member.id}
                         type="button"
-                        onClick={() => { onSelectMember?.(member.id); setError(""); setSelectedServices([]); setSelectedDate(""); setSelectedSlot(null); }}
+                        onClick={() => { onSelectMember?.(member.id); setError(""); setSelectedServices([]); setSelectedDate(""); setSelectedSlot(null); setRescheduleOf(null); setRebookNotice(""); }}
                         style={{
                           borderRadius: `${theme.cardRadius}px`,
                           borderColor: isSelected ? corBrand : undefined,
@@ -1046,12 +1100,16 @@ export default function PublicBookingExperience({
                 </div>
                 <div>
                   <h2 className="text-xl font-bold text-[var(--theme-text)]" style={{ fontFamily: "var(--theme-heading-font)" }}>
-                    {previewMode ? "Prévia: pedido registrado!" : "Pedido registrado!"}
+                    {previewMode ? "Prévia: pedido registrado!" : bookingOutcome.remarcado ? "Horário remarcado!" : bookingOutcome.confirmado ? "Agendamento confirmado!" : "Pedido registrado!"}
                   </h2>
                   <p className="text-sm text-[var(--theme-muted-text)] max-w-sm mt-2 leading-relaxed">
                     {previewMode
                       ? "Na página real o cliente enviaria a mensagem pelo WhatsApp para confirmar o horário."
-                      : "Agora envie a mensagem para o profissional pelo WhatsApp. Ele confirmará o horário com você em breve."}
+                      : bookingOutcome.confirmado
+                        ? "Seu horário está reservado. Se quiser, avise o profissional pelo WhatsApp."
+                        : bookingOutcome.remarcado
+                          ? "O horário anterior foi cancelado. Envie a mensagem para o profissional pelo WhatsApp para confirmar o novo horário."
+                          : "Agora envie a mensagem para o profissional pelo WhatsApp. Ele confirmará o horário com você em breve."}
                   </p>
                 </div>
                 {!previewMode && (

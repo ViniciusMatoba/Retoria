@@ -12,24 +12,13 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// Recebe notificações quando o app está em background ou fechado
-messaging.onBackgroundMessage((payload) => {
-  const { title, body } = payload.notification ?? {};
-  const url = payload.data?.url ?? "/dashboard";
+// As mensagens chegam com o bloco "notification": o SDK do Firebase mostra o aviso sozinho e abre o link
+// (webpush.fcmOptions.link) no toque. Não chamar showNotification aqui: duplicaria o aviso.
 
-  self.registration.showNotification(title ?? "Retoria", {
-    body: body ?? "",
-    icon: "/icon-192.png",
-    badge: "/icon-192.png",
-    data: { url },
-    requireInteraction: false,
-  });
-});
-
-// Clique na notificação → abre/foca o dashboard
+// Reserva para avisos sem link do Firebase: toque abre/foca o painel
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = event.notification.data?.url ?? "/dashboard";
+  const url = event.notification.data?.url ?? "/dashboard/leads";
   event.waitUntil(
     clients
       .matchAll({ type: "window", includeUncontrolled: true })

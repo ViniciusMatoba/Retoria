@@ -46,7 +46,9 @@ export async function POST(req: NextRequest, { params }: Params) {
     const snaps = await Promise.all(
       profIds.map((id) => dbAdmin.collection("professionals").doc(id).collection("leads").where("telefone", "==", phone).get())
     );
-    const leads: AppointmentSource[] = snaps.flatMap((s) => s.docs.map((d: QueryDocumentSnapshot) => d.data() as AppointmentSource));
+    const leads: AppointmentSource[] = snaps.flatMap((s, i) =>
+      s.docs.map((d: QueryDocumentSnapshot) => ({ ...(d.data() as AppointmentSource), id: d.id, pid: profIds[i] }))
+    );
 
     return NextResponse.json(splitAppointments(leads, getSaoPauloToday()), { headers: NO_STORE });
   } catch (err) {

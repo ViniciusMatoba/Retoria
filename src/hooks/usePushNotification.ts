@@ -11,7 +11,7 @@ interface UsePushNotificationReturn {
   permission: PermissionState;
   isRegistered: boolean;
   isLoading: boolean;
-  enable: () => Promise<void>;
+  enable: () => Promise<boolean>; // true quando o aparelho ficou registrado
   disable: () => Promise<void>;
 }
 
@@ -44,13 +44,13 @@ export function usePushNotification(userId: string | undefined): UsePushNotifica
   }, [userId]);
 
   const enable = useCallback(async () => {
-    if (!userId) return;
+    if (!userId) return false;
     setIsLoading(true);
     try {
       const token = await requestFcmToken();
       if (!token) {
         setPermission(Notification.permission as PermissionState);
-        return;
+        return false;
       }
       await setDoc(
         doc(db, "professionals", userId, "fcmTokens", token),
@@ -59,6 +59,9 @@ export function usePushNotification(userId: string | undefined): UsePushNotifica
       );
       setCurrentToken(token);
       setPermission("granted");
+      return true;
+    } catch {
+      return false;
     } finally {
       setIsLoading(false);
     }
