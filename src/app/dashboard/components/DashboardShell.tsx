@@ -20,6 +20,7 @@ import {
   LayoutGrid,
   UserCog,
   BookUser,
+  Gift,
   BellRing,
   QrCode,
   LayoutDashboard,
@@ -184,6 +185,7 @@ export default function DashboardShell({
     { name: "Leads / Contatos", href: "/dashboard/leads", icon: Users },
     { name: "Lembretes", href: "/dashboard/lembretes", icon: BellRing },
     { name: "Clientes", href: "/dashboard/clientes", icon: BookUser },
+    { name: "Brindes", href: "/dashboard/brindes", icon: Gift },
     { name: "Serviços", href: "/dashboard/services", icon: Briefcase },
     { name: "Resumo da Agenda", href: "/dashboard/resumo", icon: LayoutDashboard },
     ...(!isTeamMember ? [

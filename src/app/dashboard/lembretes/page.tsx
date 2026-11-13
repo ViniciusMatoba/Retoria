@@ -7,6 +7,7 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "../../providers";
 import { formatPhoneFriendly, getWhatsAppLink } from "@/lib/whatsapp";
 import { addDaysSaoPaulo, getSaoPauloToday } from "@/lib/timezone";
+import GiftBadge from "../components/GiftBadge";
 
 interface ReminderLead {
   id: string;
@@ -150,6 +151,7 @@ export default function LembretesPage() {
                     <div className="min-w-0">
                       <div className="font-semibold text-slate-200 truncate">{l.horarioEscolhido} · {l.nome}</div>
                       <div className="text-xs text-slate-500 truncate">{l.servicoEscolhido} · {formatPhoneFriendly(l.telefone)}</div>
+                      {user && <GiftBadge className="mt-1" lead={{ id: l.id, pid: user.uid, nome: l.nome, telefone: l.telefone, dataEscolhida: l.dataEscolhida, status: "Agendado" }} />}
                       {l.lembreteEnviadoAt && (
                         <div className="text-xs text-emerald-400 flex items-center gap-1 mt-0.5">
                           <Check className="h-3 w-3" /> Lembrete enviado em {new Date(l.lembreteEnviadoAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}

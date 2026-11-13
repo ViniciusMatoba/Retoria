@@ -19,6 +19,7 @@
     "test:timezone": "npx tsx scripts/test-timezone.ts",
     "test:customer-appointments": "npx tsx scripts/test-customer-appointments.ts",
     "test:costs": "npx tsx scripts/test-costs.ts",
+    "test:gifts": "npx tsx scripts/test-gifts.ts",
     "check:governance": "node scripts/check-project-governance.mjs"
   },
   "dependencies": {
