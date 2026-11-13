@@ -315,3 +315,7 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **TypeScript**: sem erros. **Lint**: arquivos novos sem problemas; alterados com a mesma contagem por regra da `main`.
 * **Testes**: `test:gifts` 27/27 (novo) e demais scripts aprovados. `test:rules` não executado (regras inalteradas).
 * **Build**: Aprovado. **Teste manual**: Não executado (exige login e credenciais do servidor).
+* **Deploy**: merge em `main` (`b3c2367`) e publicação pela integração do Vercel (status success).
+* **Pós-deploy em produção (sem login)**: `/`, `/dashboard/brindes`, `/dashboard/leads`, `/dashboard/lembretes` e `/dashboard/slots` 200; rotas `gifts` (lista, detalhe, entregar, desfazer) 401 sem login.
+* **NÃO TESTADO em produção**: criar a campanha, entregar e desfazer com agendamentos reais; selo nos agendamentos.
+
