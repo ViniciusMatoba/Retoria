@@ -5,6 +5,7 @@ import { CalendarClock, Loader2, MessageSquare, MoveVertical, Trash2 } from "luc
 import { useAuth } from "@/app/providers";
 import { useAppModal } from "@/components/ModalProvider";
 import { getWhatsAppLink } from "@/lib/whatsapp";
+import GiftBadge from "./GiftBadge";
 
 const STATUS_OPTIONS = [
   { value: "Novo", color: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
@@ -120,6 +121,8 @@ export default function LeadCardActions({ lead, profId, moving, onReschedule, on
         <MessageSquare className="h-3.5 w-3.5" />
         <span>Conversar</span>
       </a>
+
+      <GiftBadge lead={{ id: lead.id, pid: lead.professionalId || profId, nome: lead.nome, telefone: lead.telefone, dataEscolhida: lead.dataEscolhida, status: lead.status }} />
 
       {isActive && (
         <>

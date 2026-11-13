@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useAppModal } from "@/components/ModalProvider";
 import BookingAlertsCard from "../components/BookingAlertsCard";
+import GiftBadge from "../components/GiftBadge";
 
 interface Lead {
   id: string;
@@ -613,6 +614,7 @@ export default function DashboardHome() {
                           <div className="text-[11px] font-semibold text-amber-400 mt-0.5">{lead.remarcadoPara ? "Remarcado pela cliente" : "Cancelado pela cliente"}</div>
                         )}
                         {lead.remarcadoDe && <div className="text-[11px] font-semibold text-sky-400 mt-0.5">Novo horário de remarcação</div>}
+                        <GiftBadge className="mt-1" lead={{ id: lead.id, pid: lead.professionalId || user?.uid || "", nome: lead.nome, telefone: lead.telefone, dataEscolhida: lead.dataEscolhida, status: lead.status }} />
                         <div className="sm:hidden text-xs text-slate-400 mt-1">{lead.servicoEscolhido} · {formatDate(lead.dataEscolhida)} {lead.horarioEscolhido}</div>
                         {lead.observacao && (
                           <div className="mt-1 text-xs text-slate-400 bg-slate-900/60 p-2 rounded-lg max-w-xs border border-slate-800/30">
