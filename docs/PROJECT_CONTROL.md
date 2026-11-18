@@ -319,3 +319,9 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **Pós-deploy em produção (sem login)**: `/`, `/dashboard/brindes`, `/dashboard/leads`, `/dashboard/lembretes` e `/dashboard/slots` 200; rotas `gifts` (lista, detalhe, entregar, desfazer) 401 sem login.
 * **NÃO TESTADO em produção**: criar a campanha, entregar e desfazer com agendamentos reais; selo nos agendamentos.
 
+## Verificação 2026-11-18
+
+* **Branch**: `fix/cor-atendido` (a partir de `main` `fd50685`). Backup prévio: `Documentos/Retoria-backups/Retoria-2026-11-18.bundle` (verificado).
+* **Alteração**: cor padrão de Atendido na agenda (Horários) de violeta `#8B5CF6` para dourado `#B45309`, a pedido do usuário (parecida com o azul de Agendado). Quem tinha salvo as cores com o violeta padrão também passa ao dourado; outra cor escolhida é mantida. Contraste do texto branco: 5,02:1.
+* **TypeScript**: sem erros. **Lint**: igual à `main`. **Build**: Aprovado. **Teste manual**: Não executado.
+

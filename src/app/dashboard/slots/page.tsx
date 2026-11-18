@@ -153,10 +153,13 @@ const durationOptions = [
   { value: 0,   label: "Personalizado..." },
 ];
 
+// Atendido era violeta (#8B5CF6), muito parecido com o azul de Agendado; passou a dourado.
+const OLD_DEFAULT_ATENDIDO = "#8b5cf6";
+
 const defaultCalendarColors = {
   disponivel: "#22C55E",
   agendado: "#3B82F6",
-  atendido: "#8B5CF6",
+  atendido: "#B45309",
   cancelado: "#EF4444",
   bloqueado: "#6B7280",
   perdido: "#F97316",
@@ -371,6 +374,11 @@ export default function SlotsPage() {
         ...defaultCalendarColors,
         ...profile.calendarColorConfig
       };
+      // Quem salvou as cores antes guardou o violeta antigo de Atendido sem ter escolhido: usa a cor nova.
+      // Uma cor de Atendido escolhida pelo profissional (qualquer outra) é mantida.
+      if (String(mergedColors.atendido ?? "").toLowerCase() === OLD_DEFAULT_ATENDIDO) {
+        mergedColors.atendido = defaultCalendarColors.atendido;
+      }
       setCalendarColors(mergedColors);
       setColorEditor(mergedColors);
     }
