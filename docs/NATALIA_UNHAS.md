@@ -13,13 +13,13 @@ Ponto de restauração antes desta configuração:
 | Você (administrador) | https://retoria.vercel.app/admin |
 | Natália: ativar a conta (uma vez só) | gerado no `/admin` → `https://retoria.vercel.app/ativar/<código>` |
 | Natália: entrar no painel | https://retoria.vercel.app/login |
-| Clientes: agendar | `https://retoria.vercel.app/p/<link escolhido>` (sugestão: `nataliacoelhounhas`) |
+| Clientes: agendar | https://retoria.vercel.app/p/natalia-coelho-unhas |
 
 ## Passo a passo
 
 1. **Você**: abra o `/admin` e gere um link de ativação (plano Individual; nome "Natália Coelho Unhas").
 2. **Natália**: abre o link e cria a conta com o e-mail e a senha dela. Quem digita a senha é ela.
-3. **Natália**: no primeiro acesso, preenche o nome do negócio ("Natália Coelho Unhas"), o WhatsApp e o link público (sugestão: `nataliacoelhounhas`).
+3. **Natália**: no primeiro acesso, preenche o nome do negócio ("Natália Coelho Unhas"), o WhatsApp e o link público (`natalia-coelho-unhas`).
 4. **Perfil**: envia o logo. O perfil tem um espaço só para imagem; a foto dela fica de fora por enquanto (ver Limitações).
 5. **Personalização**: escolhe o tema **Nude Rosé** (novo, feito com as cores do logo).
 6. **Serviços**: cadastra a tabela abaixo.

@@ -342,4 +342,4 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **DIVERGÊNCIA IDENTIFICADA**: o primeiro acesso (`/professional/onboarding`) estava quebrado para contas novas desde a correção de segurança de junho: a tela gravava `professionalStatus`/`plan`/`trialEndsAt` pelo cliente, campos que as regras do Firestore bloqueiam ("Missing or insufficient permissions"). A Michele não foi afetada (cadastrada antes). F04 constava como homologado.
 * **Correção**: nova rota `POST /api/professionals/[id]/onboarding` (Admin SDK, só o próprio dono): valida nome, link e telefone, recusa link já usado por outra conta, só passa de `onboarding` para `trial`, mantém o plano e as datas gravados na ativação e cria/atualiza `accounts/{uid}`. A tela passou a chamar essa rota. Regras do Firestore inalteradas.
 * **Fora do escopo, registrado**: `/register` no modo profissional também grava esses campos pelo cliente e deve falhar do mesmo jeito (só abre com token na URL).
-
+* **Deploy da correção**: `52b95aa` (Vercel success). **Homologado pelo usuário**: primeiro acesso da conta da Natália concluído em produção; página pública `/p/natalia-coelho-unhas` no ar.
