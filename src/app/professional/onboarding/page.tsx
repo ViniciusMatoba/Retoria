@@ -2,12 +2,9 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import {
-  doc, setDoc, getDoc, collection, query, where, getDocs, serverTimestamp,
-} from "firebase/firestore";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "../../providers";
-import { addAccountType } from "@/lib/accountUtils";
 import { formatPhoneForWhatsApp, maskPhone } from "@/lib/whatsapp";
 import {
   Calendar, Briefcase, Link as LinkIcon, Phone, ChevronRight,
@@ -103,46 +100,22 @@ export default function OnboardingPage() {
     }
 
     try {
-      const profRef = doc(db, "professionals", user.uid);
-      const exists = (await getDoc(profRef)).exists();
-      const ts = serverTimestamp();
-
-      if (exists) {
-        // Update onboarding in progress
-        await setDoc(profRef, {
-          nome: nomePublico.trim(),
-          nomeNegocio: nomeNegocio.trim(),
-          slugPublico: cleanSlug,
-          telefoneWhatsapp: cleanPhone,
-          segment,
-          professionalStatus: "trial",
-          plan: "trial",
-          trialStartedAt: ts,
-          trialEndsAt: null,
-          updatedAt: ts,
-        }, { merge: true });
-      } else {
-        await setDoc(profRef, {
-          id: user.uid,
-          userId: user.uid,
-          nome: nomePublico.trim(),
-          nomeNegocio: nomeNegocio.trim(),
-          slugPublico: cleanSlug,
-          telefoneWhatsapp: cleanPhone,
-          segment,
-          descricaoCurta: "Seja bem-vindo ao meu canal de pré-agendamentos!",
-          fotoLogoUrl: "",
-          corPrincipal: "#6366f1",
-          professionalStatus: "trial",
-          plan: "trial",
-          trialStartedAt: ts,
-          trialEndsAt: null,
-          createdAt: ts,
-          updatedAt: ts,
-        });
+      // Grava pelo servidor: as regras do Firestore não deixam o cliente mudar a situação da conta.
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/professionals/${user.uid}/onboarding`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          nome: nomePublico, nomeNegocio, slug: cleanSlug, telefone: cleanPhone, segment,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? "Erro ao salvar. Tente novamente.");
+        setSaving(false);
+        return;
       }
 
-      await addAccountType(user.uid, "professional");
       await refreshProfile();
       router.push("/dashboard/slots");
     } catch (e: any) {
