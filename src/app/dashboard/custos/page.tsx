@@ -20,6 +20,8 @@ const ddmm = (ymd: string) => `${ymd.slice(8, 10)}/${ymd.slice(5, 7)}`;
 const SUGGESTIONS: { nome: string; categoria: CostCategory; unidade: string; fixo?: boolean }[] = [
   { nome: "Luvas", categoria: "materiais", unidade: "caixa" },
   { nome: "Henna", categoria: "materiais", unidade: "un" },
+  { nome: "Esmalte em gel", categoria: "materiais", unidade: "un" },
+  { nome: "Lixas e palitos", categoria: "materiais", unidade: "pacote" },
   { nome: "Papel higiênico", categoria: "higiene", unidade: "pacote" },
   { nome: "Sabonete", categoria: "higiene", unidade: "un" },
   { nome: "Energia", categoria: "contas", unidade: "conta", fixo: true },
