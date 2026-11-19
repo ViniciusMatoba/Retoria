@@ -79,7 +79,8 @@ export const gradientPresets: Record<string, string> = {
   forest: "linear-gradient(135deg, #10b981 0%, #059669 50%, #064e3b 100%)",
   neutral: "linear-gradient(135deg, #64748b 0%, #334155 50%, #1e293b 100%)",
   "energy-dark": "linear-gradient(135deg, #0f172a 0%, #1c0a00 50%, #431407 100%)",
-  "pop-expression": "linear-gradient(135deg, #fdf4ff 0%, #fce7f3 50%, #ede9fe 100%)"
+  "pop-expression": "linear-gradient(135deg, #fdf4ff 0%, #fce7f3 50%, #ede9fe 100%)",
+  "nude-rose": "linear-gradient(160deg, #FBF5F0 0%, #F3E6DC 55%, #EAD5C7 100%)"
 };
 
 export const bgPatterns: Record<string, { css: string; label: string }> = {
@@ -401,7 +402,7 @@ export function validateThemeConfig(config: ThemeConfig): { valid: boolean; erro
     "minimalist", "elegant", "natural", "night", "corporate", "vibrant", "delicate", "custom",
     "beauty-elegant", "wellness-natural", "fitness-movement", "tattoo-black-studio",
     "business-trust", "creative-authorial", "food-artisanal", "pet-friendly",
-    "health-clear", "youth-pop"
+    "health-clear", "youth-pop", "nails-nude-rose"
   ];
   if (!allowedPresets.includes(config.preset)) {
     return { valid: false, error: `Preset inválido: ${config.preset}` };
