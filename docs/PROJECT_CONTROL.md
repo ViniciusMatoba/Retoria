@@ -337,3 +337,6 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **Pós-deploy em produção (sem login)**: `/`, `/admin`, `/login`, `/dashboard/personalization` 200; `/api/admin/me` sem login responde `isAdmin: false`.
 * **NÃO TESTADO em produção**: tema Nude Rosé aplicado numa conta real; ativação da conta da Natália.
 * **Pendências do usuário**: criar login de administrador (Firebase + `ADMIN_UIDS` no Vercel + Redeploy). Decisão: o painel da Natália é ativado com um e-mail do usuário e depois o login passa para o e-mail dela (botão "Trocar e-mail de acesso" no `/admin`, a criar quando ele avisar).
+* **Link de ativação da Natália**: o usuário não tem conta de administrador nem acesso ao projeto Firebase `retoria-app`. A pedido dele, publicada uma rota temporária (`/api/maintenance/license-token`, commit `6beb3d2`) protegida por chave secreta guardada só fora do repositório (no código, apenas o SHA-256). Sem chave: 404. Gerado um link (plano Individual, 365 dias, "Natália Coelho Unhas"), conferido em `/api/activate/<token>`. Rota removida em seguida.
+* **Decisão do usuário**: ele ativa o painel da Natália com o e-mail dele; quando pedir, o login passa para o e-mail dela.
+
