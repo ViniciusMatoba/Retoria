@@ -358,4 +358,6 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **TypeScript**: sem erros. **Lint**: igual à `main` nos arquivos alterados. **Testes**: `test:themes`, `test:slot-stripes`, `test:other-times`, `test:customer-appointments` aprovados.
 * **Build**: Aprovado. **Demonstração local** (`next dev`, página temporária com dados de exemplo, fora do commit): resumo fixo sobe ao escolher serviço, barra de progresso avança, troca de etapa e calendário OK, confirmação com confete e check desenhado OK, sem erros no console.
 * **Não verificado**: página real em produção e esqueleto de carregamento (depende do servidor de horários).
+* **Deploy**: merge em `main` (`05056aa`) e publicação pela integração do Vercel (status success). Pós-deploy: `/` 200, página pública real 200 e usando as animações, `/demo-animacoes` 404 (demonstração não publicada; removida do computador).
+* **NÃO TESTADO em produção**: fluxo completo no celular com dados reais.
 
