@@ -343,3 +343,10 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **Correção**: nova rota `POST /api/professionals/[id]/onboarding` (Admin SDK, só o próprio dono): valida nome, link e telefone, recusa link já usado por outra conta, só passa de `onboarding` para `trial`, mantém o plano e as datas gravados na ativação e cria/atualiza `accounts/{uid}`. A tela passou a chamar essa rota. Regras do Firestore inalteradas.
 * **Fora do escopo, registrado**: `/register` no modo profissional também grava esses campos pelo cliente e deve falhar do mesmo jeito (só abre com token na URL).
 * **Deploy da correção**: `52b95aa` (Vercel success). **Homologado pelo usuário**: primeiro acesso da conta da Natália concluído em produção; página pública `/p/natalia-coelho-unhas` no ar.
+
+## Verificação 2026-11-24
+
+* **Branch**: `fix/atendido-verde` (a partir de `main` `42a24bc`). Backup prévio: `Documentos/Retoria-backups/Retoria-2026-11-24.bundle` (verificado).
+* **Alteração**: cor padrão de Atendido na agenda de dourado `#B45309` para verde-escuro `#166534`, a pedido do usuário (o dourado confundia). Quem tinha salvo o violeta ou o dourado padrão também passa ao verde-escuro; outra cor escolhida é mantida. Texto branco 7,13:1; diferença de luminância para o verde dos livres 3,13:1.
+* **TypeScript**: sem erros. **Build**: Aprovado. **Teste manual**: Não executado.
+
