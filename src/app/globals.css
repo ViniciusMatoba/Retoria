@@ -137,3 +137,95 @@ body {
   transition: left 0.45s ease;
 }
 .btn-shine:hover::after { left: 150%; }
+
+/* ── Página pública de agendamento (/p/[slug]) ─────────────────────────────
+   Animações leves, só com CSS. Fill "backwards": ao terminar não fica transform aplicado,
+   senão elementos fixos (barra de resumo, modais) ficariam presos dentro do bloco animado.
+   Quem pede "reduzir movimento" no aparelho vê tudo sem animação (no fim deste bloco). */
+
+@keyframes rt-step-fwd {
+  from { opacity: 0; transform: translateX(28px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes rt-step-back {
+  from { opacity: 0; transform: translateX(-28px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.rt-step-fwd  { animation: rt-step-fwd 0.32s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+.rt-step-back { animation: rt-step-back 0.32s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+
+/* Itens em cascata: cada um recebe style={{ "--i": índice }} */
+@keyframes rt-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.rt-rise {
+  animation: rt-rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: calc(min(var(--i, 0), 10) * 55ms + 60ms);
+}
+
+/* Toque no serviço: "pulo" do cartão e check que surge */
+@keyframes rt-pop {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(0.97); }
+  70%  { transform: scale(1.015); }
+  100% { transform: scale(1); }
+}
+.rt-pop { animation: rt-pop 0.32s ease-out; }
+@keyframes rt-check-in {
+  from { opacity: 0; transform: scale(0.3) rotate(-30deg); }
+  to   { opacity: 1; transform: scale(1) rotate(0); }
+}
+.rt-check-in { animation: rt-check-in 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }
+
+/* Barra de progresso das etapas */
+.rt-progress { transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* Barra de resumo que sobe do rodapé */
+@keyframes rt-sheet-up {
+  from { opacity: 0; transform: translateY(100%); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.rt-sheet-up { animation: rt-sheet-up 0.35s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+
+/* Esqueleto de carregamento */
+@keyframes rt-skeleton {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.rt-skeleton {
+  background: linear-gradient(90deg, rgba(128,128,128,0.12) 25%, rgba(128,128,128,0.26) 50%, rgba(128,128,128,0.12) 75%);
+  background-size: 200% 100%;
+  animation: rt-skeleton 1.3s ease-in-out infinite;
+}
+
+/* Confirmação: círculo e check desenhados + confete */
+@keyframes rt-draw { to { stroke-dashoffset: 0; } }
+.rt-draw-circle { stroke-dasharray: 160; stroke-dashoffset: 160; animation: rt-draw 0.6s ease-out 0.1s forwards; }
+.rt-draw-check  { stroke-dasharray: 40;  stroke-dashoffset: 40;  animation: rt-draw 0.35s ease-out 0.6s forwards; }
+@keyframes rt-badge-in {
+  from { opacity: 0; transform: scale(0.6); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.rt-badge-in { animation: rt-badge-in 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }
+@keyframes rt-confetti {
+  0%   { opacity: 1; transform: translate3d(0, 0, 0) rotate(0deg); }
+  100% { opacity: 0; transform: translate3d(var(--dx, 0px), 320px, 0) rotate(var(--rot, 540deg)); }
+}
+.rt-confetti {
+  position: absolute;
+  top: -12px;
+  width: 8px;
+  height: 12px;
+  border-radius: 2px;
+  opacity: 0;
+  animation: rt-confetti 1.8s cubic-bezier(0.2, 0.6, 0.4, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rt-step-fwd, .rt-step-back, .rt-rise, .rt-pop, .rt-check-in, .rt-sheet-up, .rt-badge-in { animation: none !important; }
+  .rt-progress { transition: none !important; }
+  .rt-skeleton { animation: none !important; }
+  .rt-draw-circle, .rt-draw-check { animation: none !important; stroke-dashoffset: 0 !important; }
+  .rt-confetti { display: none !important; }
+}
