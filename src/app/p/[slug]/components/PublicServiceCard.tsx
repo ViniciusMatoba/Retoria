@@ -74,9 +74,9 @@ export default function PublicServiceCard({
       onClick={onSelect}
       style={styleObj}
       className={`
-        w-full text-left flex flex-col sm:flex-row items-stretch gap-4 p-4 transition-all duration-250 cursor-pointer overflow-hidden
+        w-full text-left flex flex-col sm:flex-row items-stretch gap-4 p-4 transition-all duration-250 cursor-pointer overflow-hidden active:scale-[0.99]
         ${cardClass}
-        ${isSelected ? "" : "hover:border-[rgba(255,255,255,0.2)]"}
+        ${isSelected ? "rt-pop" : "hover:border-[rgba(255,255,255,0.2)]"}
       `}
     >
       {/* Cover Image Container */}
@@ -142,7 +142,7 @@ export default function PublicServiceCard({
             }}
             className="px-3 py-1 rounded-lg border text-[10px] uppercase font-black tracking-wider flex items-center gap-1 transition-all"
           >
-            {isSelected && <Check className="h-3 w-3" />}
+            {isSelected && <Check className="rt-check-in h-3 w-3" />}
             <span>{isSelected ? "Selecionado" : "Selecionar"}</span>
           </div>
         </div>

@@ -14,7 +14,6 @@ import {
   Loader2,
   AlertCircle,
   Smartphone,
-  MessageCircle,
   Info,
 } from "lucide-react";
 import PublicThemeProvider from "./PublicThemeProvider";
@@ -104,6 +103,17 @@ export interface TeamMemberPublic {
 }
 
 // Demo data used in preview mode when real data is unavailable
+// Peças do confete da tela de confirmação. Valores fixos (o React não deve sortear na renderização).
+const CONFETTI_COLORS: (string | null)[] = [null, "#fbbf24", "#f472b6", "#34d399", "#60a5fa", null, "#a78bfa"];
+const CONFETTI = Array.from({ length: 22 }, (_, i) => ({
+  left: (i * 37 + 7) % 96 + 2,
+  delay: (i * 53) % 420,
+  dx: ((i * 29) % 90) - 45,
+  rot: 360 + ((i * 71) % 360),
+  color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+  round: i % 3 === 0,
+}));
+
 const DEMO_SERVICES: Service[] = [
   { id: "demo-1", nome: "Consulta Inicial", descricaoCurta: "Primeira consulta de avaliação completa", duracaoEstimada: "60 min", ativo: true },
   { id: "demo-2", nome: "Sessão Avulsa", descricaoCurta: "Sessão individual com atendimento personalizado", duracaoEstimada: "45 min", ativo: true },
@@ -163,6 +173,13 @@ export default function PublicBookingExperience({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [whatsappUrl, setWhatsappUrl] = useState("");
+  // Direção da última troca de etapa, para a animação (ajuste durante a renderização, sem efeito)
+  const [prevStep, setPrevStep] = useState(step);
+  const [stepDir, setStepDir] = useState<1 | -1>(1);
+  if (step !== prevStep) {
+    setStepDir(step > prevStep ? 1 : -1);
+    setPrevStep(step);
+  }
   // "Agendar de novo" / "Remarcar" vindos da consulta de agendamentos
   const [pendingRebook, setPendingRebook] = useState<{ pid?: string; servicoIds: string[] } | null>(null);
   const [rescheduleOf, setRescheduleOf] = useState<{ id: string; data: string; horario: string } | null>(null);
@@ -205,8 +222,9 @@ export default function PublicBookingExperience({
         : [...prev, service]
     );
     setError("");
-    // Ao escolher um serviço, desce até o resumo e o botão "Escolher Data & Horário"
-    if (adding) {
+    // A barra de resumo fixa no rodapé mostra o total e o botão de continuar; no modo prévia
+    // (dentro do painel) a barra fica no fim do cartão, então desce até ela como antes.
+    if (adding && previewMode) {
       window.setTimeout(() => serviceFooterRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }), 50);
     }
   };
@@ -579,7 +597,7 @@ export default function PublicBookingExperience({
           {/* Step indicator */}
           {step < 4 && (
             <div
-              className="backdrop-blur-sm rounded-2xl px-3 py-2.5 flex justify-between items-center text-[10px] sm:text-xs font-semibold"
+              className="relative overflow-hidden backdrop-blur-sm rounded-2xl px-3 py-2.5 flex justify-between items-center text-[10px] sm:text-xs font-semibold"
               style={{
                 backgroundColor: "var(--theme-surface)",
                 border: "1px solid rgba(var(--theme-text-rgb, 0,0,0), 0.08)",
@@ -607,6 +625,13 @@ export default function PublicBookingExperience({
                 <span className="sm:hidden">{hasTeam ? "4." : "3."} Dados</span>
                 <span className="hidden sm:inline">{hasTeam ? "4." : "3."} Seus Dados</span>
               </span>
+              {/* Barra de progresso: avança a cada etapa */}
+              <span aria-hidden="true" className="absolute left-0 bottom-0 h-[3px] w-full opacity-15" style={{ backgroundColor: "var(--theme-primary)" }} />
+              <span
+                aria-hidden="true"
+                className="rt-progress absolute left-0 bottom-0 h-[3px] rounded-r-full"
+                style={{ backgroundColor: "var(--theme-primary)", width: `${(((hasTeam ? step : step - 1) + 1) / (hasTeam ? 4 : 3)) * 100}%` }}
+              />
             </div>
           )}
 
@@ -631,6 +656,7 @@ export default function PublicBookingExperience({
               </div>
             )}
 
+            <div key={step} className={stepDir > 0 ? "rt-step-fwd" : "rt-step-back"}>
             {/* STEP 0 — Escolha do profissional (só aparece quando há equipe) */}
             {step === 0 && hasTeam && (
               <div className="space-y-4">
@@ -644,7 +670,7 @@ export default function PublicBookingExperience({
                   {[
                     { id: professional.id, nome: professional.nome, especialidade: (professional as any).especialidade ?? "", fotoLogoUrl: professional.fotoLogoUrl ?? null },
                     ...teamMembers,
-                  ].map((member) => {
+                  ].map((member, memberIndex) => {
                     const isSelected = activeProfessionalId === member.id;
                     return (
                       <button
@@ -655,8 +681,9 @@ export default function PublicBookingExperience({
                           borderRadius: `${theme.cardRadius}px`,
                           borderColor: isSelected ? corBrand : undefined,
                           boxShadow: isSelected ? `0 0 0 1px ${corBrand}` : undefined,
+                          ["--i" as string]: memberIndex,
                         }}
-                        className={`w-full text-left flex items-center gap-4 p-4 transition-all duration-200 ${cardClass} ${!isSelected ? "hover:border-[rgba(255,255,255,0.2)]" : ""}`}
+                        className={`rt-rise w-full text-left flex items-center gap-4 p-4 transition-all duration-200 active:scale-[0.99] ${cardClass} ${!isSelected ? "hover:border-[rgba(255,255,255,0.2)]" : ""}`}
                       >
                         <div
                           style={{ borderRadius: `${Math.max(0, theme.cardRadius - 4)}px` }}
@@ -673,7 +700,7 @@ export default function PublicBookingExperience({
                           {member.especialidade && <p className="text-xs mt-0.5" style={{ color: corBrand }}>{member.especialidade}</p>}
                         </div>
                         {isSelected && (
-                          <div className="shrink-0 h-6 w-6 rounded-full flex items-center justify-center" style={{ backgroundColor: corBrand }}>
+                          <div className="rt-check-in shrink-0 h-6 w-6 rounded-full flex items-center justify-center" style={{ backgroundColor: corBrand }}>
                             <Check className="h-3.5 w-3.5" style={{ color: getBestTextColor(corBrand) }} />
                           </div>
                         )}
@@ -717,23 +744,24 @@ export default function PublicBookingExperience({
                   </div>
                 ) : (
                   <div className="space-y-3 pt-2">
-                    {services.map((service) => (
-                      <PublicServiceCard
-                        key={service.id}
-                        service={service}
-                        isSelected={selectedServices.some(s => s.id === service.id)}
-                        onSelect={() => toggleService(service)}
-                        showServiceImages={theme.showServiceImages}
-                        cardStyle={theme.cardStyle}
-                        cardRadius={theme.cardRadius}
-                        primaryColor={theme.primaryColor}
-                      />
+                    {services.map((service, serviceIndex) => (
+                      <div key={service.id} className="rt-rise" style={{ ["--i" as string]: serviceIndex }}>
+                        <PublicServiceCard
+                          service={service}
+                          isSelected={selectedServices.some(s => s.id === service.id)}
+                          onSelect={() => toggleService(service)}
+                          showServiceImages={theme.showServiceImages}
+                          cardStyle={theme.cardStyle}
+                          cardRadius={theme.cardRadius}
+                          primaryColor={theme.primaryColor}
+                        />
+                      </div>
                     ))}
                   </div>
                 )}
 
-                {/* Barra de totais — aparece quando há ao menos 1 serviço selecionado */}
-                {selectedServices.length > 0 && (
+                {/* Barra de totais — só no modo prévia; na página real o resumo fica fixo no rodapé */}
+                {selectedServices.length > 0 && previewMode && (
                   <div style={{ ...cardRadiusStyle, borderColor: `${theme.primaryColor}30`, backgroundColor: `${theme.primaryColor}08` }} className="border px-4 py-3 flex items-center justify-between gap-3 text-sm">
                     <div className="flex items-center gap-2 text-[var(--theme-muted-text)]">
                       <Check className="h-3.5 w-3.5" style={{ color: theme.primaryColor }} />
@@ -764,6 +792,7 @@ export default function PublicBookingExperience({
                       <span>Voltar</span>
                     </button>
                   )}
+                  {(previewMode || selectedServices.length === 0) && (
                   <button
                     onClick={handleNextStep}
                     disabled={selectedServices.length === 0}
@@ -773,6 +802,7 @@ export default function PublicBookingExperience({
                     <span>Escolher Data & Horário</span>
                     <ChevronRight className="h-4 w-4" />
                   </button>
+                  )}
                 </div>
               </div>
             )}
@@ -787,7 +817,17 @@ export default function PublicBookingExperience({
                 {slotSuggestionOn ? (
                 <>
                 {(loadingNextSlots && !previewMode) ? (
-                  <div style={cardRadiusStyle} className="text-center py-10 text-[var(--theme-muted-text)] text-sm">Buscando horários livres...</div>
+                  <div className="space-y-3 pt-1" role="status" aria-label="Buscando horários livres">
+                    <div className="rt-skeleton h-3 w-40 rounded-full" />
+                    {[0, 1, 2].map((n) => (
+                      <div key={n} style={cardRadiusStyle} className="overflow-hidden border border-[rgba(128,128,128,0.15)]">
+                        <div className="px-3 py-2.5"><div className="rt-skeleton h-3 w-32 rounded-full" /></div>
+                        <div className="grid grid-cols-3 gap-2 p-2">
+                          {[0, 1, 2].map((m) => <div key={m} className={`rt-skeleton h-9 ${btnRadiusClass}`} />)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 ) : nextSlots.length === 0 ? (
                   <div style={cardRadiusStyle} className="text-center py-10 text-[var(--theme-muted-text)] text-sm border border-dashed border-[rgba(128,128,128,0.2)]">
                     <p>Nenhum horário disponível nos próximos dias.</p>
@@ -796,8 +836,8 @@ export default function PublicBookingExperience({
                   <div className="space-y-3 pt-1">
                     <label className="block text-xs font-semibold text-[var(--theme-muted-text)] uppercase tracking-wider">Horários livres por dia</label>
                     <div className="space-y-3">
-                      {Object.entries(nextSlots.reduce((acc: Record<string, AvailableSlot[]>, sl) => { (acc[sl.data] ||= []).push(sl); return acc; }, {})).slice(0, visibleDays).map(([dateKey, daySlots]) => (
-                        <div key={dateKey} style={cardRadiusStyle} className="overflow-hidden border border-[rgba(128,128,128,0.15)]">
+                      {Object.entries(nextSlots.reduce((acc: Record<string, AvailableSlot[]>, sl) => { (acc[sl.data] ||= []).push(sl); return acc; }, {})).slice(0, visibleDays).map(([dateKey, daySlots], dayIndex) => (
+                        <div key={dateKey} style={{ ...cardRadiusStyle, ["--i" as string]: dayIndex % DAYS_PER_PAGE }} className="rt-rise overflow-hidden border border-[rgba(128,128,128,0.15)]">
                           <div style={slotDayStripes.dateRow} className="px-3 py-2 text-xs font-bold text-[var(--theme-text)] capitalize">{formatDateTitle(dateKey)}</div>
                           <div style={slotDayStripes.slotsRow} className="grid grid-cols-3 gap-2 p-2">
                             {daySlots.map((slot) => {
@@ -808,7 +848,7 @@ export default function PublicBookingExperience({
                                   type="button"
                                   onClick={() => { setSelectedDate(slot.data); setSelectedSlot(slot); }}
                                   style={isSelected ? { backgroundColor: theme.primaryColor, borderColor: theme.primaryColor, color: getBestTextColor(theme.primaryColor) } : {}}
-                                  className={`py-2.5 px-1.5 border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${btnRadiusClass} ${isSelected ? "shadow-md" : "bg-[var(--theme-surface)]/60 border-[rgba(255,255,255,0.08)] text-[var(--theme-text)] hover:border-[rgba(255,255,255,0.2)]"}`}
+                                  className={`py-2.5 px-1.5 border text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 ${btnRadiusClass} ${isSelected ? "rt-pop shadow-md" : "bg-[var(--theme-surface)]/60 border-[rgba(255,255,255,0.08)] text-[var(--theme-text)] hover:border-[rgba(255,255,255,0.2)]"}`}
                                 >
                                   <Clock className="h-3.5 w-3.5 opacity-60" />
                                   <span>{slot.horario}</span>
@@ -921,17 +961,17 @@ export default function PublicBookingExperience({
                     {selectedDate && (
                       <div className="space-y-2">
                         <label className="block text-xs font-semibold text-[var(--theme-muted-text)] uppercase tracking-wider mb-1">2. Escolha o horário</label>
-                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                        <div key={selectedDate} className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                           {groupedSlots[selectedDate]
                             .filter((slot) => !isTooSoonForPublicBooking(slot.data, slot.horario))
-                            .map((slot) => {
+                            .map((slot, slotIndex) => {
                             const isSelected = selectedSlot?.id === slot.id;
                             return (
                               <button
                                 key={slot.id}
                                 onClick={() => setSelectedSlot(slot)}
-                                style={isSelected ? { backgroundColor: theme.primaryColor, borderColor: theme.primaryColor, color: getBestTextColor(theme.primaryColor) } : {}}
-                                className={`py-2.5 px-1.5 border text-xs font-bold text-center flex items-center justify-center gap-1.5 transition-all ${btnRadiusClass} ${isSelected ? "shadow-md" : "bg-[var(--theme-surface)]/60 border-[rgba(255,255,255,0.08)] text-[var(--theme-text)] hover:border-[rgba(255,255,255,0.2)]"}`}
+                                style={{ ["--i" as string]: slotIndex, ...(isSelected ? { backgroundColor: theme.primaryColor, borderColor: theme.primaryColor, color: getBestTextColor(theme.primaryColor) } : {}) }}
+                                className={`rt-rise py-2.5 px-1.5 border text-xs font-bold text-center flex items-center justify-center gap-1.5 transition-all ${btnRadiusClass} ${isSelected ? "shadow-md" : "bg-[var(--theme-surface)]/60 border-[rgba(255,255,255,0.08)] text-[var(--theme-text)] hover:border-[rgba(255,255,255,0.2)]"}`}
                               >
                                 <Clock className="h-3.5 w-3.5 opacity-60" />
                                 <span>{slot.horario}</span>
@@ -1092,9 +1132,31 @@ export default function PublicBookingExperience({
 
             {/* STEP 4 */}
             {step === 4 && (
-              <div className="flex flex-col items-center justify-center py-8 text-center space-y-4">
-                <div className="h-16 w-16 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-full flex items-center justify-center shadow-lg shadow-amber-500/5">
-                  <MessageCircle className="h-8 w-8" />
+              <div className="relative flex flex-col items-center justify-center py-8 text-center space-y-4">
+                {/* Confete: posições fixas por índice (sem aleatório na renderização) */}
+                <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 -top-6 h-[340px] overflow-hidden">
+                  {CONFETTI.map((c, i) => (
+                    <span
+                      key={i}
+                      className="rt-confetti"
+                      style={{
+                        left: `${c.left}%`,
+                        backgroundColor: c.color ?? corBrand,
+                        animationDelay: `${c.delay}ms`,
+                        ["--dx" as string]: `${c.dx}px`,
+                        ["--rot" as string]: `${c.rot}deg`,
+                        width: c.round ? 8 : 7,
+                        height: c.round ? 8 : 12,
+                        borderRadius: c.round ? 999 : 2,
+                      }}
+                    />
+                  ))}
+                </div>
+                <div className="rt-badge-in h-20 w-20 rounded-full flex items-center justify-center" style={{ backgroundColor: hexToRgba(corBrand, 0.12) ?? "rgba(128,128,128,0.12)" }}>
+                  <svg viewBox="0 0 56 56" className="h-14 w-14" fill="none" aria-hidden="true">
+                    <circle className="rt-draw-circle" cx="28" cy="28" r="25" stroke={corBrand} strokeWidth="3" strokeLinecap="round" transform="rotate(-90 28 28)" />
+                    <path className="rt-draw-check" d="M17 29l7.5 7.5L39.5 21" stroke={corBrand} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
                 </div>
                 <div>
                   <h2 className="text-xl font-bold text-[var(--theme-text)]" style={{ fontFamily: "var(--theme-heading-font)" }}>
@@ -1125,8 +1187,48 @@ export default function PublicBookingExperience({
                 )}
               </div>
             )}
+            </div>
           </div>
         </div>
+
+        {/* Resumo fixo no rodapé: sobe ao escolher o primeiro serviço */}
+        {!previewMode && step === 1 && selectedServices.length > 0 && (
+          <>
+            <div aria-hidden="true" className="h-28" />
+            <div className="fixed inset-x-0 bottom-0 z-40 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+              <div
+                style={{ ...cardRadiusStyle, backgroundColor: "var(--theme-surface)", borderColor: hexToRgba(theme.primaryColor, 0.35) ?? "rgba(128,128,128,0.35)" }}
+                className="rt-sheet-up mx-auto max-w-xl border shadow-[0_-8px_30px_rgba(0,0,0,0.25)] p-3 space-y-2.5"
+              >
+                <div className="flex items-center justify-between gap-3 px-1 text-sm">
+                  <span className="flex items-center gap-1.5 text-[var(--theme-text)] font-semibold">
+                    <Check className="h-4 w-4" style={{ color: theme.primaryColor }} />
+                    {selectedServices.length} serviço{selectedServices.length > 1 ? "s" : ""}
+                  </span>
+                  <span className="flex items-center gap-3 font-semibold">
+                    <span className="text-[var(--theme-muted-text)] text-xs flex items-center gap-1">
+                      <Clock className="h-3 w-3" />~{formatDuracao(totalDuracaoMin)}
+                    </span>
+                    {hasPrecoVisivel && (
+                      <span style={{ color: theme.primaryColor }}>
+                        {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalPreco)}
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleNextStep}
+                  style={{ backgroundColor: theme.primaryColor, color: getBestTextColor(theme.primaryColor), fontFamily: "var(--theme-body-font)" }}
+                  className={`w-full py-3.5 px-4 font-semibold text-sm shadow-lg flex items-center justify-center gap-2 active:scale-[0.98] hover:brightness-110 transition-all ${btnRadiusClass}`}
+                >
+                  <span>Escolher Data & Horário</span>
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </PublicThemeProvider>
   );
