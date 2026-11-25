@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { useAppModal } from "@/components/ModalProvider";
 import { validateImageFile, buildVersionedImageUrl } from "../../../lib/themeUtils";
-import { sanitizeAddonIds } from "@/lib/serviceAddons";
+import { ADDON_DURATION_LABEL, sanitizeAddonIds } from "@/lib/serviceAddons";
 
 interface Service {
   id: string;
@@ -298,7 +298,7 @@ export default function ServicesPage() {
             professionalId: pid,
             nome: nome.trim(),
             descricaoCurta: descricaoCurta.trim(),
-            duracaoEstimada: duracaoEstimada.trim(),
+            duracaoEstimada: adicional ? ADDON_DURATION_LABEL : duracaoEstimada.trim(),
             ativo,
             preco: precoNum,
             exibirPreco,
@@ -318,7 +318,7 @@ export default function ServicesPage() {
         const precoNum = preco.trim() !== "" ? parseFloat(preco.replace(/\./g, "").replace(",", ".")) : null;
         await updateDoc(doc(db, "professionals", profId, "services", serviceId), {
           nome: nome.trim(), descricaoCurta: descricaoCurta.trim(),
-          duracaoEstimada: duracaoEstimada.trim(), ativo, preco: precoNum, exibirPreco,
+          duracaoEstimada: adicional ? ADDON_DURATION_LABEL : duracaoEstimada.trim(), ativo, preco: precoNum, exibirPreco,
           adicional,
           adicionaisIds: adicional ? [] : sanitizeAddonIds(adicionaisIds, serviceId),
           updatedAt: new Date(),
@@ -559,7 +559,7 @@ export default function ServicesPage() {
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-850">
                     <Clock className="h-3.5 w-3.5 text-indigo-400" />
-                    <span>{service.duracaoEstimada}</span>
+                    <span>{service.adicional ? "Sem tempo extra" : service.duracaoEstimada}</span>
                   </div>
                   {service.preco != null && (
                     <div className="flex items-center gap-1 text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1.5 rounded-lg border border-emerald-500/20">
@@ -662,7 +662,13 @@ export default function ServicesPage() {
                   className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800/80 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-100 text-sm transition-all resize-none" />
               </div>
 
-              {/* Duração */}
+              {/* Duração (adicional não ocupa tempo na agenda) */}
+              {adicional ? (
+                <div className="flex items-center gap-2 px-4 py-3 bg-pink-500/5 border border-pink-500/20 rounded-xl text-xs text-pink-200">
+                  <Clock className="h-4 w-4 shrink-0 text-pink-300" />
+                  <span>Adicional não consome tempo: a duração do agendamento é a do serviço principal.</span>
+                </div>
+              ) : (
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Duração Estimada *</label>
                 <select
@@ -695,6 +701,7 @@ export default function ServicesPage() {
                   <p className="text-[10px] text-slate-500 mt-1">Salvo como: <span className="font-mono text-slate-400">{duracaoEstimada}</span></p>
                 )}
               </div>
+              )}
 
               {/* Preço */}
               <div>
@@ -737,7 +744,7 @@ export default function ServicesPage() {
                 <div className="flex items-center justify-between gap-3 px-4 py-3 bg-slate-950/60 border border-slate-800/60 rounded-xl">
                   <div>
                     <p className="text-sm font-semibold text-slate-300">É um serviço adicional</p>
-                    <p className="text-xs text-slate-500 mt-0.5">Ex.: Francesinha, Pó cromado. Não aparece na lista principal: a cliente vê numa janela ao escolher o serviço principal.</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Ex.: Francesinha, Pó cromado. Não aparece na lista principal e não consome tempo: a cliente vê numa janela ao escolher o serviço principal.</p>
                   </div>
                   <button type="button" role="switch" aria-checked={adicional} aria-label="É um serviço adicional" onClick={() => setAdicional(!adicional)}
                     className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ${adicional ? "bg-pink-600" : "bg-slate-600"}`}>

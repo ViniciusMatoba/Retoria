@@ -1,4 +1,5 @@
 import {
+  serviceAgendaMinutes, ADDON_DURATION_LABEL,
   addonsFor, applyAddonChoice, hasMainService, isAddon, mainServices,
   removeMainService, sanitizeAddonIds, selectedAddonsOf,
 } from "../src/lib/serviceAddons";
@@ -55,6 +56,14 @@ assert("serviços antigos (sem campo) contam como principal", hasMainService([{ 
 assert("sanitize: não-lista vira vazio", sanitizeAddonIds("x", "a").length === 0);
 assert("sanitize: tira repetidos, vazios e o próprio id", sanitizeAddonIds(["b", "b", "", "a", 3, "c"], "a").join(",") === "b,c");
 assert("sanitize: limite de itens", sanitizeAddonIds(Array.from({ length: 30 }, (_, i) => `s${i}`), "a").length === 20);
+
+const parse = (d: string) => (d === "1h" ? 60 : d === "45 min" ? 45 : 30);
+assert("adicional não ocupa tempo, mesmo com duração antiga gravada", serviceAgendaMinutes({ adicional: true, duracaoEstimada: "45 min" }, parse) === 0);
+assert("principal usa a própria duração", serviceAgendaMinutes({ duracaoEstimada: "1h" }, parse) === 60);
+assert("sem duração usa o padrão do parser", serviceAgendaMinutes({}, parse) === 30);
+assert("principal + 2 adicionais = só o tempo do principal",
+  [{ duracaoEstimada: "45 min" }, { adicional: true, duracaoEstimada: "45 min" }, { adicional: true, duracaoEstimada: ADDON_DURATION_LABEL }]
+    .reduce((t, s) => t + serviceAgendaMinutes(s, parse), 0) === 45);
 
 console.log(`\nResultados: ${passed}/${passed + failed} aprovados, ${failed} reprovados`);
 if (failed > 0) process.exit(1);

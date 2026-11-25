@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dbAdmin } from "@/lib/firebaseAdmin";
 import { isRateLimited } from "@/lib/rateLimit";
+import { serviceAgendaMinutes } from "@/lib/serviceAddons";
 import { computeNextSlots, parseServiceDurationMinutes, type LeadLike, type SlotLike } from "@/lib/availability";
 import { getBusyIntervals } from "@/lib/googleCalendar";
 import { addDaysSaoPaulo, getSaoPauloToday, isTooSoonForPublicBooking } from "@/lib/timezone";
@@ -33,7 +34,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Serviço indisponível." }, { status: 400 });
     }
     const durationMin = serviceSnaps.reduce(
-      (sum, s) => sum + parseServiceDurationMinutes(s.data()?.duracaoEstimada || "30 min"), 0
+      (sum, s) => sum + serviceAgendaMinutes(s.data() ?? {}, parseServiceDurationMinutes), 0
     );
 
     const slotStepMin = prof.agendaConfig?.duracaoSlot || 30;

@@ -21,7 +21,7 @@ import {
 import PublicThemeProvider from "./PublicThemeProvider";
 import PublicServiceCard from "./PublicServiceCard";
 import ServiceAddonsModal from "./ServiceAddonsModal";
-import { addonsFor, applyAddonChoice, hasMainService, isAddon, mainServices, removeMainService, selectedAddonsOf } from "@/lib/serviceAddons";
+import { serviceAgendaMinutes, addonsFor, applyAddonChoice, hasMainService, isAddon, mainServices, removeMainService, selectedAddonsOf } from "@/lib/serviceAddons";
 import PublicProfessionalHeader from "./PublicProfessionalHeader";
 import AppointmentLookup, { type RebookRequest } from "./AppointmentLookup";
 import { getDefaultThemeConfig, ThemeConfig, getBestTextColor } from "@/lib/themeUtils";
@@ -265,7 +265,7 @@ export default function PublicBookingExperience({
   };
 
   const totalPreco = selectedServices.reduce((sum, s) => sum + (s.preco ?? 0), 0);
-  const totalDuracaoMin = selectedServices.reduce((sum, s) => sum + parseDuracaoMin(s.duracaoEstimada), 0);
+  const totalDuracaoMin = selectedServices.reduce((sum, s) => sum + serviceAgendaMinutes(s, parseDuracaoMin), 0);
   const hasPrecoVisivel = selectedServices.some(s => s.preco != null && (s.exibirPreco ?? true));
 
   const corBrand = theme.primaryColor;
