@@ -46,7 +46,8 @@ const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Jul
 const MONTHS_SHORT = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const ACTIVE = ["Novo", "Em contato", "Agendado"];
-const LOST = ["Cancelado", "Perdido"];
+const LOST = ["Cancelado", "Perdido", "Não compareceu"];
+// "Troca de serviço" não entra em nenhum total: a cliente veio, mas o atendimento não é cobrado.
 
 const ORIGIN_LABELS: Record<string, string> = {
   "web-slug": "Página pública",

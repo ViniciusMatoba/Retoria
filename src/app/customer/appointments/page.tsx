@@ -96,10 +96,10 @@ export default function CustomerAppointmentsPage() {
 
   const today = getSaoPauloToday(); // horário de Brasília (UTC virava o dia seguinte depois das 21h)
   const upcoming = bookings.filter(
-    (b) => b.date >= today && !["Cancelado", "Perdido", "Atendido"].includes(b.status)
+    (b) => b.date >= today && !["Cancelado", "Perdido", "Atendido", "Não compareceu", "Troca de serviço"].includes(b.status)
   );
   const past = bookings.filter(
-    (b) => b.date < today || ["Cancelado", "Perdido", "Atendido"].includes(b.status)
+    (b) => b.date < today || ["Cancelado", "Perdido", "Atendido", "Não compareceu", "Troca de serviço"].includes(b.status)
   );
 
   return (

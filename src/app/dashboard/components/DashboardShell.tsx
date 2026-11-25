@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../../providers";
 import PushNotificationBanner from "@/components/PushNotificationBanner";
+import ReleaseSlotDialogHost from "./ReleaseSlotDialog";
 import {
   Calendar,
   Users,
@@ -497,6 +498,7 @@ export default function DashboardShell({
           );
         })()}
         <PushNotificationBanner userId={user?.uid} />
+        <ReleaseSlotDialogHost />
         <div className="flex-1 p-4 md:p-8 max-w-7xl w-full mx-auto">
           {children}
         </div>

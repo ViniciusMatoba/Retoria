@@ -357,7 +357,7 @@ export default function ClientesPage() {
           {filtered.map((c) => {
             const history = leadsByPhone.get(c.telefone) ?? [];
             const done = history.filter((l) => l.status === "Atendido");
-            const canceled = history.filter((l) => l.status === "Cancelado" || l.status === "Perdido");
+            const canceled = history.filter((l) => l.status === "Cancelado" || l.status === "Perdido" || l.status === "Não compareceu");
             const spent = done.reduce((sum, l) => sum + l.valorTotal, 0);
             const isOpen = openId === c.id;
             const ins = insights.get(c.telefone);

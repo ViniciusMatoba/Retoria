@@ -129,6 +129,7 @@ export default function ProfilePage() {
     "Cancelado":        "Olá {nome}, precisamos cancelar o agendamento de {servico} previsto para {data} às {horario}. Lamentamos o inconveniente. Entre em contato para remarcar!",
     "Perdido":          "Olá {nome}, tentei contato mas não consegui confirmar seu agendamento de {servico} em {data}. Caso queira reagendar, estou à disposição!",
     "Não compareceu":   "Olá {nome}, sentimos sua falta no agendamento de {servico} em {data} às {horario}. Caso queira remarcar, é só nos chamar!",
+    "Troca de serviço": "Olá {nome}! Tudo certo com a troca do seu serviço de {servico} em {data} às {horario}. Qualquer dúvida, é só chamar! 😊",
   };
   const [messageTemplates, setMessageTemplates] = useState<Record<string, string>>({ ...DEFAULT_TEMPLATES });
   const [templatesSaving, setTemplatesSaving] = useState(false);
@@ -920,7 +921,7 @@ const TEMPLATE_CATEGORIES = [
   },
   {
     label: "Encerramento",
-    statuses: ["Atendido", "Cancelado", "Perdido", "Não compareceu"],
+    statuses: ["Atendido", "Troca de serviço", "Cancelado", "Perdido", "Não compareceu"],
   },
 ];
 
@@ -1128,6 +1129,7 @@ const STATUS_COLORS: Record<string, string> = {
   "Cancelado":      "bg-red-500/10 text-red-400 border-red-500/20",
   "Perdido":        "bg-slate-500/10 text-slate-400 border-slate-500/20",
   "Não compareceu": "bg-orange-500/10 text-orange-400 border-orange-500/20",
+  "Troca de serviço": "bg-teal-500/10 text-teal-400 border-teal-500/20",
 };
 
 function TemplateEditor({ status, value, onChange, preview, onInsertVar, showAddressVar }: TemplateEditorProps) {

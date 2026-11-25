@@ -33,7 +33,9 @@ export const getCustomerInsight = (history: CustomerHistoryItem[], today: string
   const dated = history.filter((h) => /^\d{4}-\d{2}-\d{2}$/.test(h.dataEscolhida));
   const firstDate = dated.reduce<string | null>((min, h) => (!min || h.dataEscolhida < min ? h.dataEscolhida : min), null);
   const attended = dated.filter((h) => h.status === "Atendido");
-  const lastAttended = attended.reduce<string | null>((max, h) => (!max || h.dataEscolhida > max ? h.dataEscolhida : max), null);
+  // Troca de serviço conta como visita (a cliente veio), mas não como valor gasto
+  const visits = dated.filter((h) => h.status === "Atendido" || h.status === "Troca de serviço");
+  const lastAttended = visits.reduce<string | null>((max, h) => (!max || h.dataEscolhida > max ? h.dataEscolhida : max), null);
   const nextBooking = dated
     .filter((h) => ACTIVE_STATUSES.includes(h.status) && h.dataEscolhida >= today)
     .reduce<string | null>((min, h) => (!min || h.dataEscolhida < min ? h.dataEscolhida : min), null);

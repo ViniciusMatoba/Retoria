@@ -3,6 +3,8 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import LeadCardActions from "../components/LeadCardActions";
+import { askReleaseSlot } from "../components/ReleaseSlotDialog";
+import { isInactiveStatus, occupiesTime, shouldAskToRelease, showsInAgenda } from "@/lib/leadStatus";
 import TimeGridCalendar, { type TimeGridDay, type TimeGridEvent } from "../components/TimeGridCalendar";
 import {
   collection,
@@ -157,6 +159,9 @@ const durationOptions = [
 // Agora é verde-escuro, bem diferente do verde-claro dos horários livres.
 const OLD_DEFAULT_ATENDIDO = ["#8b5cf6", "#b45309"];
 
+// "Agora" para decidir se um agendamento cancelado já passou do horário (fica na agenda como histórico).
+const currentEpoch = () => Date.now();
+
 const defaultCalendarColors = {
   disponivel: "#22C55E",
   agendado: "#3B82F6",
@@ -166,7 +171,9 @@ const defaultCalendarColors = {
   perdido: "#F97316",
   novo: "#06B6D4",
   emContato: "#EAB308",
-  continuacao: "#6366F1"
+  continuacao: "#6366F1",
+  trocaServico: "#0D9488",
+  naoCompareceu: "#C2410C"
 };
 
 const originOptions: Record<string, { label: string, color: string }> = {
@@ -192,6 +199,10 @@ const getStatusColor = (status: string) => {
       return "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
     case "Cancelado":
       return "bg-rose-500/10 text-rose-400 border-rose-500/20";
+    case "Troca de serviço":
+      return "bg-teal-500/10 text-teal-400 border-teal-500/20";
+    case "Não compareceu":
+      return "bg-orange-500/10 text-orange-400 border-orange-500/20";
     default:
       return "bg-slate-500/10 text-slate-400 border-slate-500/20";
   }
@@ -701,6 +712,14 @@ export default function SlotsPage() {
       case "Perdido":
         color = colors.perdido || defaultCalendarColors.perdido;
         label = "Perdido";
+        break;
+      case "Troca de serviço":
+        color = colors.trocaServico || defaultCalendarColors.trocaServico;
+        label = "Troca de serviço";
+        break;
+      case "Não compareceu":
+        color = colors.naoCompareceu || defaultCalendarColors.naoCompareceu;
+        label = "Não compareceu";
         break;
     }
 
@@ -1385,7 +1404,7 @@ export default function SlotsPage() {
 
     // Check conflict: active leads overlapping
     const conflictsWithLeads = leads.some(l => {
-      if (l.status === "Perdido" || l.status === "Cancelado") return false;
+      if (!occupiesTime(l)) return false;
       if (l.dataEscolhida !== bookingData) return false;
       const existStart = timeToMinutes(l.horarioInicio || l.horarioEscolhido);
       const existDur = getLeadDurationInMinutes(l, services, slotDuration);
@@ -1514,6 +1533,14 @@ export default function SlotsPage() {
     const newEnd = newStart + duration;
     const newHorarioFim = minutesToTime(newEnd);
 
+    // Inativando antes do horário: pergunta se libera o horário ou mantém na agenda
+    let liberarHorario: boolean | undefined;
+    if (shouldAskToRelease({ ...editingLead, dataEscolhida: editData, horarioInicio: editHorario }, editStatus, Date.now())) {
+      const choice = await askReleaseSlot({ nome: trimmedNome, status: editStatus, quando: `${editData.split("-").reverse().join("/")} às ${editHorario}` });
+      if (choice === null) return;
+      liberarHorario = choice;
+    }
+
     setActionLoading(true);
 
     try {
@@ -1532,6 +1559,7 @@ export default function SlotsPage() {
           origem: editOrigem,
           status: editStatus,
           duracaoAgendamento: duration,
+          ...(liberarHorario !== undefined ? { liberarHorario } : {}),
         }),
       });
       if (!res.ok) {
@@ -1643,12 +1671,13 @@ export default function SlotsPage() {
     const currentMonthNum = calendarRefDate.split("-")[1];
     const weekLabels = ["D", "S", "T", "Q", "Q", "S", "S"];
     const today = getSaoPauloToday();
+    const nowMs = currentEpoch();
     const MAX_CHIPS = 3;
 
     type Lead = (typeof leads)[number];
     const leadsByDate = new Map<string, Lead[]>();
     leads.forEach(l => {
-      if (!l.dataEscolhida || l.status === "Cancelado" || l.status === "Perdido") return;
+      if (!l.dataEscolhida || !showsInAgenda(l, nowMs)) return;
       const list = leadsByDate.get(l.dataEscolhida) ?? [];
       list.push(l);
       leadsByDate.set(l.dataEscolhida, list);
@@ -1714,6 +1743,7 @@ export default function SlotsPage() {
   // e os horários cadastrados que não estão cobertos por um agendamento (livre, bloqueado, expirado).
   const buildGridDay = (dateStr: string, short: boolean): TimeGridDay => {
     const today = getSaoPauloToday();
+    const nowMs = currentEpoch();
     const [y, m, d] = dateStr.split("-").map(Number);
     const dayOfWeek = new Date(Date.UTC(y, m - 1, d, 12, 0, 0)).getUTCDay();
     const weekdayFull = weekdayLabels[weekdayKeys[dayOfWeek]] || "";
@@ -1721,7 +1751,7 @@ export default function SlotsPage() {
     const step = slotDuration > 0 ? slotDuration : 30;
 
     const leadRanges = leads
-      .filter(l => l.dataEscolhida === dateStr && l.status !== "Perdido" && l.status !== "Cancelado" && (l.horarioInicio || l.horarioEscolhido))
+      .filter(l => l.dataEscolhida === dateStr && showsInAgenda(l, nowMs) && (l.horarioInicio || l.horarioEscolhido))
       .map(l => {
         const start = timeToMinutes(l.horarioInicio || l.horarioEscolhido);
         return { lead: l, start, end: start + Math.max(getLeadDurationInMinutes(l, services, slotDuration), 15) };
@@ -1729,16 +1759,18 @@ export default function SlotsPage() {
 
     const events: TimeGridEvent[] = leadRanges.map(({ lead, start, end }) => {
       const style = getCalendarStatusStyle(lead.status, calendarColors);
+      const inactive = isInactiveStatus(lead.status);
       return {
         id: `lead-${lead.id}`,
         start,
         end,
         kind: "lead",
         title: lead.nome || "Cliente",
-        subtitle: lead.servicoEscolhido,
+        // Cancelado / perdido / não compareceu ficam apagados, com o motivo na frente do serviço
+        subtitle: inactive ? `${lead.status} · ${lead.servicoEscolhido ?? ""}` : lead.servicoEscolhido,
         color: style.bg,
         textColor: style.text,
-        dimmed: dragLeadId === lead.id || movingLead?.id === lead.id,
+        dimmed: inactive || dragLeadId === lead.id || movingLead?.id === lead.id,
         onClick: () => setGridSelection({ type: "lead", id: lead.id }),
         draggable: ["Novo", "Em contato", "Agendado"].includes(lead.status),
         onDragStart: (e) => { e.dataTransfer.setData("text/plain", lead.id); setDragLeadId(lead.id); },
@@ -1749,7 +1781,7 @@ export default function SlotsPage() {
     const daySlots = [...(slotsByDate.get(dateStr) || [])].sort((a, b) => timeToMinutes(a.horario) - timeToMinutes(b.horario));
     daySlots.forEach(slot => {
       const start = timeToMinutes(slot.horario);
-      if (leadRanges.some(r => start >= r.start && start < r.end)) return; // coberto pelo bloco do agendamento
+      if (leadRanges.some(r => occupiesTime(r.lead) && start >= r.start && start < r.end)) return; // coberto pelo bloco do agendamento
       const end = start + step;
 
       if (!slot.disponivel) {
@@ -1891,7 +1923,7 @@ export default function SlotsPage() {
 
     if (gridSelection.type === "lead") {
       const lead = leads.find(l => l.id === gridSelection.id);
-      if (!lead || lead.status === "Cancelado" || lead.status === "Perdido") return null;
+      if (!lead) return null;
       const style = getCalendarStatusStyle(lead.status, calendarColors);
       const start = lead.horarioInicio || lead.horarioEscolhido;
       const dur = getLeadDurationInMinutes(lead, services, slotDuration);
@@ -2538,7 +2570,9 @@ export default function SlotsPage() {
                     { key: "perdido", label: "Perdido" },
                     { key: "novo", label: "Novo" },
                     { key: "emContato", label: "Em contato" },
-                    { key: "continuacao", label: "Continuação" }
+                    { key: "continuacao", label: "Continuação" },
+                    { key: "trocaServico", label: "Troca de serviço" },
+                    { key: "naoCompareceu", label: "Não compareceu" }
                   ].map(({ key, label }) => {
                     const value = colorEditor[key] || defaultCalendarColors[key as keyof typeof defaultCalendarColors];
                     const style = getCalendarStatusStyle(
@@ -2549,6 +2583,8 @@ export default function SlotsPage() {
                       key === "emContato" ? "Em contato" :
                       key === "agendado" ? "Agendado" :
                       key === "atendido" ? "Atendido" :
+                      key === "trocaServico" ? "Troca de serviço" :
+                      key === "naoCompareceu" ? "Não compareceu" :
                       key === "cancelado" ? "Cancelado" : "Perdido",
                       colorEditor
                     );
@@ -3165,7 +3201,10 @@ export default function SlotsPage() {
                     <option value="Em contato">Em contato</option>
                     <option value="Agendado">Agendado (Bloqueia slots)</option>
                     <option value="Atendido">Atendido (Mantém ocupado)</option>
-                    <option value="Cancelado">Cancelado (Libera slots)</option>
+                    <option value="Troca de serviço">Troca de serviço (não entra no faturamento)</option>
+                    <option value="Cancelado">Cancelado</option>
+                    <option value="Perdido">Perdido</option>
+                    <option value="Não compareceu">Não compareceu</option>
                   </select>
                 </div>
               </div>

@@ -6,14 +6,18 @@ import { useAuth } from "@/app/providers";
 import { useAppModal } from "@/components/ModalProvider";
 import { getWhatsAppLink } from "@/lib/whatsapp";
 import GiftBadge from "./GiftBadge";
+import { askReleaseSlot } from "./ReleaseSlotDialog";
+import { shouldAskToRelease } from "@/lib/leadStatus";
 
 const STATUS_OPTIONS = [
   { value: "Novo", color: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
   { value: "Em contato", color: "bg-amber-500/10 text-amber-400 border-amber-500/20" },
   { value: "Agendado", color: "bg-purple-500/10 text-purple-400 border-purple-500/20" },
   { value: "Atendido", color: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
+  { value: "Troca de serviço", color: "bg-teal-500/10 text-teal-400 border-teal-500/20" },
   { value: "Cancelado", color: "bg-red-500/10 text-red-400 border-red-500/20" },
   { value: "Perdido", color: "bg-rose-500/10 text-rose-400 border-rose-500/20" },
+  { value: "Não compareceu", color: "bg-orange-500/10 text-orange-400 border-orange-500/20" },
 ];
 
 const ACTIVE = ["Novo", "Em contato", "Agendado"];
@@ -61,13 +65,20 @@ export default function LeadCardActions({ lead, profId, moving, onReschedule, on
 
   const updateStatus = async (newStatus: string) => {
     if (!user || updating) return;
+    // Inativando antes do horário: pergunta se libera o horário ou mantém na agenda
+    let liberarHorario: boolean | undefined;
+    if (shouldAskToRelease(lead, newStatus, Date.now())) {
+      const choice = await askReleaseSlot({ nome: lead.nome, status: newStatus, quando: `${formatDate(lead.dataEscolhida)} às ${lead.horarioInicio || lead.horarioEscolhido}` });
+      if (choice === null) return;
+      liberarHorario = choice;
+    }
     setUpdating(true);
     try {
       const token = await user.getIdToken();
       const res = await fetch(`/api/professionals/${profId}/leads/${lead.id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ status: newStatus, ...(liberarHorario !== undefined ? { liberarHorario } : {}) }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -81,9 +92,11 @@ export default function LeadCardActions({ lead, profId, moving, onReschedule, on
   };
 
   const confirmCancel = () => {
+    // Antes do horário, a pergunta de liberar já serve de confirmação
+    if (shouldAskToRelease(lead, "Cancelado", Date.now())) { updateStatus("Cancelado"); return; }
     showConfirmationModal({
       title: "Cancelar agendamento",
-      description: `Deseja cancelar o agendamento de "${lead.nome}" e liberar o horário? O histórico do cliente será mantido.`,
+      description: `Deseja cancelar o agendamento de "${lead.nome}"? Ele continua na agenda como histórico.`,
       confirmLabel: "Cancelar agendamento",
       cancelLabel: "Voltar",
       variant: "danger",
