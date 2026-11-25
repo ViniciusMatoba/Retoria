@@ -399,4 +399,4 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **Deploy**: merge em `main` (`508d09b`) e publicação pela integração do Vercel (status success). `/p/natalia-coelho-unhas` e `/dashboard/services` 200.
 * **NÃO TESTADO**: janela de adicionais e cadastro na tela (sem credenciais locais do Firebase para abrir o app aqui); depende de cadastrar os adicionais.
 * **Ajuste pedido pelo usuário (mesmo dia)**: adicional não consome tempo. `serviceAgendaMinutes` devolve 0 para `adicional: true` (vale também para adicional já cadastrado com duração); usado em `bookings/create`, `next-slots` e no total da página pública. No cadastro, o campo de duração some e o adicional é salvo com "0 min". `test:service-addons` 24/24; build aprovado. Branch `fix/adicional-sem-tempo`.
-
+* **Deploy do ajuste**: merge em `main` (`77752f0`), Vercel success; `/p/natalia-coelho-unhas` e `/dashboard/services` 200. Não testado na tela.
