@@ -63,6 +63,20 @@ export function selectedAddonsOf<T extends AddonAwareService>(main: AddonAwareSe
   return selected.filter((s) => offered.has(s.id));
 }
 
+/** Valor gravado na duração de um adicional (ele não ocupa tempo na agenda). */
+export const ADDON_DURATION_LABEL = "0 min";
+
+/**
+ * Minutos que o serviço ocupa na agenda: adicionais não ocupam tempo (0);
+ * os demais usam o parser de duração de quem chama.
+ */
+export function serviceAgendaMinutes(
+  s: { adicional?: boolean; duracaoEstimada?: string | null },
+  parse: (duracao: string) => number,
+): number {
+  return s.adicional === true ? 0 : parse(s.duracaoEstimada || "30 min");
+}
+
 /** Um agendamento precisa ter ao menos um serviço principal (só adicionais não vale). */
 export const hasMainService = (selected: AddonAwareService[]): boolean => selected.some((s) => !isAddon(s));
 

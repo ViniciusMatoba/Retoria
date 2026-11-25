@@ -12,6 +12,7 @@ import { buildCustomerBookingIndex } from "@/lib/leadTypes";
 import { isRateLimited } from "@/lib/rateLimit";
 import { sendPushToProf } from "@/lib/sendPush";
 import { isFullName, normalizeName, maskName, FULL_NAME_ERROR } from "@/lib/nameUtils";
+import { serviceAgendaMinutes } from "@/lib/serviceAddons";
 import { parseServiceDurationMinutes, overlapsActiveLead, overlapsBusy, type LeadLike } from "@/lib/availability";
 import { getBusyIntervals } from "@/lib/googleCalendar";
 import { syncLeadEvent } from "@/lib/leadSync";
@@ -240,7 +241,7 @@ export async function POST(req: NextRequest) {
           preco: (d.preco ?? null) as number | null,
           exibirPreco: (d.exibirPreco ?? true) as boolean,
           duracaoEstimada: (d.duracaoEstimada || "30 min") as string,
-          duracaoMin: parseServiceDurationMinutes(d.duracaoEstimada || "30 min"),
+          duracaoMin: serviceAgendaMinutes(d, parseServiceDurationMinutes),
         };
       });
 

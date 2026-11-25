@@ -1,14 +1,13 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Check, Clock, Plus, Sparkles, X } from "lucide-react";
+import { Check, Plus, Sparkles, X } from "lucide-react";
 import { getBestTextColor } from "@/lib/themeUtils";
 
 interface AddonOption {
   id: string;
   nome: string;
   descricaoCurta?: string;
-  duracaoEstimada: string;
   preco?: number | null;
   exibirPreco?: boolean;
 }
@@ -66,7 +65,7 @@ export default function ServiceAddonsModal({
             <h2 id="addons-title" className="text-base font-bold leading-snug" style={{ fontFamily: "var(--theme-heading-font)" }}>
               Quer incluir algum adicional?
             </h2>
-            <p className="text-xs text-[var(--theme-muted-text)] mt-0.5">Para: <span className="font-semibold">{mainName}</span></p>
+            <p className="text-xs text-[var(--theme-muted-text)] mt-0.5">Para: <span className="font-semibold">{mainName}</span> · não altera o tempo do atendimento</p>
           </div>
           <button type="button" onClick={() => onConfirm(initialChosen)} aria-label="Fechar"
             className="p-1.5 rounded-lg text-[var(--theme-muted-text)] hover:opacity-70 shrink-0">
@@ -97,9 +96,6 @@ export default function ServiceAddonsModal({
                 <span className="flex-1 min-w-0">
                   <span className="block text-sm font-semibold">{a.nome}</span>
                   {a.descricaoCurta && <span className="block text-xs text-[var(--theme-muted-text)] line-clamp-2">{a.descricaoCurta}</span>}
-                  <span className="flex items-center gap-1 text-[11px] text-[var(--theme-muted-text)] mt-0.5">
-                    <Clock className="h-3 w-3" />+{a.duracaoEstimada}
-                  </span>
                 </span>
                 {a.preco != null && (a.exibirPreco ?? true) && (
                   <span className="text-sm font-bold shrink-0" style={{ color: primaryColor }}>+ {brl(a.preco)}</span>
