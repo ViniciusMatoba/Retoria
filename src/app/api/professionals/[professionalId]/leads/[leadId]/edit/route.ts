@@ -3,11 +3,12 @@ import { dbAdmin, authAdmin } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { syncLeadEvent } from "@/lib/leadSync";
 import { timeToMinutes, minutesToTime } from "@/lib/timezone";
+import { isValidLeadStatus } from "@/lib/leadTypes";
+import { feeAfterStatusChange, hasStarted, isInactiveStatus, readNoShowFeeSettings } from "@/lib/leadStatus";
 import type * as FirebaseFirestore from "firebase-admin/firestore";
 
 type Params = { params: Promise<{ professionalId: string; leadId: string }> };
 
-const STATUSES = ["Novo", "Em contato", "Agendado", "Atendido", "Cancelado", "Perdido"];
 
 interface SlotEntry {
   ref: FirebaseFirestore.DocumentReference;
@@ -73,7 +74,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!Number.isInteger(duration) || duration <= 0 || duration > 24 * 60) {
     return NextResponse.json({ error: "Duração inválida." }, { status: 400 });
   }
-  if (typeof status !== "string" || !STATUSES.includes(status)) {
+  if (!isValidLeadStatus(status)) {
     return NextResponse.json({ error: "Status inválido." }, { status: 400 });
   }
   if (typeof origem !== "string" || origem.length > 40) {
@@ -83,7 +84,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const newStart = timeToMinutes(horarioEscolhido);
   const newEnd = newStart + duration;
   const newHorarioFim = minutesToTime(newEnd);
-  const willBeInactive = status === "Cancelado" || status === "Perdido";
+  const willBeInactive = isInactiveStatus(status);
+  // Ao inativar um horário futuro, o painel pergunta: liberar (padrão) ou manter na agenda
+  const liberarHorario = body?.liberarHorario !== false;
 
   try {
     await dbAdmin.runTransaction(async (tx: any) => {
@@ -111,6 +114,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       const sbSnap = await tx.get(slotBookingsRef);
       const oldSlotIds: Set<string> = new Set(sbSnap.exists ? (sbSnap.data()!.slotIds as string[]) : []);
       const oldSlotSnaps = await Promise.all(Array.from(oldSlotIds).map(id => tx.get(slotsRef.doc(id))));
+
+      // Inativando e mantendo o horário (escolha do profissional, ou horário que já passou): não mexe nos slots
+      const keepSlots = willBeInactive && (!liberarHorario || hasStarted({ ...leadData, dataEscolhida, horarioInicio: horarioEscolhido }, Date.now()));
+      const fee = feeAfterStatusChange(
+        leadData.status, status, leadData.taxaNaoComparecimento ?? null,
+        readNoShowFeeSettings(profSnap.data()?.taxaNaoComparecimento), Date.now()
+      );
 
       let overlapping: SlotEntry[] = [];
       if (!willBeInactive) {
@@ -158,13 +168,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       // ── WRITEs ──
       const now = FieldValue.serverTimestamp();
 
-      oldSlotSnaps.forEach((snap: any) => {
-        if (snap.exists) tx.update(snap.ref, { disponivel: true, updatedAt: now });
-      });
-      overlapping.forEach(s => tx.update(s.ref, { disponivel: false, updatedAt: now }));
+      if (!keepSlots) {
+        oldSlotSnaps.forEach((snap: any) => {
+          if (snap.exists) tx.update(snap.ref, { disponivel: true, updatedAt: now });
+        });
+        overlapping.forEach(s => tx.update(s.ref, { disponivel: false, updatedAt: now }));
 
-      // SEC-005: vínculo lead → slots só no índice privado
-      tx.set(slotBookingsRef, { slotIds: overlapping.map(s => s.id), updatedAt: now });
+        // SEC-005: vínculo lead → slots só no índice privado
+        tx.set(slotBookingsRef, { slotIds: overlapping.map(s => s.id), updatedAt: now });
+      }
 
       const serviceFields: Record<string, any> = {};
       if (serviceSnap) {
@@ -196,6 +208,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         origem,
         status,
         duracaoAgendamento: duration,
+        manterNaAgenda: willBeInactive ? keepSlots : FieldValue.delete(),
+        ...(fee === null ? { taxaNaoComparecimento: FieldValue.delete() } : fee ? { taxaNaoComparecimento: fee } : {}),
         updatedAt: now,
       });
 

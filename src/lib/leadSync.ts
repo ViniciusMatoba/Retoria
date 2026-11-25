@@ -51,7 +51,8 @@ export async function syncLeadEvent(professionalId: string, leadId: string): Pro
 
   const eventId: string | null = lead.calendarEventId ?? null;
 
-  if (lead.status === "Cancelado" || lead.status === "Perdido") {
+  // Inativo com o horário mantido na agenda do Retoria continua no Google também
+  if ((lead.status === "Cancelado" || lead.status === "Perdido" || lead.status === "Não compareceu") && lead.manterNaAgenda !== true) {
     if (eventId) {
       await deleteCalendarEvent(professionalId, eventId);
       await leadRef.update({ calendarEventId: null, updatedAt: FieldValue.serverTimestamp() });

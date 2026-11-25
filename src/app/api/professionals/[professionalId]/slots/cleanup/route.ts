@@ -52,7 +52,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ fixed: 0, checked: 0 });
   }
 
-  const INACTIVE_STATUSES = new Set(["Cancelado", "Perdido"]);
+  const INACTIVE_STATUSES = new Set(["Cancelado", "Perdido", "Não compareceu"]);
   type SBDoc = FirebaseFirestore.QueryDocumentSnapshot;
 
   // 2. Verificar status de cada lead em paralelo
@@ -62,8 +62,9 @@ export async function POST(req: NextRequest, { params }: Params) {
       const slotIds: string[] = sbDoc.data().slotIds ?? [];
 
       const leadSnap = await leadsRef.doc(leadId).get();
+      // Inativo com "manter na agenda" (escolha do profissional) continua com o horário ocupado
       const shouldRelease =
-        !leadSnap.exists || INACTIVE_STATUSES.has(leadSnap.data()?.status);
+        !leadSnap.exists || (INACTIVE_STATUSES.has(leadSnap.data()?.status) && leadSnap.data()?.manterNaAgenda !== true);
 
       return { leadId, slotIds, sbDocRef: sbDoc.ref, shouldRelease };
     })

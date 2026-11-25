@@ -95,6 +95,15 @@ function main() {
   const vazio = summarizeRevenue([{ id: "a", status: "Atendido", dataEscolhida: "2026-11-02", valorTotal: 10 }], mes, today);
   assert("sem mês anterior: variação nula", vazio.deltaPct === null);
 
+  // 5b. Troca de serviço não conta no faturamento; Não compareceu entra como perdido
+  const troca = summarizeRevenue([
+    { id: "t1", status: "Troca de serviço", dataEscolhida: "2026-11-02", valorTotal: 80 },
+    { id: "t2", status: "Atendido", dataEscolhida: "2026-11-02", valorTotal: 50 },
+    { id: "t3", status: "Não compareceu", dataEscolhida: "2026-11-03", valorTotal: 40 },
+  ], mes, today);
+  assert("troca de serviço fora do realizado e do previsto", troca.realized === 50 && troca.realizedCount === 1, JSON.stringify({ r: troca.realized, c: troca.realizedCount }));
+  assert("não compareceu conta como perdido", troca.lost === 40 && troca.lostCount === 1);
+
   // 6. Dia: barras por hora, faixa 07h–20h ampliada se preciso
   const diaHoje = getPeriod("dia", 0, today);
   const sd = summarizeRevenue(

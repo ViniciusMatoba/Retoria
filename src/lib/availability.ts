@@ -23,6 +23,7 @@ export interface LeadLike {
   horarioEscolhido?: string;
   horarioFim?: string;
   duracaoAgendamento?: number;
+  manterNaAgenda?: boolean;
 }
 
 export interface BusyInterval { start: number; end: number }
@@ -68,7 +69,7 @@ export function overlapsBusy(busy: BusyByDate | null | undefined, dateStr: strin
 const WEEKDAY_KEYS = ["domingo", "segunda", "terca", "quarta", "quinta", "sexta", "sabado"];
 
 // Status que liberam o horário; qualquer outro ocupa a agenda.
-const FREEING_STATUSES = new Set(["Cancelado", "Perdido"]);
+const FREEING_STATUSES = new Set(["Cancelado", "Perdido", "Não compareceu"]);
 
 export function parseServiceDurationMinutes(duracaoStr: string): number {
   if (!duracaoStr) return 30;
@@ -133,7 +134,8 @@ export function overlapsActiveLead(
   defaultDurationMin: number
 ): boolean {
   return leads.some(lead => {
-    if (lead.dataEscolhida !== dateStr || FREEING_STATUSES.has(lead.status ?? "")) return false;
+    // Inativo com "manter na agenda" continua segurando o horário (ver lib/leadStatus)
+    if (lead.dataEscolhida !== dateStr || (FREEING_STATUSES.has(lead.status ?? "") && lead.manterNaAgenda !== true)) return false;
     const iv = leadInterval(lead, defaultDurationMin);
     return !!iv && iv.start < endMin && iv.end > startMin;
   });

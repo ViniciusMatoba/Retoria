@@ -23,8 +23,10 @@ export const LEAD_STATUSES = [
   "Em contato",
   "Agendado",
   "Atendido",
+  "Troca de serviço",
   "Cancelado",
   "Perdido",
+  "Não compareceu",
 ] as const;
 
 export type LeadStatus = (typeof LEAD_STATUSES)[number];
@@ -59,6 +61,11 @@ export const LEAD_STATUS_STYLES: Record<
     classes: "bg-violet-500/15 text-violet-300 border-violet-500/20",
     dashboardClasses: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
   },
+  "Troca de serviço": {
+    label: "Concluído",
+    classes: "bg-violet-500/15 text-violet-300 border-violet-500/20",
+    dashboardClasses: "bg-teal-500/10 text-teal-400 border-teal-500/20",
+  },
   Cancelado: {
     label: "Cancelado",
     classes: "bg-red-500/15 text-red-400 border-red-500/20",
@@ -68,6 +75,11 @@ export const LEAD_STATUS_STYLES: Record<
     label: "Não realizado",
     classes: "bg-orange-500/15 text-orange-300 border-orange-500/20",
     dashboardClasses: "bg-rose-500/10 text-rose-400 border-rose-500/20",
+  },
+  "Não compareceu": {
+    label: "Não compareceu",
+    classes: "bg-orange-500/15 text-orange-300 border-orange-500/20",
+    dashboardClasses: "bg-orange-500/10 text-orange-400 border-orange-500/20",
   },
 };
 

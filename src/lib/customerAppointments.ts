@@ -82,8 +82,8 @@ export const splitAppointments = (leads: AppointmentSource[], today: string, now
     .slice(0, MAX_ITEMS);
 
   const past = dated
-    .filter((l) => l.status === "Atendido" || (ACTIVE.includes(l.status ?? "") && (l.dataEscolhida as string) < today))
-    .map((l) => toPublic(l, l.status === "Atendido" ? "Realizado" : "Data passada"))
+    .filter((l) => l.status === "Atendido" || l.status === "Troca de serviço" || (ACTIVE.includes(l.status ?? "") && (l.dataEscolhida as string) < today))
+    .map((l) => toPublic(l, l.status === "Atendido" || l.status === "Troca de serviço" ? "Realizado" : "Data passada"))
     .sort((a, b) => key(b).localeCompare(key(a)))
     .slice(0, MAX_ITEMS);
 

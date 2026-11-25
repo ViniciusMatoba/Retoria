@@ -112,7 +112,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       const dayLeadsSnap = await tx.get(leadsRef.where("dataEscolhida", "==", dataEscolhida));
       const conflict = dayLeadsSnap.docs.some((d: any) => {
         const l = d.data();
-        if (l.status === "Perdido" || l.status === "Cancelado") return false;
+        // Inativo só deixa de ocupar se o horário foi liberado (ver lib/leadStatus)
+        if ((l.status === "Perdido" || l.status === "Cancelado" || l.status === "Não compareceu") && l.manterNaAgenda !== true) return false;
         const exStart = timeToMinutes(l.horarioInicio || l.horarioEscolhido);
         const exDur = Number(l.duracaoAgendamento) || defaultSlotDuration;
         return startMin < exStart + exDur && exStart < endMin;

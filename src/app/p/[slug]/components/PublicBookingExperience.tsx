@@ -24,6 +24,7 @@ import { getDefaultThemeConfig, ThemeConfig, getBestTextColor } from "@/lib/them
 import { getSlotDayStripeStyles, hexToRgba } from "@/lib/slotDayStripes";
 import { DESIRED_HOURS, buildOtherTimesMessage } from "@/lib/otherTimesMessage";
 import { getWhatsAppLink, maskPhone } from "@/lib/whatsapp";
+import { brl, noShowFeeMessage } from "@/lib/leadStatus";
 import { isTooSoonForPublicBooking, getSaoPauloToday, timeToMinutes, minutesToTime } from "@/lib/timezone";
 import type { PublicAddress, ServiceLocationType } from "@/lib/contactUtils";
 import { auth } from "@/lib/firebase";
@@ -169,6 +170,9 @@ export default function PublicBookingExperience({
   const [clientTelefone, setClientTelefone] = useState("");
   // Nome mascarado ("Maria S.") quando o telefone já tem cadastro com este profissional
   const [recognizedName, setRecognizedName] = useState<string | null>(null);
+  // Taxa de não comparecimento pendente deste telefone: mostra o aviso e não deixa enviar o pedido
+  const [pendingFee, setPendingFee] = useState<{ valor: number; primeiroNome: string } | null>(null);
+  const [feeModalOpen, setFeeModalOpen] = useState(false);
   const [clientObservacao, setClientObservacao] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -370,12 +374,18 @@ export default function PublicBookingExperience({
 
   useEffect(() => {
     const digits = clientTelefone.replace(/\D/g, "");
-    if (previewMode || digits.length < 10) { setRecognizedName(null); return; }
+    if (previewMode || digits.length < 10) { setRecognizedName(null); setPendingFee(null); return; }
     let cancelled = false;
     const timer = setTimeout(() => {
       fetch(`/api/customer-lookup?professionalId=${encodeURIComponent(currentProfId)}&phone=${digits}`, { cache: "no-store" })
         .then(r => r.ok ? r.json() : { found: false })
-        .then(data => { if (!cancelled) setRecognizedName(data.found && data.display ? String(data.display) : null); })
+        .then(data => {
+          if (cancelled) return;
+          setRecognizedName(data.found && data.display ? String(data.display) : null);
+          const fee = data.taxaPendente && typeof data.taxaPendente.valor === "number" ? { valor: data.taxaPendente.valor, primeiroNome: String(data.taxaPendente.primeiroNome ?? "") } : null;
+          setPendingFee(fee);
+          if (fee) setFeeModalOpen(true);
+        })
         .catch(() => { if (!cancelled) setRecognizedName(null); });
     }, 450);
     return () => { cancelled = true; clearTimeout(timer); };
@@ -483,6 +493,11 @@ export default function PublicBookingExperience({
         return;
       }
 
+      if (response.status === 402 && resData.taxaPendente) {
+        setPendingFee({ valor: Number(resData.taxaPendente.valor) || 0, primeiroNome: pendingFee?.primeiroNome ?? "" });
+        setFeeModalOpen(true);
+        return;
+      }
       if (!response.ok) throw new Error(resData.error || "Erro ao criar agendamento.");
 
       // O servidor pode substituir o nome pelo já cadastrado para este telefone
@@ -1084,6 +1099,13 @@ export default function PublicBookingExperience({
                   <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" style={{ color: theme.primaryColor }} />
                   <span>Este é um <strong>pedido de pré-agendamento</strong>. O profissional confirmará o horário com você pelo WhatsApp.</span>
                 </div>
+                {pendingFee && (
+                  <div style={cardRadiusStyle} className="border border-orange-500/40 bg-orange-500/10 p-3 text-xs text-[var(--theme-text)] space-y-2">
+                    <p className="font-bold">Taxa de não comparecimento pendente: {brl(pendingFee.valor)}</p>
+                    <p className="opacity-80">O novo agendamento fica liberado depois que o profissional confirmar o pagamento.</p>
+                    <button type="button" onClick={() => setFeeModalOpen(true)} className="font-semibold underline" style={{ color: theme.primaryColor }}>Ver como pagar</button>
+                  </div>
+                )}
                 <form onSubmit={handleBookAppointment} className="space-y-4">
                   <div>
                     <label className="block text-xs font-semibold text-[var(--theme-muted-text)] uppercase tracking-wider mb-2">Telefone com WhatsApp *</label>
@@ -1119,7 +1141,7 @@ export default function PublicBookingExperience({
                     </button>
                     <button
                       type="submit"
-                      disabled={submitting}
+                      disabled={submitting || !!pendingFee}
                       style={submitting ? {} : { backgroundColor: theme.primaryColor, color: getBestTextColor(theme.primaryColor), fontFamily: "var(--theme-body-font)" }}
                       className={`flex-[2] py-3.5 px-4 font-semibold text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${btnRadiusClass} ${submitting ? "bg-slate-800 text-slate-500 cursor-not-allowed shadow-none" : "hover:brightness-110 shadow-lg"}`}
                     >
@@ -1190,6 +1212,38 @@ export default function PublicBookingExperience({
             </div>
           </div>
         </div>
+
+        {/* Aviso da taxa de não comparecimento */}
+        {feeModalOpen && pendingFee && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4" role="alertdialog" aria-modal="true" aria-labelledby="fee-title">
+            <button type="button" aria-label="Fechar" onClick={() => setFeeModalOpen(false)} className="absolute inset-0 bg-black/60" />
+            <div style={{ borderRadius: `${theme.cardRadius}px`, backgroundColor: "var(--theme-surface)" }} className="rt-sheet-up relative w-full sm:max-w-md p-6 shadow-2xl space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="h-11 w-11 shrink-0 rounded-full bg-orange-500/15 flex items-center justify-center">
+                  <AlertCircle className="h-6 w-6 text-orange-400" />
+                </div>
+                <h2 id="fee-title" className="text-base font-bold text-[var(--theme-text)]" style={{ fontFamily: "var(--theme-heading-font)" }}>
+                  Taxa de não comparecimento
+                </h2>
+              </div>
+              <p className="text-sm leading-relaxed text-[var(--theme-text)]">{noShowFeeMessage(pendingFee.primeiroNome, pendingFee.valor)}</p>
+              <a
+                href={getWhatsAppLink(
+                  activeWhatsapp ?? professional.telefoneWhatsapp,
+                  `Olá! Sou ${pendingFee.primeiroNome || "cliente"}. Segue o comprovante do pagamento da taxa de não comparecimento de ${brl(pendingFee.valor)} para seguir com o novo agendamento.`
+                )}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all ${btnRadiusClass}`}
+              >
+                <Smartphone className="h-5 w-5" /><span>Enviar comprovante pelo WhatsApp</span>
+              </a>
+              <button type="button" onClick={() => setFeeModalOpen(false)} className={`w-full py-3 text-sm font-semibold text-[var(--theme-muted-text)] border border-[rgba(128,128,128,0.25)] ${btnRadiusClass}`}>
+                Fechar
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Resumo fixo no rodapé: sobe ao escolher o primeiro serviço */}
         {!previewMode && step === 1 && selectedServices.length > 0 && (

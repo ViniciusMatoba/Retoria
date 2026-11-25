@@ -14,7 +14,10 @@ import {
 } from "lucide-react";
 import { useAppModal } from "@/components/ModalProvider";
 import BookingAlertsCard from "../components/BookingAlertsCard";
+import NoShowFeeCard from "../components/NoShowFeeCard";
 import GiftBadge from "../components/GiftBadge";
+import { askReleaseSlot } from "../components/ReleaseSlotDialog";
+import { brl, shouldAskToRelease } from "@/lib/leadStatus";
 
 interface Lead {
   id: string;
@@ -33,6 +36,9 @@ interface Lead {
   canceladoPor?: string; // "cliente" quando cancelado ou remarcado pela página pública
   remarcadoPara?: string;
   remarcadoDe?: string;
+  horarioInicio?: string;
+  manterNaAgenda?: boolean;
+  taxaNaoComparecimento?: { valor: number; status: "pendente" | "paga" | "dispensada"; criadaEm: number } | null;
   createdAt: any;
   updatedAt: any;
   // runtime only
@@ -45,13 +51,18 @@ interface TeamMemberTab {
   especialidade?: string;
 }
 
+// "Agora" para decidir se ainda dá para liberar o horário (fora do render: só em cliques)
+const nowEpoch = () => Date.now();
+
 const statusOptions = [
   { value: "Novo",        label: "Novo",        color: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
   { value: "Em contato",  label: "Em contato",  color: "bg-amber-500/10 text-amber-400 border-amber-500/20" },
   { value: "Agendado",    label: "Agendado",    color: "bg-purple-500/10 text-purple-400 border-purple-500/20" },
   { value: "Atendido",    label: "Atendido",    color: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
+  { value: "Troca de serviço", label: "Troca de serviço", color: "bg-teal-500/10 text-teal-400 border-teal-500/20" },
   { value: "Cancelado",   label: "Cancelado",   color: "bg-red-500/10 text-red-400 border-red-500/20" },
   { value: "Perdido",     label: "Perdido",     color: "bg-rose-500/10 text-rose-400 border-rose-500/20" },
+  { value: "Não compareceu", label: "Não compareceu", color: "bg-orange-500/10 text-orange-400 border-orange-500/20" },
 ] satisfies { value: LeadStatus; label: string; color: string }[];
 
 // activeProfId = null → "Todos" (agrega de todos)
@@ -238,6 +249,13 @@ export default function DashboardHome() {
   // ── Update status ──────────────────────────────────────────────────────────
   const handleUpdateStatus = async (lead: Lead, newStatus: LeadStatus) => {
     if (!user || updatingLeadId) return;
+    // Inativando antes do horário: pergunta se libera o horário ou mantém na agenda
+    let liberarHorario: boolean | undefined;
+    if (shouldAskToRelease(lead, newStatus, nowEpoch())) {
+      const choice = await askReleaseSlot({ nome: lead.nome, status: newStatus, quando: `${formatDate(lead.dataEscolhida)} às ${lead.horarioInicio || lead.horarioEscolhido}` });
+      if (choice === null) return;
+      liberarHorario = choice;
+    }
     setUpdatingLeadId(lead.id);
     setStatusError(null);
     try {
@@ -246,7 +264,7 @@ export default function DashboardHome() {
       const res = await fetch(`/api/professionals/${profId}/leads/${lead.id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ status: newStatus, ...(liberarHorario !== undefined ? { liberarHorario } : {}) }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -265,6 +283,30 @@ export default function DashboardHome() {
       setStatusError(e.message ?? "Erro ao atualizar status.");
     } finally {
       setUpdatingLeadId(null);
+    }
+  };
+
+  // ── Taxa de não comparecimento: dar baixa / dispensar / voltar a cobrar ─────
+  const [feeBusyId, setFeeBusyId] = useState<string | null>(null);
+  const handleFee = async (lead: Lead, acao: "paga" | "dispensada" | "pendente") => {
+    if (!user || feeBusyId) return;
+    setFeeBusyId(lead.id);
+    setStatusError(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/professionals/${lead.professionalId || user.uid}/leads/${lead.id}/fee`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ acao }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? `Erro HTTP ${res.status}`);
+      }
+    } catch (e) {
+      setStatusError((e as Error).message ?? "Erro ao atualizar a taxa.");
+    } finally {
+      setFeeBusyId(null);
     }
   };
 
@@ -304,9 +346,11 @@ export default function DashboardHome() {
   // Não apaga o lead: marca como Cancelado e libera o horário, preservando o histórico do cliente.
   const handleDeleteLead = (lead: Lead) => {
     if (!user) return;
+    // Antes do horário, a pergunta de liberar já serve de confirmação
+    if (shouldAskToRelease(lead, "Cancelado", nowEpoch())) { handleUpdateStatus(lead, "Cancelado"); return; }
     showConfirmationModal({
       title: "Cancelar agendamento",
-      description: `Deseja cancelar o agendamento de "${lead.nome}" e liberar o horário? O histórico do cliente será mantido.`,
+      description: `Deseja cancelar o agendamento de "${lead.nome}"? O histórico do cliente será mantido.`,
       confirmLabel: "Cancelar agendamento",
       cancelLabel: "Voltar",
       variant: "danger",
@@ -377,6 +421,13 @@ export default function DashboardHome() {
       </div>
 
       {user && <BookingAlertsCard user={user} />}
+      {user && profile && (
+        <NoShowFeeCard
+          uid={user.uid}
+          initial={profile.taxaNaoComparecimento}
+          pendingCount={leads.filter((l) => l.taxaNaoComparecimento?.status === "pendente").length}
+        />
+      )}
 
       {/* Seletor de profissional — só quando há equipe */}
       {hasTeam && initialized && (
@@ -614,6 +665,23 @@ export default function DashboardHome() {
                           <div className="text-[11px] font-semibold text-amber-400 mt-0.5">{lead.remarcadoPara ? "Remarcado pela cliente" : "Cancelado pela cliente"}</div>
                         )}
                         {lead.remarcadoDe && <div className="text-[11px] font-semibold text-sky-400 mt-0.5">Novo horário de remarcação</div>}
+                        {lead.manterNaAgenda && <div className="text-[11px] font-semibold text-slate-400 mt-0.5">Horário mantido na agenda</div>}
+                        {lead.taxaNaoComparecimento && (
+                          lead.taxaNaoComparecimento.status === "pendente" ? (
+                            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                              <span className="rounded-full bg-orange-500/15 px-2 py-0.5 text-[11px] font-bold text-orange-300">Taxa pendente {brl(lead.taxaNaoComparecimento.valor)}</span>
+                              <button type="button" disabled={feeBusyId === lead.id} onClick={() => handleFee(lead, "paga")} className="rounded-lg bg-emerald-600 px-2 py-0.5 text-[11px] font-bold text-white hover:bg-emerald-500 disabled:opacity-50">Dar baixa</button>
+                              <button type="button" disabled={feeBusyId === lead.id} onClick={() => handleFee(lead, "dispensada")} className="rounded-lg border border-slate-700 px-2 py-0.5 text-[11px] font-semibold text-slate-400 hover:bg-slate-800 disabled:opacity-50">Dispensar</button>
+                            </div>
+                          ) : (
+                            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
+                              <span className={lead.taxaNaoComparecimento.status === "paga" ? "font-semibold text-emerald-400" : "text-slate-500"}>
+                                Taxa {lead.taxaNaoComparecimento.status === "paga" ? "paga" : "dispensada"} ({brl(lead.taxaNaoComparecimento.valor)})
+                              </span>
+                              <button type="button" disabled={feeBusyId === lead.id} onClick={() => handleFee(lead, "pendente")} className="font-semibold text-slate-500 underline hover:text-slate-300 disabled:opacity-50">Desfazer</button>
+                            </div>
+                          )
+                        )}
                         <GiftBadge className="mt-1" lead={{ id: lead.id, pid: lead.professionalId || user?.uid || "", nome: lead.nome, telefone: lead.telefone, dataEscolhida: lead.dataEscolhida, status: lead.status }} />
                         <div className="sm:hidden text-xs text-slate-400 mt-1">{lead.servicoEscolhido} · {formatDate(lead.dataEscolhida)} {lead.horarioEscolhido}</div>
                         {lead.observacao && (
