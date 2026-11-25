@@ -373,3 +373,9 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **Pós-deploy em produção (sem login)**: `/`, `/dashboard/leads`, `/dashboard/slots` e página pública real 200; rotas `fee` e `status` 401 sem login; `customer-lookup` responde com `taxaPendente: null` para telefone sem taxa.
 * **NÃO TESTADO em produção**: pergunta de liberar horário, cancelados na agenda, aviso e bloqueio da taxa, dar baixa — exigem login e cliente de teste.
 
+## Verificação 2026-11-24 (4)
+
+* **Branch**: `chore/avisos-no-perfil` (a partir de `main` `58731cb`).
+* **Alteração**: a pedido do usuário, o cartão "Avisos de agendamento" (F50) saiu de Leads e foi para Editar Perfil → aba App. O cartão "Taxa de não comparecimento" continua em Leads.
+* **TypeScript**: sem erros. **Lint**: igual à `main`. **Build**: Aprovado. **Teste manual**: Não executado.
+

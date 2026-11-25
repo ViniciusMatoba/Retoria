@@ -13,7 +13,6 @@ import {
   Building2, User, Users, CheckCircle2, ChevronDown,
 } from "lucide-react";
 import { useAppModal } from "@/components/ModalProvider";
-import BookingAlertsCard from "../components/BookingAlertsCard";
 import NoShowFeeCard from "../components/NoShowFeeCard";
 import GiftBadge from "../components/GiftBadge";
 import { askReleaseSlot } from "../components/ReleaseSlotDialog";
@@ -420,7 +419,6 @@ export default function DashboardHome() {
         <p className="text-sm text-slate-400">Gerencie contatos e atualize os status de pré-atendimento.</p>
       </div>
 
-      {user && <BookingAlertsCard user={user} />}
       {user && profile && (
         <NoShowFeeCard
           uid={user.uid}
