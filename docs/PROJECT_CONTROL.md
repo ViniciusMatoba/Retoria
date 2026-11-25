@@ -386,4 +386,5 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **TypeScript**: sem erros. **Lint**: igual à `main`. **Testes**: `test:lead-status` 26/26 (1 novo) e demais aprovados. **Build**: Aprovado.
 * **Demonstração local** (celular 375px, consulta de telefone simulada): aviso com chave Pix e botão; botão muda para "Chave copiada!"; envio do pedido bloqueado; campos com 16px; sem erros no console. Leitura da área de transferência bloqueada pelo navegador de teste (cópia em si não conferida).
 * **Pendente do usuário**: cadastrar a chave Pix no cartão da taxa (o servidor de produção não é acessível daqui).
+* **Deploy**: merge em `main` (`6f53694`), Vercel success. Pós-deploy: `/`, `/dashboard/leads` e página pública 200; página pública publicada já tem o botão "Copiar chave Pix"; `customer-lookup` responde normalmente.
 
