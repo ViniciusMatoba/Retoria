@@ -16,7 +16,7 @@ import { parseServiceDurationMinutes, overlapsActiveLead, overlapsBusy, type Lea
 import { getBusyIntervals } from "@/lib/googleCalendar";
 import { syncLeadEvent } from "@/lib/leadSync";
 import { findPendingFee } from "@/lib/noShowFeeServer";
-import { brl } from "@/lib/leadStatus";
+import { brl, readNoShowFeeSettings } from "@/lib/leadStatus";
 import {
   afterCustomerCancellation,
   readChangeableLead,
@@ -163,7 +163,13 @@ export async function POST(req: NextRequest) {
     const pendingFee = await findPendingFee(professionalId, formattedPhone);
     if (pendingFee) {
       return NextResponse.json(
-        { error: `Existe uma taxa de não comparecimento de ${brl(pendingFee.valor)} pendente. Envie o comprovante ao profissional; depois da baixa você poderá agendar.`, taxaPendente: { valor: pendingFee.valor } },
+        {
+          error: `Existe uma taxa de não comparecimento de ${brl(pendingFee.valor)} pendente. Envie o comprovante ao profissional; depois da baixa você poderá agendar.`,
+          taxaPendente: {
+            valor: pendingFee.valor,
+            chavePix: readNoShowFeeSettings((await dbAdmin.collection("professionals").doc(professionalId).get()).data()?.taxaNaoComparecimento).chavePix,
+          },
+        },
         { status: 402 }
       );
     }

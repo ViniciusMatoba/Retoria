@@ -379,3 +379,11 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **Alteração**: a pedido do usuário, o cartão "Avisos de agendamento" (F50) saiu de Leads e foi para Editar Perfil → aba App. O cartão "Taxa de não comparecimento" continua em Leads.
 * **TypeScript**: sem erros. **Lint**: igual à `main`. **Build**: Aprovado. **Teste manual**: Não executado.
 
+## Verificação 2026-11-24 (5)
+
+* **Branch**: `feat/pix-e-zoom` (a partir de `main` `3936844`).
+* **Alterações**: (1) chave Pix na configuração da taxa (Leads → Taxa de não comparecimento) e no aviso da página pública, com botão "Copiar chave Pix"; (2) zoom automático do iPhone ao tocar nos campos da página pública: os 5 campos passam a ter fonte de 16px no celular (o iOS só aproxima abaixo disso). O zoom por pinça continua liberado (página pública sem `maximum-scale`).
+* **TypeScript**: sem erros. **Lint**: igual à `main`. **Testes**: `test:lead-status` 26/26 (1 novo) e demais aprovados. **Build**: Aprovado.
+* **Demonstração local** (celular 375px, consulta de telefone simulada): aviso com chave Pix e botão; botão muda para "Chave copiada!"; envio do pedido bloqueado; campos com 16px; sem erros no console. Leitura da área de transferência bloqueada pelo navegador de teste (cópia em si não conferida).
+* **Pendente do usuário**: cadastrar a chave Pix no cartão da taxa (o servidor de produção não é acessível daqui).
+

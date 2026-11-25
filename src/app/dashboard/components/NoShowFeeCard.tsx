@@ -13,6 +13,7 @@ export default function NoShowFeeCard({ uid, initial, pendingCount }: { uid: str
   const [open, setOpen] = useState(false);
   const [ativo, setAtivo] = useState(start.ativo);
   const [valor, setValor] = useState(String(start.valor).replace(".", ","));
+  const [chavePix, setChavePix] = useState(start.chavePix);
   const [saved, setSaved] = useState(start);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ tone: "ok" | "erro"; text: string } | null>(null);
@@ -23,7 +24,7 @@ export default function NoShowFeeCard({ uid, initial, pendingCount }: { uid: str
     setBusy(true);
     setMsg(null);
     try {
-      const next = { ativo, valor: Number.isFinite(v) && v > 0 ? Math.round(v * 100) / 100 : saved.valor };
+      const next = { ativo, valor: Number.isFinite(v) && v > 0 ? Math.round(v * 100) / 100 : saved.valor, chavePix: chavePix.trim().slice(0, 140) };
       await updateDoc(doc(db, "professionals", uid), { taxaNaoComparecimento: next });
       setSaved(next);
       setMsg({ tone: "ok", text: next.ativo ? `Taxa de ${brl(next.valor)} ligada para novos não comparecimentos.` : "Taxa desligada. Novas faltas não geram cobrança." });
@@ -34,7 +35,7 @@ export default function NoShowFeeCard({ uid, initial, pendingCount }: { uid: str
     }
   };
 
-  const dirty = ativo !== saved.ativo || Number(valor.replace(",", ".")) !== saved.valor;
+  const dirty = ativo !== saved.ativo || Number(valor.replace(",", ".")) !== saved.valor || chavePix.trim() !== saved.chavePix;
 
   return (
     <section className="rounded-2xl border border-slate-800 bg-slate-900/40">
@@ -75,6 +76,18 @@ export default function NoShowFeeCard({ uid, initial, pendingCount }: { uid: str
               onChange={(e) => { setValor(e.target.value.replace(/[^\d,.]/g, "")); setMsg(null); }}
               className="h-10 w-28 rounded-xl border border-slate-700 bg-slate-950 px-3 text-right text-base text-slate-100 disabled:opacity-50 focus:border-indigo-500 focus:outline-none"
             />
+          </label>
+          <label className="block space-y-1.5">
+            <span className="text-sm font-medium text-slate-200">Chave Pix para o pagamento</span>
+            <input
+              value={chavePix}
+              disabled={!ativo}
+              maxLength={140}
+              onChange={(e) => { setChavePix(e.target.value); setMsg(null); }}
+              placeholder="CPF, e-mail, celular ou chave aleatória"
+              className="h-10 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 text-base text-slate-100 disabled:opacity-50 focus:border-indigo-500 focus:outline-none"
+            />
+            <span className="block text-xs text-slate-500">Aparece no aviso da cliente com um botão para copiar.</span>
           </label>
           {msg && (
             <div className={`rounded-xl border p-3 text-sm ${msg.tone === "ok" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-red-500/30 bg-red-500/10 text-red-300"}`}>{msg.text}</div>

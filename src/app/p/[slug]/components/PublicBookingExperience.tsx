@@ -11,6 +11,7 @@ import {
   ChevronRight,
   ChevronLeft,
   Check,
+  Copy,
   Loader2,
   AlertCircle,
   Smartphone,
@@ -171,8 +172,28 @@ export default function PublicBookingExperience({
   // Nome mascarado ("Maria S.") quando o telefone já tem cadastro com este profissional
   const [recognizedName, setRecognizedName] = useState<string | null>(null);
   // Taxa de não comparecimento pendente deste telefone: mostra o aviso e não deixa enviar o pedido
-  const [pendingFee, setPendingFee] = useState<{ valor: number; primeiroNome: string } | null>(null);
+  const [pendingFee, setPendingFee] = useState<{ valor: number; primeiroNome: string; chavePix: string } | null>(null);
   const [feeModalOpen, setFeeModalOpen] = useState(false);
+  const [pixCopied, setPixCopied] = useState(false);
+
+  const copyPix = async (key: string) => {
+    try {
+      await navigator.clipboard.writeText(key);
+    } catch {
+      // Navegadores antigos: copia por um campo temporário
+      const ta = document.createElement("textarea");
+      ta.value = key;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); } catch { /* sem cópia: a chave continua visível para copiar à mão */ }
+      document.body.removeChild(ta);
+    }
+    setPixCopied(true);
+    window.setTimeout(() => setPixCopied(false), 2500);
+  };
   const [clientObservacao, setClientObservacao] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -382,7 +403,9 @@ export default function PublicBookingExperience({
         .then(data => {
           if (cancelled) return;
           setRecognizedName(data.found && data.display ? String(data.display) : null);
-          const fee = data.taxaPendente && typeof data.taxaPendente.valor === "number" ? { valor: data.taxaPendente.valor, primeiroNome: String(data.taxaPendente.primeiroNome ?? "") } : null;
+          const fee = data.taxaPendente && typeof data.taxaPendente.valor === "number"
+            ? { valor: data.taxaPendente.valor, primeiroNome: String(data.taxaPendente.primeiroNome ?? ""), chavePix: String(data.taxaPendente.chavePix ?? "") }
+            : null;
           setPendingFee(fee);
           if (fee) setFeeModalOpen(true);
         })
@@ -494,7 +517,7 @@ export default function PublicBookingExperience({
       }
 
       if (response.status === 402 && resData.taxaPendente) {
-        setPendingFee({ valor: Number(resData.taxaPendente.valor) || 0, primeiroNome: pendingFee?.primeiroNome ?? "" });
+        setPendingFee({ valor: Number(resData.taxaPendente.valor) || 0, primeiroNome: pendingFee?.primeiroNome ?? "", chavePix: String(resData.taxaPendente.chavePix ?? pendingFee?.chavePix ?? "") });
         setFeeModalOpen(true);
         return;
       }
@@ -1014,7 +1037,7 @@ export default function PublicBookingExperience({
                           value={desiredDate}
                           onChange={(e) => setDesiredDate(e.target.value)}
                           aria-label="Data desejada"
-                          className="block w-full min-w-0 max-w-full box-border appearance-none h-11 px-3 rounded-xl bg-[var(--theme-surface)] border border-[rgba(128,128,128,0.45)] text-sm text-left text-[var(--theme-text)]"
+                          className="block w-full min-w-0 max-w-full box-border appearance-none h-11 px-3 rounded-xl bg-[var(--theme-surface)] border border-[rgba(128,128,128,0.45)] text-base sm:text-sm text-left text-[var(--theme-text)]"
                         />
                       </label>
                       <label className="min-w-0 block">
@@ -1023,7 +1046,7 @@ export default function PublicBookingExperience({
                           value={desiredTime}
                           onChange={(e) => setDesiredTime(e.target.value)}
                           aria-label="Horário desejado"
-                          className="block w-full min-w-0 max-w-full box-border appearance-none h-11 px-3 rounded-xl bg-[var(--theme-surface)] border border-[rgba(128,128,128,0.45)] text-sm text-[var(--theme-text)]"
+                          className="block w-full min-w-0 max-w-full box-border appearance-none h-11 px-3 rounded-xl bg-[var(--theme-surface)] border border-[rgba(128,128,128,0.45)] text-base sm:text-sm text-[var(--theme-text)]"
                         >
                           <option value="">Qualquer</option>
                           {DESIRED_HOURS.map(h => <option key={h} value={h}>{h}</option>)}
@@ -1111,7 +1134,7 @@ export default function PublicBookingExperience({
                     <label className="block text-xs font-semibold text-[var(--theme-muted-text)] uppercase tracking-wider mb-2">Telefone com WhatsApp *</label>
                     <div className="relative">
                       <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-[var(--theme-muted-text)]/60"><Phone className="h-4 w-4" /></span>
-                      <input type="text" required maxLength={20} value={clientTelefone} onChange={handlePhoneInputChange} placeholder="Ex: (11) 99999-9999" style={cardRadiusStyle} className="w-full pl-9 pr-4 py-2.5 bg-[var(--theme-surface)] border border-[rgba(255,255,255,0.08)] focus:outline-none focus:border-[var(--theme-primary)] text-[var(--theme-text)] text-sm transition-all" />
+                      <input type="text" required maxLength={20} value={clientTelefone} onChange={handlePhoneInputChange} placeholder="Ex: (11) 99999-9999" style={cardRadiusStyle} className="w-full pl-9 pr-4 py-2.5 bg-[var(--theme-surface)] border border-[rgba(255,255,255,0.08)] focus:outline-none focus:border-[var(--theme-primary)] text-[var(--theme-text)] text-base sm:text-sm transition-all" />
                     </div>
                   </div>
                   {recognizedName ? (
@@ -1124,7 +1147,7 @@ export default function PublicBookingExperience({
                     <label className="block text-xs font-semibold text-[var(--theme-muted-text)] uppercase tracking-wider mb-2">Seu Nome *</label>
                     <div className="relative">
                       <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-[var(--theme-muted-text)]/60"><User className="h-4 w-4" /></span>
-                      <input type="text" required maxLength={80} value={clientNome} onChange={(e) => setClientNome(e.target.value)} placeholder="Insira seu nome completo" style={cardRadiusStyle} className="w-full pl-9 pr-4 py-2.5 bg-[var(--theme-surface)] border border-[rgba(255,255,255,0.08)] focus:outline-none focus:border-[var(--theme-primary)] text-[var(--theme-text)] text-sm transition-all" />
+                      <input type="text" required maxLength={80} value={clientNome} onChange={(e) => setClientNome(e.target.value)} placeholder="Insira seu nome completo" style={cardRadiusStyle} className="w-full pl-9 pr-4 py-2.5 bg-[var(--theme-surface)] border border-[rgba(255,255,255,0.08)] focus:outline-none focus:border-[var(--theme-primary)] text-[var(--theme-text)] text-base sm:text-sm transition-all" />
                     </div>
                   </div>
                   )}
@@ -1132,7 +1155,7 @@ export default function PublicBookingExperience({
                     <label className="block text-xs font-semibold text-[var(--theme-muted-text)] uppercase tracking-wider mb-2">Observações (Opcional)</label>
                     <div className="relative">
                       <span className="absolute top-3 left-3 text-[var(--theme-muted-text)]/60"><FileText className="h-4 w-4" /></span>
-                      <textarea value={clientObservacao} onChange={(e) => setClientObservacao(e.target.value)} maxLength={300} placeholder="Gostaria de detalhar alguma necessidade ou preferência? (Opcional)" rows={2} style={cardRadiusStyle} className="w-full pl-9 pr-4 py-2.5 bg-[var(--theme-surface)] border border-[rgba(255,255,255,0.08)] focus:outline-none focus:border-[var(--theme-primary)] text-[var(--theme-text)] text-sm transition-all resize-none" />
+                      <textarea value={clientObservacao} onChange={(e) => setClientObservacao(e.target.value)} maxLength={300} placeholder="Gostaria de detalhar alguma necessidade ou preferência? (Opcional)" rows={2} style={cardRadiusStyle} className="w-full pl-9 pr-4 py-2.5 bg-[var(--theme-surface)] border border-[rgba(255,255,255,0.08)] focus:outline-none focus:border-[var(--theme-primary)] text-[var(--theme-text)] text-base sm:text-sm transition-all resize-none" />
                     </div>
                   </div>
                   <div className="flex gap-3 pt-4">
@@ -1227,6 +1250,24 @@ export default function PublicBookingExperience({
                 </h2>
               </div>
               <p className="text-sm leading-relaxed text-[var(--theme-text)]">{noShowFeeMessage(pendingFee.primeiroNome, pendingFee.valor)}</p>
+              {pendingFee.chavePix && (
+                <div style={{ borderRadius: `${Math.max(8, theme.cardRadius - 4)}px` }} className="border border-[rgba(128,128,128,0.3)] p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className="font-bold uppercase tracking-wider text-[var(--theme-muted-text)]">Chave Pix</span>
+                    <span className="font-bold text-[var(--theme-text)]">{brl(pendingFee.valor)}</span>
+                  </div>
+                  <p className="break-all font-mono text-sm text-[var(--theme-text)] select-all">{pendingFee.chavePix}</p>
+                  <button
+                    type="button"
+                    onClick={() => copyPix(pendingFee.chavePix)}
+                    style={pixCopied ? {} : { backgroundColor: theme.primaryColor, color: getBestTextColor(theme.primaryColor) }}
+                    className={`w-full py-3 px-4 text-sm font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition-all ${btnRadiusClass} ${pixCopied ? "bg-emerald-600 text-white" : ""}`}
+                  >
+                    {pixCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    {pixCopied ? "Chave copiada!" : "Copiar chave Pix"}
+                  </button>
+                </div>
+              )}
               <a
                 href={getWhatsAppLink(
                   activeWhatsapp ?? professional.telefoneWhatsapp,
