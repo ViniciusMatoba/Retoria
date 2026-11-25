@@ -16,9 +16,12 @@ import {
   AlertCircle,
   Smartphone,
   Info,
+  Plus,
 } from "lucide-react";
 import PublicThemeProvider from "./PublicThemeProvider";
 import PublicServiceCard from "./PublicServiceCard";
+import ServiceAddonsModal from "./ServiceAddonsModal";
+import { addonsFor, applyAddonChoice, hasMainService, isAddon, mainServices, removeMainService, selectedAddonsOf } from "@/lib/serviceAddons";
 import PublicProfessionalHeader from "./PublicProfessionalHeader";
 import AppointmentLookup, { type RebookRequest } from "./AppointmentLookup";
 import { getDefaultThemeConfig, ThemeConfig, getBestTextColor } from "@/lib/themeUtils";
@@ -88,6 +91,8 @@ export interface Service {
   imagemStoragePath?: string | null;
   imagemAlt?: string | null;
   imagemUpdatedAt?: number | null;
+  adicional?: boolean;
+  adicionaisIds?: string[] | null;
 }
 
 export interface AvailableSlot {
@@ -239,13 +244,18 @@ export default function PublicBookingExperience({
     );
   }
 
+  // Janela de adicionais aberta para um serviço principal (ex.: Francesinha para "Mão tradicional")
+  const [addonsFor_, setAddonsFor] = useState<Service | null>(null);
+  const mainList = mainServices(services);
+
   const toggleService = (service: Service) => {
     const adding = !selectedServices.some(s => s.id === service.id);
-    setSelectedServices(prev =>
-      prev.some(s => s.id === service.id)
-        ? prev.filter(s => s.id !== service.id)
-        : [...prev, service]
-    );
+    if (!adding) {
+      setSelectedServices(prev => removeMainService(prev, service.id, services));
+    } else {
+      setSelectedServices(prev => [...prev, service]);
+      if (addonsFor(service, services).length > 0) setAddonsFor(service);
+    }
     setError("");
     // A barra de resumo fixa no rodapé mostra o total e o botão de continuar; no modo prévia
     // (dentro do painel) a barra fica no fim do cartão, então desce até ela como antes.
@@ -347,7 +357,7 @@ export default function PublicBookingExperience({
 
   const handleNextStep = () => {
     if (step === 0 && !activeProfessionalId) { setError("Por favor, selecione um profissional para prosseguir."); return; }
-    if (step === 1 && selectedServices.length === 0) { setError("Por favor, selecione ao menos um serviço para prosseguir."); return; }
+    if (step === 1 && !hasMainService(selectedServices)) { setError("Por favor, selecione ao menos um serviço para prosseguir."); return; }
     if (step === 2 && (!selectedDate || !selectedSlot)) { setError("Por favor, escolha uma data e horário."); return; }
     setError("");
     setStep(step + 1);
@@ -776,25 +786,46 @@ export default function PublicBookingExperience({
                   <h2 className="text-lg font-bold text-[var(--theme-text)] mb-1" style={{ fontFamily: "var(--theme-heading-font)" }}>Escolha os serviços desejados</h2>
                   <p className="text-xs text-[var(--theme-muted-text)]">Você pode selecionar mais de um serviço. Os valores e tempo serão somados automaticamente.</p>
                 </div>
-                {services.length === 0 ? (
+                {mainList.length === 0 ? (
                   <div style={cardRadiusStyle} className="text-center py-10 text-[var(--theme-muted-text)] text-sm border border-dashed border-[rgba(128,128,128,0.2)]">
                     Nenhum serviço disponível no momento.
                   </div>
                 ) : (
                   <div className="space-y-3 pt-2">
-                    {services.map((service, serviceIndex) => (
+                    {mainList.map((service, serviceIndex) => {
+                      const isSel = selectedServices.some(s => s.id === service.id);
+                      const offered = isSel ? addonsFor(service, services) : [];
+                      const chosenAddons = offered.length > 0 ? selectedAddonsOf(service, selectedServices, services) : [];
+                      return (
                       <div key={service.id} className="rt-rise" style={{ ["--i" as string]: serviceIndex }}>
                         <PublicServiceCard
                           service={service}
-                          isSelected={selectedServices.some(s => s.id === service.id)}
+                          isSelected={isSel}
                           onSelect={() => toggleService(service)}
                           showServiceImages={theme.showServiceImages}
                           cardStyle={theme.cardStyle}
                           cardRadius={theme.cardRadius}
                           primaryColor={theme.primaryColor}
                         />
+                        {offered.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setAddonsFor(service)}
+                            className="mt-1.5 w-full flex items-center gap-2 px-3 py-2 text-left text-xs border border-dashed transition-all hover:brightness-95"
+                            style={{ borderRadius: Math.min(theme.cardRadius, 16), borderColor: `${theme.primaryColor}55`, backgroundColor: `${theme.primaryColor}0D`, color: "var(--theme-text)" }}
+                          >
+                            <Plus className="h-3.5 w-3.5 shrink-0" style={{ color: theme.primaryColor }} />
+                            <span className="flex-1 min-w-0 truncate">
+                              {chosenAddons.length > 0
+                                ? <>Adicionais: <span className="font-semibold">{chosenAddons.map(a => a.nome).join(", ")}</span></>
+                                : <span className="text-[var(--theme-muted-text)]">Incluir adicionais</span>}
+                            </span>
+                            <span className="font-semibold shrink-0" style={{ color: theme.primaryColor }}>{chosenAddons.length > 0 ? "Alterar" : "Ver"}</span>
+                          </button>
+                        )}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
 
@@ -1096,7 +1127,7 @@ export default function PublicBookingExperience({
                   <div className="space-y-1.5 pt-1">
                     {selectedServices.map(s => (
                       <p key={s.id} className="flex justify-between items-center">
-                        <span className="text-[var(--theme-muted-text)] flex items-center gap-1"><Check className="h-3 w-3" />{s.nome}</span>
+                        <span className="text-[var(--theme-muted-text)] flex items-center gap-1">{isAddon(s) ? <Plus className="h-3 w-3" /> : <Check className="h-3 w-3" />}{s.nome}</span>
                         {s.preco != null && (s.exibirPreco ?? true) && (
                           <span className="font-semibold" style={{ color: theme.primaryColor }}>
                             {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(s.preco)}
@@ -1325,6 +1356,19 @@ export default function PublicBookingExperience({
           </>
         )}
       </div>
+      {addonsFor_ && (
+        <ServiceAddonsModal
+          mainName={addonsFor_.nome}
+          addons={addonsFor(addonsFor_, services)}
+          initialChosen={selectedAddonsOf(addonsFor_, selectedServices, services).map(a => a.id)}
+          primaryColor={theme.primaryColor}
+          cardRadius={theme.cardRadius}
+          onConfirm={(ids) => {
+            setSelectedServices(prev => applyAddonChoice(prev, addonsFor_, ids, services));
+            setAddonsFor(null);
+          }}
+        />
+      )}
     </PublicThemeProvider>
   );
 }
