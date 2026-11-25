@@ -229,6 +229,8 @@ export async function POST(req: NextRequest) {
       for (const snap of serviceSnaps) {
         if (!snap.exists || !snap.data()?.ativo) throw new Error("service-not-found-or-inactive");
       }
+      // Adicionais (Francesinha etc.) só entram junto com um serviço principal
+      if (serviceSnaps.every(snap => snap.data()?.adicional === true)) throw new Error("only-addons");
 
       const servicosEnriquecidos = serviceSnaps.map((snap, i) => {
         const d = snap.data()!;
@@ -460,6 +462,8 @@ export async function POST(req: NextRequest) {
       friendlyMessage = "Profissional não encontrado.";
     } else if (errMsg === "service-not-found-or-inactive") {
       friendlyMessage = "Serviço não está mais ativo ou não foi encontrado.";
+    } else if (errMsg === "only-addons") {
+      friendlyMessage = "Escolha ao menos um serviço principal junto com os adicionais.";
     } else if (errMsg === "slot-not-found") {
       friendlyMessage = "Um ou mais horários no intervalo selecionado não estão disponíveis na agenda.";
     } else if (errMsg === "known-customer-missing") {

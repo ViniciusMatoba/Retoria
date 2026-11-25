@@ -37,7 +37,7 @@ As durações são sugestões. A Natália confirma.
 | Esmaltação em gel + blindagem | R$ 110 | 1h30 |
 | Banho de gel (mãos) | R$ 140 | 2h |
 
-**Adicionais** (cadastrar como serviços; a cliente marca junto com o principal):
+**Adicionais**: cadastrar como serviço com "É um serviço adicional" ligado. Depois, em cada serviço principal, marcar em "Adicionais oferecidos com este serviço" quais aparecem. Ao escolher o principal, a cliente vê a janela "Quer incluir algum adicional?":
 
 | Adicional | Preço | Duração sugerida |
 | --- | --- | --- |

@@ -20,6 +20,7 @@
     "test:customer-appointments": "npx tsx scripts/test-customer-appointments.ts",
     "test:costs": "npx tsx scripts/test-costs.ts",
     "test:gifts": "npx tsx scripts/test-gifts.ts",
+    "test:service-addons": "npx tsx scripts/test-service-addons.ts",
     "test:lead-status": "npx tsx scripts/test-lead-status.ts",
     "check:governance": "node scripts/check-project-governance.mjs"
   },

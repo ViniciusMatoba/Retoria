@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useAppModal } from "@/components/ModalProvider";
 import { validateImageFile, buildVersionedImageUrl } from "../../../lib/themeUtils";
+import { sanitizeAddonIds } from "@/lib/serviceAddons";
 
 interface Service {
   id: string;
@@ -30,6 +31,8 @@ interface Service {
   imagemStoragePath?: string | null;
   imagemAlt?: string | null;
   imagemUpdatedAt?: number | null;
+  adicional?: boolean;
+  adicionaisIds?: string[] | null;
   // runtime only — which professional's subcollection this belongs to
   _profId?: string;
   _profNome?: string;
@@ -67,6 +70,9 @@ export default function ServicesPage() {
   const [ativo, setAtivo] = useState(true);
   const [preco, setPreco] = useState<string>("");
   const [exibirPreco, setExibirPreco] = useState(true);
+  // Adicional: não aparece na lista principal; é oferecido na janela de adicionais do serviço principal
+  const [adicional, setAdicional] = useState(false);
+  const [adicionaisIds, setAdicionaisIds] = useState<string[]>([]);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState("");
   const [imageAlt, setImageAlt] = useState("");
@@ -216,7 +222,7 @@ export default function ServicesPage() {
     setNome(""); setDescricaoCurta(""); setDuracaoEstimada("30 min");
     setDuracaoOption("30"); setDuracaoCustomMin("");
     setAtivo(true);
-    setPreco(""); setExibirPreco(true); setImageFile(null); setImagePreview(""); setImageAlt("");
+    setPreco(""); setExibirPreco(true); setAdicional(false); setAdicionaisIds([]); setImageFile(null); setImagePreview(""); setImageAlt("");
     setExistingImageUrl(""); setExistingImageStoragePath(""); setRemoveImageMarked(false);
     setError("");
   };
@@ -244,6 +250,8 @@ export default function ServicesPage() {
     setAtivo(service.ativo);
     setPreco(service.preco != null ? formatPrecoInput(String(Math.round(service.preco * 100))) : "");
     setExibirPreco(service.exibirPreco ?? true);
+    setAdicional(service.adicional === true);
+    setAdicionaisIds(service.adicionaisIds ?? []);
     setImageFile(null);
     setImagePreview(service.imagemUrl ? buildVersionedImageUrl(service.imagemUrl, service.imagemUpdatedAt) : "");
     setImageAlt(service.imagemAlt || "");
@@ -294,6 +302,8 @@ export default function ServicesPage() {
             ativo,
             preco: precoNum,
             exibirPreco,
+            adicional,
+            adicionaisIds: adicional ? [] : sanitizeAddonIds(adicionaisIds, serviceId),
             ordem: Date.now(),
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -309,6 +319,8 @@ export default function ServicesPage() {
         await updateDoc(doc(db, "professionals", profId, "services", serviceId), {
           nome: nome.trim(), descricaoCurta: descricaoCurta.trim(),
           duracaoEstimada: duracaoEstimada.trim(), ativo, preco: precoNum, exibirPreco,
+          adicional,
+          adicionaisIds: adicional ? [] : sanitizeAddonIds(adicionaisIds, serviceId),
           updatedAt: new Date(),
         });
       }
@@ -528,6 +540,17 @@ export default function ServicesPage() {
                     {service.ativo ? <ToggleRight className="h-6 w-6 text-emerald-500" /> : <ToggleLeft className="h-6 w-6 text-slate-600" />}
                   </button>
                 </div>
+                {(service.adicional || (service.adicionaisIds?.length ?? 0) > 0) && (
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {service.adicional ? (
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border border-pink-500/30 bg-pink-500/10 text-pink-300">Adicional</span>
+                    ) : (
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border border-indigo-500/30 bg-indigo-500/10 text-indigo-300">
+                        {service.adicionaisIds!.length} {service.adicionaisIds!.length > 1 ? "adicionais oferecidos" : "adicional oferecido"}
+                      </span>
+                    )}
+                  </div>
+                )}
                 <p className="text-sm text-slate-400 line-clamp-3 mb-4 min-h-[60px]">{service.descricaoCurta || "Sem descrição cadastrada."}</p>
               </div>
 
@@ -707,6 +730,53 @@ export default function ServicesPage() {
                 <input type="checkbox" id="ativo" checked={ativo} onChange={(e) => setAtivo(e.target.checked)}
                   className="h-4.5 w-4.5 rounded border-slate-800 bg-slate-950 text-indigo-600 focus:ring-indigo-500" />
                 <label htmlFor="ativo" className="text-sm font-semibold text-slate-350 cursor-pointer">Disponível para agendamento (Ativo)</label>
+              </div>
+
+              {/* Adicionais */}
+              <div className="space-y-3 border-t border-slate-800/60 pt-4">
+                <div className="flex items-center justify-between gap-3 px-4 py-3 bg-slate-950/60 border border-slate-800/60 rounded-xl">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-300">É um serviço adicional</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Ex.: Francesinha, Pó cromado. Não aparece na lista principal: a cliente vê numa janela ao escolher o serviço principal.</p>
+                  </div>
+                  <button type="button" role="switch" aria-checked={adicional} aria-label="É um serviço adicional" onClick={() => setAdicional(!adicional)}
+                    className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ${adicional ? "bg-pink-600" : "bg-slate-600"}`}>
+                    <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${adicional ? "translate-x-5" : "translate-x-0"}`} />
+                  </button>
+                </div>
+
+                {!adicional && (() => {
+                  const ownerId = modalMode === "add" ? (targetProfId || user?.uid) : editingProfId;
+                  const options = services.filter((s) => s.adicional && (s._profId ?? user?.uid) === ownerId && s.id !== editingId);
+                  return (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Adicionais oferecidos com este serviço</label>
+                      {options.length === 0 ? (
+                        <p className="text-xs text-slate-500 px-1">Nenhum adicional cadastrado ainda. Cadastre um serviço marcando &quot;É um serviço adicional&quot; e depois volte aqui para ligar.</p>
+                      ) : (
+                        <div className="grid gap-2">
+                          {options.map((a) => {
+                            const on = adicionaisIds.includes(a.id);
+                            return (
+                              <button key={a.id} type="button" aria-pressed={on}
+                                onClick={() => setAdicionaisIds((prev) => on ? prev.filter((id) => id !== a.id) : [...prev, a.id])}
+                                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-all ${on ? "border-pink-500 bg-pink-500/10" : "border-slate-800 hover:border-slate-700"}`}>
+                                <span className={`h-4 w-4 shrink-0 rounded border flex items-center justify-center ${on ? "bg-pink-600 border-pink-600" : "border-slate-600"}`}>
+                                  {on && <Check className="h-3 w-3 text-white" />}
+                                </span>
+                                <span className={`flex-1 text-sm ${a.ativo ? "text-slate-200" : "text-slate-500 line-through"}`}>{a.nome}</span>
+                                {a.preco != null && (
+                                  <span className="text-xs font-semibold text-emerald-400">+ {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(a.preco)}</span>
+                                )}
+                              </button>
+                            );
+                          })}
+                          <p className="text-[10px] text-slate-500 px-1">Ao escolher este serviço, a cliente vê os marcados numa janela e pode incluir ou pular.</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Imagem */}
