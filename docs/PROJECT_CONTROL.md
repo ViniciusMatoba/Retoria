@@ -369,4 +369,7 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **TypeScript**: sem erros. **Lint**: arquivos novos sem problemas; alterados com a mesma contagem por regra da `main`.
 * **Testes**: `test:lead-status` 25/25 (novo), `test:revenue` 43/43 (2 novos) e demais scripts aprovados. `test:rules` não executado (regras inalteradas; campos novos gravados pelo servidor).
 * **Build**: Aprovado. **Teste manual**: Não executado (painel e página pública dependem de login e do servidor).
+* **Deploy**: merge em `main` (`0bef6b3`) e publicação pela integração do Vercel (status success).
+* **Pós-deploy em produção (sem login)**: `/`, `/dashboard/leads`, `/dashboard/slots` e página pública real 200; rotas `fee` e `status` 401 sem login; `customer-lookup` responde com `taxaPendente: null` para telefone sem taxa.
+* **NÃO TESTADO em produção**: pergunta de liberar horário, cancelados na agenda, aviso e bloqueio da taxa, dar baixa — exigem login e cliente de teste.
 
