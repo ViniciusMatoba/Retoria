@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import ImageCropModal from "@/components/ImageCropModal";
 import AppTab from "./components/AppTab";
+import BookingAlertsCard from "../components/BookingAlertsCard";
 import { doc, updateDoc, collection, query, where, getDocs, orderBy } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
@@ -472,6 +473,8 @@ export default function ProfilePage() {
         </button>
       </div>
 
+      {/* Avisos de agendamento no celular: ficam junto das opções do app (antes ficavam em Leads) */}
+      {activeProfileTab === "app" && user && <BookingAlertsCard user={user} />}
       {activeProfileTab === "app" && <AppTab />}
 
       {error && (
