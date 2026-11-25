@@ -3,6 +3,7 @@ import { dbAdmin } from "@/lib/firebaseAdmin";
 import { isRateLimited } from "@/lib/rateLimit";
 import { isFullName, maskName } from "@/lib/nameUtils";
 import { findPendingFee } from "@/lib/noShowFeeServer";
+import { readNoShowFeeSettings } from "@/lib/leadStatus";
 
 // GET /api/customer-lookup?professionalId=...&phone=...
 // Reconhece cliente já cadastrado com ESTE profissional. Devolve só "Maria S." (nunca o nome completo).
@@ -30,7 +31,10 @@ export async function GET(req: NextRequest) {
       .get();
 
     const fee = await findPendingFee(professionalId, phone);
-    const taxaPendente = fee ? { valor: fee.valor, primeiroNome: (fee.nome || "").trim().split(/\s+/)[0] } : null;
+    const chavePix = fee
+      ? readNoShowFeeSettings((await dbAdmin.collection("professionals").doc(professionalId).get()).data()?.taxaNaoComparecimento).chavePix
+      : "";
+    const taxaPendente = fee ? { valor: fee.valor, primeiroNome: (fee.nome || "").trim().split(/\s+/)[0], chavePix } : null;
 
     const nome = snap.empty ? "" : String(snap.docs[0].data().nome ?? "");
     if (!nome || !isFullName(nome)) return NextResponse.json({ found: false, taxaPendente }, { headers: { "Cache-Control": "no-store" } });

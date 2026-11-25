@@ -53,11 +53,12 @@ function main() {
   assert("padrão: taxa ligada de R$ 30", s.ativo && s.valor === 30);
   assert("valor configurado e desligada", readNoShowFeeSettings({ ativo: false, valor: 45.5 }).valor === 45.5 && !readNoShowFeeSettings({ ativo: false }).ativo);
   assert("valor inválido volta ao padrão", readNoShowFeeSettings({ valor: -5 }).valor === 30);
+  assert("chave Pix lida sem espaços; sem chave fica vazia", readNoShowFeeSettings({ chavePix: "  7c12041c-0c67-4534-b473-dc02e7afa431 " }).chavePix === "7c12041c-0c67-4534-b473-dc02e7afa431" && s.chavePix === "");
   const f1 = feeAfterStatusChange("Agendado", "Não compareceu", null, s, 100);
   assert("não compareceu cria taxa pendente", f1?.status === "pendente" && f1.valor === 30 && f1.criadaEm === 100, JSON.stringify(f1));
   assert("perdido também cria taxa", feeAfterStatusChange("Agendado", "Perdido", null, s, 1)?.status === "pendente");
   assert("cancelado não cria taxa", feeAfterStatusChange("Agendado", "Cancelado", null, s, 1) === undefined);
-  assert("taxa desligada: não cria", feeAfterStatusChange("Agendado", "Perdido", null, { ativo: false, valor: 30 }, 1) === undefined);
+  assert("taxa desligada: não cria", feeAfterStatusChange("Agendado", "Perdido", null, { ativo: false, valor: 30, chavePix: "" }, 1) === undefined);
   const pend: NoShowFee = { valor: 30, status: "pendente", criadaEm: 1 };
   assert("voltou para atendido (marcou errado): remove a taxa pendente", feeAfterStatusChange("Não compareceu", "Atendido", pend, s, 2) === null);
   assert("taxa já paga não é removida", feeAfterStatusChange("Não compareceu", "Atendido", { ...pend, status: "paga" }, s, 2) === undefined);

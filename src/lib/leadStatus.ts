@@ -50,15 +50,16 @@ export const shouldAskToRelease = (l: StatusLead, newStatus: string, nowMs: numb
 
 // ── Taxa de não comparecimento ────────────────────────────────────────────────
 
-export interface NoShowFeeSettings { ativo: boolean; valor: number }
-export const DEFAULT_NO_SHOW_FEE: NoShowFeeSettings = { ativo: true, valor: 30 };
+export interface NoShowFeeSettings { ativo: boolean; valor: number; chavePix: string }
+export const DEFAULT_NO_SHOW_FEE: NoShowFeeSettings = { ativo: true, valor: 30, chavePix: "" };
 
 export const readNoShowFeeSettings = (raw: unknown): NoShowFeeSettings => {
   const r = (raw ?? {}) as Record<string, unknown>;
   const valor = typeof r.valor === "number" && Number.isFinite(r.valor) && r.valor > 0 && r.valor <= 10_000
     ? Math.round(r.valor * 100) / 100
     : DEFAULT_NO_SHOW_FEE.valor;
-  return { ativo: r.ativo !== false, valor };
+  const chavePix = typeof r.chavePix === "string" ? r.chavePix.trim().slice(0, 140) : "";
+  return { ativo: r.ativo !== false, valor, chavePix };
 };
 
 export interface NoShowFee {

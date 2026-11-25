@@ -54,7 +54,7 @@ export interface ProfessionalProfile {
   messageTemplates?: Record<string, string>;
   slotSuggestion?: { enabled: boolean; requestMessage?: string; quickReply?: string };
   // Taxa de não comparecimento (Leads → Taxa de não comparecimento). Padrão: ligada, R$ 30.
-  taxaNaoComparecimento?: { ativo?: boolean; valor?: number };
+  taxaNaoComparecimento?: { ativo?: boolean; valor?: number; chavePix?: string };
 
   // Member-level config (set by owner, stored on member's doc)
   teamConfig?: {
