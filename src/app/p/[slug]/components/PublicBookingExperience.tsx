@@ -17,6 +17,7 @@ import {
   Smartphone,
   Info,
   Plus,
+  ArrowLeft,
 } from "lucide-react";
 import PublicThemeProvider from "./PublicThemeProvider";
 import PublicServiceCard from "./PublicServiceCard";
@@ -207,9 +208,12 @@ export default function PublicBookingExperience({
   // Direção da última troca de etapa, para a animação (ajuste durante a renderização, sem efeito)
   const [prevStep, setPrevStep] = useState(step);
   const [stepDir, setStepDir] = useState<1 | -1>(1);
+  // Visual "app" (ligado por conta): tela "Confirme seu agendamento" depois dos dados
+  const [reviewing, setReviewing] = useState(false);
   if (step !== prevStep) {
     setStepDir(step > prevStep ? 1 : -1);
     setPrevStep(step);
+    setReviewing(false);
   }
   // "Agendar de novo" / "Remarcar" vindos da consulta de agendamentos
   const [pendingRebook, setPendingRebook] = useState<{ pid?: string; servicoIds: string[] } | null>(null);
@@ -251,6 +255,9 @@ export default function PublicBookingExperience({
   const addonsOn = hasFeature(professional.id, "servicosAdicionais");
   const offeredAddons = (s: Service) => (addonsOn ? addonsFor(s, services) : []);
   const mainList = addonsOn ? mainServices(services) : services;
+  // Visual "app": novidade ligada só nas contas autorizadas (lib/accountFeatures)
+  const appLook = hasFeature(professional.id, "visualApp");
+  const coverImageUrl = appLook && theme.showServiceImages ? (mainList.find(s => !!s.imagemUrl)?.imagemUrl ?? null) : null;
 
   const toggleService = (service: Service) => {
     const adding = !selectedServices.some(s => s.id === service.id);
@@ -605,6 +612,13 @@ export default function PublicBookingExperience({
     color: "var(--theme-text)",
   };
 
+  // Horários em pílulas (visual "app"): fundo leve na cor da marca
+  const pillStyle: React.CSSProperties = {
+    backgroundColor: hexToRgba(theme.primaryColor, 0.08) ?? "rgba(128,128,128,0.08)",
+    borderColor: hexToRgba(theme.primaryColor, 0.18) ?? "rgba(128,128,128,0.18)",
+    color: theme.primaryColor,
+  };
+
   let cardClass = "";
   switch (theme.cardStyle) {
     case "flat":     cardClass = "bg-[var(--theme-surface)] border-transparent"; break;
@@ -648,6 +662,7 @@ export default function PublicBookingExperience({
             profile={professional}
             theme={theme}
             isPreview={previewMode}
+            coverImageUrl={coverImageUrl}
           />
 
           {!previewMode && step < 4 && professional.slugPublico && (
@@ -661,8 +676,42 @@ export default function PublicBookingExperience({
             />
           )}
 
+          {/* Etapas numeradas (visual "app") */}
+          {step < 4 && appLook && (() => {
+            const labels = [...(hasTeam ? ["Profissional"] : []), "Serviço", "Dia e horário", "Seus dados", "Confirmar"];
+            const current = (hasTeam ? step : step - 1) + (reviewing ? 1 : 0);
+            return (
+              <ol aria-label="Etapas do agendamento" className="flex items-start px-1">
+                {labels.map((label, i) => {
+                  const done = i < current;
+                  const active = i === current;
+                  return (
+                    <li key={label} className="flex-1 flex flex-col items-center relative" aria-current={active ? "step" : undefined}>
+                      {i > 0 && (
+                        <span aria-hidden="true" className="absolute top-[13px] h-[3px] rounded-full" style={{ left: "calc(-50% + 18px)", right: "calc(50% + 18px)", backgroundColor: i <= current ? corBrand : "rgba(128,128,128,0.25)", transition: "background-color .3s" }} />
+                      )}
+                      <span
+                        className={`relative z-10 h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all ${active ? "rt-pop" : ""}`}
+                        style={done
+                          ? { backgroundColor: corBrand, borderColor: corBrand, color: getBestTextColor(corBrand) }
+                          : active
+                            ? { backgroundColor: "var(--theme-surface)", borderColor: corBrand, color: corBrand, boxShadow: `0 0 0 4px ${hexToRgba(corBrand, 0.15) ?? "transparent"}` }
+                            : { backgroundColor: "var(--theme-surface)", borderColor: "rgba(128,128,128,0.3)", color: "var(--theme-muted-text)" }}
+                      >
+                        {done ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : i + 1}
+                      </span>
+                      <span className="mt-1.5 text-[10px] leading-tight text-center font-semibold" style={{ color: active || done ? "var(--theme-text)" : "var(--theme-muted-text)", opacity: active || done ? 1 : 0.7 }}>
+                        {label}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ol>
+            );
+          })()}
+
           {/* Step indicator */}
-          {step < 4 && (
+          {step < 4 && !appLook && (
             <div
               className="relative overflow-hidden backdrop-blur-sm rounded-2xl px-3 py-2.5 flex justify-between items-center text-[10px] sm:text-xs font-semibold"
               style={{
@@ -703,7 +752,22 @@ export default function PublicBookingExperience({
           )}
 
           {/* Wizard card */}
-          <div style={cardRadiusStyle} className={`p-6 md:p-8 shadow-2xl relative ${cardClass}`}>
+          <div
+            style={appLook ? { borderRadius: 28, boxShadow: `0 0 0 6px ${hexToRgba(corBrand, 0.28) ?? "transparent"}, 0 24px 50px -20px ${hexToRgba(corBrand, 0.45) ?? "rgba(0,0,0,0.3)"}` } : cardRadiusStyle}
+            className={`p-6 md:p-8 shadow-2xl relative ${cardClass}`}
+          >
+            {appLook && step < 4 && (step > (hasTeam ? 0 : 1) || reviewing) && (
+              <button
+                type="button"
+                onClick={() => (reviewing ? setReviewing(false) : handlePrevStep())}
+                aria-label="Voltar"
+                disabled={submitting}
+                className="-mt-2 -ml-2 mb-2 h-10 w-10 rounded-full flex items-center justify-center transition-all hover:brightness-95 active:scale-95"
+                style={{ color: corBrand, backgroundColor: hexToRgba(corBrand, 0.08) ?? "transparent" }}
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </button>
+            )}
             {rescheduleOf && step < 4 && (
               <div className="mb-4 rounded-xl border border-[rgba(128,128,128,0.35)] p-3 text-xs text-[var(--theme-text)]">
                 <p className="font-bold">Remarcando o horário de {formatDateTitle(rescheduleOf.data)} às {rescheduleOf.horario}</p>
@@ -728,7 +792,9 @@ export default function PublicBookingExperience({
             {step === 0 && hasTeam && (
               <div className="space-y-4">
                 <div>
-                  <h2 className="text-lg font-bold text-[var(--theme-text)] mb-1" style={{ fontFamily: "var(--theme-heading-font)" }}>Escolha o profissional</h2>
+                  {appLook
+                    ? <AppTitle color={corBrand} strong="Escolha" rest="o profissional" />
+                    : <h2 className="text-lg font-bold text-[var(--theme-text)] mb-1" style={{ fontFamily: "var(--theme-heading-font)" }}>Escolha o profissional</h2>}
                   <p className="text-xs text-[var(--theme-muted-text)]">Selecione com quem você gostaria de ser atendido.</p>
                 </div>
 
@@ -802,8 +868,10 @@ export default function PublicBookingExperience({
             {step === 1 && (
               <div className="space-y-4">
                 <div>
-                  <h2 className="text-lg font-bold text-[var(--theme-text)] mb-1" style={{ fontFamily: "var(--theme-heading-font)" }}>Escolha os serviços desejados</h2>
-                  <p className="text-xs text-[var(--theme-muted-text)]">Você pode selecionar mais de um serviço. Os valores e tempo serão somados automaticamente.</p>
+                  {appLook
+                    ? <AppTitle color={corBrand} strong="Escolha" rest="seu serviço" />
+                    : <h2 className="text-lg font-bold text-[var(--theme-text)] mb-1" style={{ fontFamily: "var(--theme-heading-font)" }}>Escolha os serviços desejados</h2>}
+                  <p className={`${appLook ? "text-sm" : "text-xs"} text-[var(--theme-muted-text)]`}>{appLook ? "Toque em um ou mais serviços. Valor e tempo são somados automaticamente." : "Você pode selecionar mais de um serviço. Os valores e tempo serão somados automaticamente."}</p>
                 </div>
                 {mainList.length === 0 ? (
                   <div style={cardRadiusStyle} className="text-center py-10 text-[var(--theme-muted-text)] text-sm border border-dashed border-[rgba(128,128,128,0.2)]">
@@ -871,7 +939,7 @@ export default function PublicBookingExperience({
                 )}
 
                 <div ref={serviceFooterRef} className={`pt-2 flex gap-3 scroll-mb-6 ${hasTeam ? "justify-between" : ""}`}>
-                  {hasTeam && (
+                  {hasTeam && !appLook && (
                     <button
                       type="button"
                       onClick={handlePrevStep}
@@ -900,8 +968,10 @@ export default function PublicBookingExperience({
             {step === 2 && (
               <div className="space-y-5">
                 <div>
-                  <h2 className="text-lg font-bold text-[var(--theme-text)] mb-1" style={{ fontFamily: "var(--theme-heading-font)" }}>Selecione data e hora</h2>
-                  <p className="text-xs text-[var(--theme-muted-text)]">{slotSuggestionOn ? "Veja os primeiros horários livres de cada dia." : "Veja a disponibilidade de nossa agenda em tempo real."}</p>
+                  {appLook
+                    ? <AppTitle color={corBrand} strong="Quando" rest="você quer vir?" />
+                    : <h2 className="text-lg font-bold text-[var(--theme-text)] mb-1" style={{ fontFamily: "var(--theme-heading-font)" }}>Selecione data e hora</h2>}
+                  <p className={`${appLook ? "text-sm" : "text-xs"} text-[var(--theme-muted-text)]`}>{slotSuggestionOn ? "Veja os primeiros horários livres de cada dia." : "Veja a disponibilidade de nossa agenda em tempo real."}</p>
                 </div>
                 {slotSuggestionOn ? (
                 <>
@@ -936,8 +1006,8 @@ export default function PublicBookingExperience({
                                   key={slot.id}
                                   type="button"
                                   onClick={() => { setSelectedDate(slot.data); setSelectedSlot(slot); }}
-                                  style={isSelected ? { backgroundColor: theme.primaryColor, borderColor: theme.primaryColor, color: getBestTextColor(theme.primaryColor) } : {}}
-                                  className={`py-2.5 px-1.5 border text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 ${btnRadiusClass} ${isSelected ? "rt-pop shadow-md" : "bg-[var(--theme-surface)]/60 border-[rgba(255,255,255,0.08)] text-[var(--theme-text)] hover:border-[rgba(255,255,255,0.2)]"}`}
+                                  style={isSelected ? { backgroundColor: theme.primaryColor, borderColor: theme.primaryColor, color: getBestTextColor(theme.primaryColor) } : appLook ? pillStyle : {}}
+                                  className={`py-2.5 px-1.5 border text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 ${appLook ? "rounded-xl" : btnRadiusClass} ${isSelected ? "rt-pop shadow-md" : appLook ? "" : "bg-[var(--theme-surface)]/60 border-[rgba(255,255,255,0.08)] text-[var(--theme-text)] hover:border-[rgba(255,255,255,0.2)]"}`}
                                 >
                                   <Clock className="h-3.5 w-3.5 opacity-60" />
                                   <span>{slot.horario}</span>
@@ -1059,8 +1129,8 @@ export default function PublicBookingExperience({
                               <button
                                 key={slot.id}
                                 onClick={() => setSelectedSlot(slot)}
-                                style={{ ["--i" as string]: slotIndex, ...(isSelected ? { backgroundColor: theme.primaryColor, borderColor: theme.primaryColor, color: getBestTextColor(theme.primaryColor) } : {}) }}
-                                className={`rt-rise py-2.5 px-1.5 border text-xs font-bold text-center flex items-center justify-center gap-1.5 transition-all ${btnRadiusClass} ${isSelected ? "shadow-md" : "bg-[var(--theme-surface)]/60 border-[rgba(255,255,255,0.08)] text-[var(--theme-text)] hover:border-[rgba(255,255,255,0.2)]"}`}
+                                style={{ ["--i" as string]: slotIndex, ...(isSelected ? { backgroundColor: theme.primaryColor, borderColor: theme.primaryColor, color: getBestTextColor(theme.primaryColor) } : appLook ? pillStyle : {}) }}
+                                className={`rt-rise py-2.5 px-1.5 border text-xs font-bold text-center flex items-center justify-center gap-1.5 transition-all ${appLook ? "rounded-xl" : btnRadiusClass} ${isSelected ? "shadow-md" : appLook ? "" : "bg-[var(--theme-surface)]/60 border-[rgba(255,255,255,0.08)] text-[var(--theme-text)] hover:border-[rgba(255,255,255,0.2)]"}`}
                               >
                                 <Clock className="h-3.5 w-3.5 opacity-60" />
                                 <span>{slot.horario}</span>
@@ -1115,9 +1185,9 @@ export default function PublicBookingExperience({
                   </div>
                 )}
                 <div className="flex gap-3 pt-4">
-                  <button onClick={handlePrevStep} className={`flex-1 py-3.5 bg-[var(--theme-surface)] hover:opacity-90 text-[var(--theme-text)] border border-[rgba(128,128,128,0.2)] font-semibold text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-1.5 ${btnRadiusClass}`}>
+                  {!appLook && <button onClick={handlePrevStep} className={`flex-1 py-3.5 bg-[var(--theme-surface)] hover:opacity-90 text-[var(--theme-text)] border border-[rgba(128,128,128,0.2)] font-semibold text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-1.5 ${btnRadiusClass}`}>
                     <ChevronLeft className="h-4 w-4" /><span>Voltar</span>
-                  </button>
+                  </button>}
                   <button
                     onClick={handleNextStep}
                     disabled={!selectedDate || !selectedSlot}
@@ -1131,12 +1201,79 @@ export default function PublicBookingExperience({
             )}
 
             {/* STEP 3 */}
-            {step === 3 && (
+            {step === 3 && appLook && reviewing && (
+              <div key="review" className="rt-step-fwd space-y-5">
+                <div>
+                  <AppTitle color={corBrand} strong="Confirme" rest="seu agendamento" />
+                  <p className="text-sm text-[var(--theme-muted-text)]">Confira se está tudo certo antes de enviar.</p>
+                </div>
+                <dl className="space-y-4 text-sm text-[var(--theme-text)]">
+                  <div>
+                    <dt className="font-bold">Nome</dt>
+                    <dd className="text-[var(--theme-muted-text)]">{recognizedName ?? normalizeName(clientNome)}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-bold">WhatsApp</dt>
+                    <dd className="text-[var(--theme-muted-text)]">{clientTelefone}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-bold">{selectedServices.length > 1 ? "Serviços" : "Serviço"}</dt>
+                    {selectedServices.map(s => (
+                      <dd key={s.id} className="flex justify-between gap-3 text-[var(--theme-muted-text)]">
+                        <span>{isAddon(s) ? "+ " : ""}{s.nome}</span>
+                        {s.preco != null && (s.exibirPreco ?? true) && <span>{brl(s.preco)}</span>}
+                      </dd>
+                    ))}
+                  </div>
+                  {selectedSlot && (
+                    <div>
+                      <dt className="font-bold">Data e hora</dt>
+                      <dd className="text-[var(--theme-muted-text)] capitalize">{formatDateTitle(selectedSlot.data)} às {selectedSlot.horario}</dd>
+                    </div>
+                  )}
+                  <div className="flex justify-between gap-3 pt-3 border-t border-[rgba(128,128,128,0.2)]">
+                    <span className="flex items-center gap-1.5 text-[var(--theme-muted-text)]"><Clock className="h-4 w-4" />~{formatDuracao(totalDuracaoMin)}</span>
+                    {hasPrecoVisivel && <span className="font-bold" style={{ color: corBrand }}>Total: {brl(totalPreco)}</span>}
+                  </div>
+                  {clientObservacao.trim() && (
+                    <div>
+                      <dt className="font-bold">Observações</dt>
+                      <dd className="text-[var(--theme-muted-text)] break-words">{clientObservacao.trim()}</dd>
+                    </div>
+                  )}
+                </dl>
+                <div style={{ borderRadius: 16, ...noticeStyle }} className="flex items-start gap-2.5 px-3 py-2.5 text-xs">
+                  <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" style={{ color: corBrand }} />
+                  <span>Este é um <strong>pedido de pré-agendamento</strong>. O profissional confirmará o horário com você pelo WhatsApp.</span>
+                </div>
+                {pendingFee && (
+                  <div style={{ borderRadius: 16 }} className="border border-orange-500/40 bg-orange-500/10 p-3 text-xs text-[var(--theme-text)] space-y-2">
+                    <p className="font-bold">Taxa de não comparecimento pendente: {brl(pendingFee.valor)}</p>
+                    <button type="button" onClick={() => setFeeModalOpen(true)} className="font-semibold underline" style={{ color: corBrand }}>Ver como pagar</button>
+                  </div>
+                )}
+                <form onSubmit={handleBookAppointment}>
+                  <button
+                    type="submit"
+                    disabled={submitting || !!pendingFee}
+                    style={submitting ? {} : { backgroundColor: corBrand, color: getBestTextColor(corBrand), fontFamily: "var(--theme-body-font)" }}
+                    className={`w-full py-3.5 px-4 font-semibold text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${btnRadiusClass} ${submitting ? "bg-[rgba(128,128,128,0.16)] text-[var(--theme-muted-text)] cursor-not-allowed" : "hover:brightness-110 shadow-lg"}`}
+                  >
+                    {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <><Check className="h-4 w-4" /><span>{previewMode ? "Confirmar (prévia)" : "Confirmar agendamento"}</span></>}
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {step === 3 && !(appLook && reviewing) && (
               <div className="space-y-4">
                 <div>
-                  <h2 className="text-lg font-bold text-[var(--theme-text)] mb-1" style={{ fontFamily: "var(--theme-heading-font)" }}>Informe seus dados para contato</h2>
-                  <p className="text-xs text-[var(--theme-muted-text)]">Suas informações serão salvas no sistema de pré-agendamento.</p>
+                  {appLook
+                    ? <AppTitle color={corBrand} strong="Seus" rest="dados" />
+                    : <h2 className="text-lg font-bold text-[var(--theme-text)] mb-1" style={{ fontFamily: "var(--theme-heading-font)" }}>Informe seus dados para contato</h2>}
+                  <p className={`${appLook ? "text-sm" : "text-xs"} text-[var(--theme-muted-text)]`}>{appLook ? "Para o profissional confirmar o horário com você pelo WhatsApp." : "Suas informações serão salvas no sistema de pré-agendamento."}</p>
                 </div>
+                {!appLook && (
                 <div style={cardRadiusStyle} className="bg-[var(--theme-surface)]/60 border border-[rgba(255,255,255,0.08)] p-4 text-xs space-y-2 text-[var(--theme-text)]">
                   {selectedSlot && (
                     <p className="flex justify-between items-center pb-2 border-b border-[rgba(255,255,255,0.06)]">
@@ -1169,10 +1306,13 @@ export default function PublicBookingExperience({
                     </div>
                   )}
                 </div>
+                )}
+                {!appLook && (
                 <div style={{ ...cardRadiusStyle, ...noticeStyle }} className="flex items-start gap-2.5 px-3 py-2.5 text-xs">
                   <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" style={{ color: theme.primaryColor }} />
                   <span>Este é um <strong>pedido de pré-agendamento</strong>. O profissional confirmará o horário com você pelo WhatsApp.</span>
                 </div>
+                )}
                 {pendingFee && (
                   <div style={cardRadiusStyle} className="border border-orange-500/40 bg-orange-500/10 p-3 text-xs text-[var(--theme-text)] space-y-2">
                     <p className="font-bold">Taxa de não comparecimento pendente: {brl(pendingFee.valor)}</p>
@@ -1180,7 +1320,7 @@ export default function PublicBookingExperience({
                     <button type="button" onClick={() => setFeeModalOpen(true)} className="font-semibold underline" style={{ color: theme.primaryColor }}>Ver como pagar</button>
                   </div>
                 )}
-                <form onSubmit={handleBookAppointment} className="space-y-4">
+                <form onSubmit={appLook ? (e) => { e.preventDefault(); setError(""); setReviewing(true); } : handleBookAppointment} className="space-y-4">
                   <div>
                     <label className="block text-xs font-semibold text-[var(--theme-muted-text)] uppercase tracking-wider mb-2">Telefone com WhatsApp *</label>
                     <div className="relative">
@@ -1210,16 +1350,16 @@ export default function PublicBookingExperience({
                     </div>
                   </div>
                   <div className="flex gap-3 pt-4">
-                    <button type="button" onClick={handlePrevStep} disabled={submitting} className={`flex-1 py-3.5 bg-[var(--theme-surface)] hover:opacity-90 text-[var(--theme-text)] border border-[rgba(128,128,128,0.2)] font-semibold text-sm transition-all active:scale-[0.98] ${btnRadiusClass}`}>
+                    {!appLook && <button type="button" onClick={handlePrevStep} disabled={submitting} className={`flex-1 py-3.5 bg-[var(--theme-surface)] hover:opacity-90 text-[var(--theme-text)] border border-[rgba(128,128,128,0.2)] font-semibold text-sm transition-all active:scale-[0.98] ${btnRadiusClass}`}>
                       Voltar
-                    </button>
+                    </button>}
                     <button
                       type="submit"
                       disabled={submitting || !!pendingFee}
                       style={submitting ? {} : { backgroundColor: theme.primaryColor, color: getBestTextColor(theme.primaryColor), fontFamily: "var(--theme-body-font)" }}
                       className={`flex-[2] py-3.5 px-4 font-semibold text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${btnRadiusClass} ${submitting ? "bg-[rgba(128,128,128,0.16)] text-[var(--theme-muted-text)] cursor-not-allowed shadow-none" : "hover:brightness-110 shadow-lg"}`}
                     >
-                      {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <><Smartphone className="h-4 w-4" /><span>{previewMode ? "Confirmar (prévia)" : "Enviar pedido de agendamento"}</span></>}
+                      {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : appLook ? <><span>Revisar agendamento</span><ChevronRight className="h-4 w-4" /></> : <><Smartphone className="h-4 w-4" /><span>{previewMode ? "Confirmar (prévia)" : "Enviar pedido de agendamento"}</span></>}
                     </button>
                   </div>
                 </form>
@@ -1397,5 +1537,14 @@ export default function PublicBookingExperience({
         />
       )}
     </PublicThemeProvider>
+  );
+}
+
+// Título grande das etapas (visual "app"): primeira palavra na cor da marca
+function AppTitle({ color, strong, rest }: { color: string; strong: string; rest: string }) {
+  return (
+    <h2 className="text-2xl font-extrabold leading-tight text-[var(--theme-text)] mb-1.5" style={{ fontFamily: "var(--theme-heading-font)" }}>
+      <span style={{ color }}>{strong}</span> {rest}
+    </h2>
   );
 }

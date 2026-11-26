@@ -7,14 +7,17 @@
 // Chave: uid da conta dona (professionals/{uid}); membros de equipe usam o uid do dono.
 
 export type AccountFeature =
-  | "servicosAdicionais"; // serviços adicionais com janela na página pública (feito para a Natália, 25/11/2026)
+  | "servicosAdicionais" // serviços adicionais com janela na página pública (feito para a Natália, 25/11/2026)
+  | "visualApp"; // página pública com cara de app: etapas numeradas, títulos grandes, tela de confirmação (Michele, 26/11/2026)
 
 export const ACCOUNTS = {
   natalia: "BwnqYAIn5PPqmWAG7DIVcLTQGC63", // Natália Coelho Unhas (/p/natalia-coelho-unhas)
+  michele: "TnZSdmKN76dhUZ7Ng0To4R2CtXa2", // Michele Moraes Sobrancelhas (/p/michele-moraes-sobrancelhas)
 } as const;
 
 const ENABLED: Record<AccountFeature, string[]> = {
   servicosAdicionais: [ACCOUNTS.natalia],
+  visualApp: [ACCOUNTS.michele],
 };
 
 export const hasFeature = (ownerId: string | null | undefined, feature: AccountFeature): boolean =>
