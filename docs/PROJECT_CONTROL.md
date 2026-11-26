@@ -445,4 +445,4 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **TypeScript**: sem erros. **Testes**: todos os `test:*` aprovados; `test:account-features` 6/6. **Build**: Aprovado. **Lint**: igual à `main`. **Governança**: OK.
 * **Demonstração local** (celular 375px): fluxo completo serviço → horário → dados → confirmação → pedido registrado; seta de voltar mantém os dados digitados; com o uid da Natália a página continua no visual antigo.
 * **Desbloqueado**: o usuário informou o link `/p/michele-moraes-sobrancelhas`; uid lido em `/api/p/{slug}` e gravado em `ACCOUNTS.michele`. `test:account-features` 6/6.
-
+* **Deploy (2026-11-26)**: merge `0185a5c` em `main` com autorização do usuário ("Pode publicar"); build aprovado antes do merge; Vercel success. Pós-deploy (celular 375px): `/p/michele-moraes-sobrancelhas` mostra etapas numeradas, "Escolha seu serviço" e foto de capa (arte do serviço Brow Lamination); `/p/natalia-coelho-unhas` segue no visual antigo. **Status**: Implementado e Testado; falta homologar o agendamento real até a tela de confirmação.
