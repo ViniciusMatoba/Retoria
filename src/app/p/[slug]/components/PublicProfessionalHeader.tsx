@@ -161,7 +161,8 @@ export default function PublicProfessionalHeader({
         {/* Logo / Avatar */}
         {theme.showProfileImage && (
           <div
-            className={`rounded-2xl border border-[rgba(255,255,255,0.08)] bg-slate-950/60 flex items-center justify-center overflow-hidden mb-4 shadow-md ${{
+            style={{ boxShadow: `0 10px 28px -12px ${corBrand}66, 0 0 0 1px ${corBrand}2e` }}
+            className={`mx-auto rounded-2xl flex items-center justify-center overflow-hidden mb-4 ${profile.fotoLogoUrl ? "bg-white" : "bg-slate-950/60"} ${{
               sm: "h-14 w-14",
               md: "h-20 w-20",
               lg: "h-28 w-28",

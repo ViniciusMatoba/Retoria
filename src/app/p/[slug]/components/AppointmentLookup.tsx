@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { CalendarClock, CalendarPlus, CalendarSearch, CalendarX2, Clock, Loader2, X } from "lucide-react";
+import { CalendarClock, CalendarPlus, CalendarSearch, CalendarX2, ChevronRight, Clock, Loader2, X } from "lucide-react";
+import { hexToRgba } from "@/lib/slotDayStripes";
 import { maskPhone } from "@/lib/whatsapp";
 import { CUSTOMER_CHANGE_MIN_HOURS, type PublicAppointment } from "@/lib/customerAppointments";
 
@@ -193,14 +194,32 @@ export default function AppointmentLookup({ slug, primaryColor, primaryTextColor
 
   return (
     <>
+      {/* Cartão de destaque: é por aqui que a cliente consulta, remarca ou cancela */}
       <button
         type="button"
         onClick={() => setOpen(true)}
-        style={{ backgroundColor: "var(--theme-surface)", color: "var(--theme-text)" }}
-        className={`w-full py-3 px-4 border border-[rgba(128,128,128,0.3)] text-sm font-semibold flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition-all ${btnRadiusClass}`}
+        style={{
+          borderRadius: `${cardRadius}px`,
+          borderColor: hexToRgba(primaryColor, 0.45) ?? "rgba(128,128,128,0.4)",
+          backgroundColor: "var(--theme-surface)",
+          backgroundImage: `linear-gradient(135deg, ${hexToRgba(primaryColor, 0.12) ?? "transparent"}, ${hexToRgba(primaryColor, 0.03) ?? "transparent"})`,
+          boxShadow: `0 8px 24px -14px ${hexToRgba(primaryColor, 0.6) ?? "rgba(0,0,0,0.3)"}`,
+        }}
+        className="w-full flex items-center gap-3 border-[1.5px] p-3.5 text-left active:scale-[0.98] hover:brightness-[1.03] transition-all"
       >
-        <CalendarSearch className="h-4 w-4" style={{ color: primaryColor }} />
-        Consultar meus agendamentos
+        <span
+          className="h-11 w-11 shrink-0 rounded-xl flex items-center justify-center shadow-sm"
+          style={{ backgroundColor: primaryColor, color: primaryTextColor }}
+        >
+          <CalendarSearch className="h-5 w-5" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] font-bold text-[var(--theme-text)]" style={{ fontFamily: "var(--theme-heading-font)" }}>
+            Meus agendamentos
+          </span>
+          <span className="block text-xs text-[var(--theme-muted-text)]">Consultar, remarcar ou cancelar</span>
+        </span>
+        <ChevronRight className="h-5 w-5 shrink-0" style={{ color: primaryColor }} />
       </button>
 
       {open && (
