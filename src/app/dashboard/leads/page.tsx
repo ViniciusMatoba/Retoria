@@ -67,6 +67,10 @@ const statusOptions = [
 // activeProfId = null → "Todos" (agrega de todos)
 type ProfFilter = string | null;
 
+// Agendamentos com taxa de não comparecimento pendente (para nunca sumirem da lista)
+const pendingFeeQuery = (pid: string) =>
+  query(collection(db, "professionals", pid, "leads"), where("taxaNaoComparecimento.status", "==", "pendente"));
+
 export default function DashboardHome() {
   const { user, profile } = useAuth();
 
@@ -180,9 +184,12 @@ export default function DashboardHome() {
 
       const unsubscribes: (() => void)[] = [];
       const leadsMap = new Map<string, Lead>();
+      // Agendamentos com taxa pendente entram sempre, mesmo fora dos mais recentes (senão a taxa some do painel)
+      const pendingMap = new Map<string, Lead>();
 
       const merge = () => {
-        const merged = Array.from(leadsMap.values()).sort((a, b) => {
+        const union = new Map<string, Lead>([...pendingMap, ...leadsMap]);
+        const merged = Array.from(union.values()).sort((a, b) => {
           const ta = a.createdAt?.seconds ?? 0;
           const tb = b.createdAt?.seconds ?? 0;
           return tb - ta;
@@ -208,6 +215,12 @@ export default function DashboardHome() {
           merge();
         }, () => { setLoading(false); });
         unsubscribes.push(unsub);
+        const unsubPending = onSnapshot(pendingFeeQuery(pid), (snap) => {
+          [...pendingMap.keys()].filter((k) => k.startsWith(`${pid}:`)).forEach((k) => pendingMap.delete(k));
+          snap.docs.forEach((d) => pendingMap.set(`${pid}:${d.id}`, { id: d.id, _profNome: getProfNome(pid), ...d.data() } as Lead));
+          merge();
+        }, () => {});
+        unsubscribes.push(unsubPending);
       }
 
       return () => unsubscribes.forEach((u) => u());
@@ -215,11 +228,24 @@ export default function DashboardHome() {
       // Único profissional
       const pid = activeProfId ?? user.uid;
       const q = query(collection(db, "professionals", pid, "leads"), orderBy("createdAt", "desc"), ...(dateFilterActive ? [] : [limit(leadsLimit)]));
+      // Agendamentos com taxa pendente entram sempre, mesmo fora dos mais recentes (senão a taxa some do painel)
+      let recent: Lead[] = [];
+      let pending: Lead[] = [];
+      const publish = () => {
+        const union = new Map<string, Lead>();
+        [...pending, ...recent].forEach((l) => union.set(l.id, l));
+        setLeads([...union.values()].sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0)));
+      };
       const unsub = onSnapshot(q, (snap) => {
-        setLeads(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Lead)));
+        recent = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Lead));
+        publish();
         setLoading(false);
       }, () => { setLoading(false); });
-      return () => unsub();
+      const unsubPending = onSnapshot(pendingFeeQuery(pid), (snap) => {
+        pending = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Lead));
+        publish();
+      }, () => {});
+      return () => { unsub(); unsubPending(); };
     }
   }, [user, activeProfId, initialized, teamMembers, leadsLimit, dateFilterActive]);
 
