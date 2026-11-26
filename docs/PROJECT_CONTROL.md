@@ -455,3 +455,12 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **TypeScript**: sem erros. **Build**: Aprovado. **Lint**: igual à `main`.
 
 * **Deploy (2026-11-26)**: merge `1dc9c0f` em `main` com autorização do usuário ("Pode publicar"); Vercel success. Pós-deploy (celular 375px): `/p/michele-moraes-sobrancelhas` com capa em degradê, sem foto, e etapas numeradas mantidas.
+
+## Verificação 2026-11-26 (3)
+
+* **Branch**: `fix/taxa-pendente-no-painel` (a partir de `main` `33b6cff`).
+* **Relato**: cliente com taxa pendente (confirmada pela página pública: `/api/customer-lookup` devolve `taxaPendente` R$ 30) não aparecia em Leads, sem como dar baixa ou dispensar.
+* **Causa**: Leads carrega só os 50 agendamentos criados mais recentemente (`orderBy createdAt` + `limit`); um agendamento antigo com taxa pendente ficava fora da lista.
+* **Correção** (vale para as duas contas, ADR 5): Leads também escuta `where("taxaNaoComparecimento.status", "==", "pendente")` e junta com a lista (conta única e "todos" com equipe). Nenhum dado alterado.
+* **TypeScript**: sem erros. **Testes**: todos os `test:*` aprovados. **Build**: Aprovado. **Lint**: igual à `main`. **Governança**: OK. **Pendente**: confirmar no painel real (não há acesso de leitura autenticada aqui).
+
