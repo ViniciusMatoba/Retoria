@@ -12,7 +12,7 @@ export type AccountFeature =
 
 export const ACCOUNTS = {
   natalia: "BwnqYAIn5PPqmWAG7DIVcLTQGC63", // Natália Coelho Unhas (/p/natalia-coelho-unhas)
-  michele: "MICHELE_UID_PENDENTE", // Michele (conta principal) — preencher com o uid real antes de publicar
+  michele: "TnZSdmKN76dhUZ7Ng0To4R2CtXa2", // Michele Moraes Sobrancelhas (/p/michele-moraes-sobrancelhas)
 } as const;
 
 const ENABLED: Record<AccountFeature, string[]> = {

@@ -444,5 +444,5 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **Alterações**: chave `visualApp` em `src/lib/accountFeatures.ts`; na página pública, com a chave ligada: etapas numeradas com nome e ✓, títulos grandes com a primeira palavra na cor da marca, cartão com cantos de 28px e moldura na cor da marca, horários em pílulas, seta de voltar no topo (sem os botões "Voltar" de baixo), tela "Confirme seu agendamento" antes de enviar e foto de trabalho na capa (primeiro serviço com foto). Sem a chave, nada muda.
 * **TypeScript**: sem erros. **Testes**: todos os `test:*` aprovados; `test:account-features` 6/6. **Build**: Aprovado. **Lint**: igual à `main`. **Governança**: OK.
 * **Demonstração local** (celular 375px): fluxo completo serviço → horário → dados → confirmação → pedido registrado; seta de voltar mantém os dados digitados; com o uid da Natália a página continua no visual antigo.
-* **BLOQUEADO para publicar**: o uid da Michele não está no código (`ACCOUNTS.michele` = `MICHELE_UID_PENDENTE`). Causa: o uid só é obtido pelo link público dela. Ação: o usuário informa o link da página da Michele; o uid é lido em `/api/p/{slug}` e gravado. Responsável: usuário.
+* **Desbloqueado**: o usuário informou o link `/p/michele-moraes-sobrancelhas`; uid lido em `/api/p/{slug}` e gravado em `ACCOUNTS.michele`. `test:account-features` 6/6.
 
