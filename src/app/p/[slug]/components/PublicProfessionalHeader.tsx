@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useState } from "react";
-import { Phone, MessageCircle, MapPin, ChevronRight } from "lucide-react";
+import { Phone, MessageCircle, MapPin, ChevronDown, Map as MapIcon, Navigation } from "lucide-react";
+import { hexToRgba } from "@/lib/slotDayStripes";
 import {
   PublicAddress,
   ServiceLocationType,
   SERVICE_LOCATION_LABELS,
-  formatPhoneFriendly,
   buildTelUrl,
   buildWhatsAppUrl,
   formatPublicAddress,
@@ -77,6 +77,7 @@ export default function PublicProfessionalHeader({
   isPreview = false,
 }: PublicProfessionalHeaderProps) {
   const [showDirections, setShowDirections] = useState(false);
+  const [mapOpen, setMapOpen] = useState(false);
 
   const corBrand = theme.primaryColor;
   const initials = profile.nomeNegocio
@@ -108,12 +109,6 @@ export default function PublicProfessionalHeader({
   }
 
   const cardRadiusStyle = { borderRadius: `${theme.cardRadius}px` };
-
-  let btnRadiusClass = "";
-  if (theme.buttonStyle === "square")   btnRadiusClass = "rounded-none";
-  else if (theme.buttonStyle === "soft") btnRadiusClass = "rounded-lg";
-  else if (theme.buttonStyle === "rounded") btnRadiusClass = "rounded-2xl";
-  else if (theme.buttonStyle === "pill") btnRadiusClass = "rounded-full";
 
   const locationLabel = profile.serviceLocationType
     ? SERVICE_LOCATION_LABELS[profile.serviceLocationType]
@@ -149,170 +144,189 @@ export default function PublicProfessionalHeader({
     setShowDirections(true);
   };
 
+  // Tamanho do logo redondo (px) e quanto ele "sobe" sobre a capa
+  const logoPx = { sm: 64, md: 88, lg: 112, xl: 132 }[theme.profileImageSize ?? "md"] ?? 88;
+  const brandSoft = (a: number) => hexToRgba(corBrand, a) ?? `rgba(128,128,128,${a})`;
+
+  // Ações rápidas em botões redondos lado a lado
+  type QuickAction = { key: string; label: string; icon: React.ReactNode; href?: string; external?: boolean; onClick?: () => void; filled?: boolean; ariaLabel: string };
+  const actions: QuickAction[] = [];
+  if (showWhatsApp && profile.telefoneWhatsapp) {
+    actions.push({ key: "wa", label: "WhatsApp", icon: <MessageCircle className="h-5 w-5" aria-hidden="true" />, href: buildWhatsAppUrl(profile.telefoneWhatsapp), external: true, filled: true, ariaLabel: `WhatsApp de ${profile.nomeNegocio}` });
+  }
+  if (showInstagram && profile.instagram) {
+    actions.push({ key: "ig", label: "Instagram", icon: <Instagram className="h-5 w-5" aria-hidden="true" />, href: `https://instagram.com/${profile.instagram}`, external: true, ariaLabel: `Instagram de ${profile.nomeNegocio}` });
+  }
+  if (showPhone && profile.publicPhone) {
+    actions.push({ key: "tel", label: "Ligar", icon: <Phone className="h-5 w-5" aria-hidden="true" />, href: buildTelUrl(profile.publicPhone), ariaLabel: `Ligar para ${profile.nomeNegocio}` });
+  }
+  if (showAddress && canShowDirections && profile.serviceLocationType !== "mobile") {
+    actions.push({ key: "dir", label: "Como chegar", icon: <Navigation className="h-5 w-5" aria-hidden="true" />, onClick: handleDirectionsClick, ariaLabel: "Como chegar" });
+  }
+
   return (
     <>
       <div
         style={cardRadiusStyle}
-        className={`p-6 text-center flex flex-col items-center shadow-lg relative overflow-hidden ${cardClass}`}
+        className={`text-center flex flex-col items-center shadow-lg relative overflow-hidden ${cardClass}`}
       >
-        {/* Top brand accent line */}
-        <div className="absolute top-0 inset-x-0 h-1.5" style={{ backgroundColor: corBrand }} />
-
-        {/* Logo / Avatar */}
-        {theme.showProfileImage && (
-          <div
-            style={{ boxShadow: `0 10px 28px -12px ${corBrand}66, 0 0 0 1px ${corBrand}2e` }}
-            className={`mx-auto rounded-2xl flex items-center justify-center overflow-hidden mb-4 ${profile.fotoLogoUrl ? "bg-white" : "bg-slate-950/60"} ${{
-              sm: "h-14 w-14",
-              md: "h-20 w-20",
-              lg: "h-28 w-28",
-              xl: "h-36 w-36",
-            }[theme.profileImageSize ?? "md"]}`}
-          >
-            {profile.fotoLogoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={profile.fotoLogoUrl} alt={`Logo de ${profile.nomeNegocio}`} className="h-full w-full object-cover object-center" />
-            ) : (
-              <span className={`font-black ${{ sm: "text-xl", md: "text-2xl", lg: "text-3xl", xl: "text-4xl" }[theme.profileImageSize ?? "md"]}`} style={{ color: corBrand }}>{initials}</span>
-            )}
-          </div>
-        )}
-
-        {/* Business name */}
-        <h1
-          className="text-2xl font-extrabold text-[var(--theme-text)]"
-          style={{ fontFamily: "var(--theme-heading-font)" }}
+        {/* Capa: degradê na cor da página com brilhos suaves (só CSS) */}
+        <div
+          aria-hidden="true"
+          className="relative w-full h-28 sm:h-32 overflow-hidden"
+          style={{ background: `linear-gradient(135deg, ${corBrand} 0%, ${brandSoft(0.82)} 45%, ${brandSoft(0.55)} 100%)` }}
         >
-          {profile.nomeNegocio}
-        </h1>
+          <span className="absolute -top-10 -left-8 h-36 w-36 rounded-full bg-white/15 blur-2xl" />
+          <span className="absolute -bottom-12 right-6 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
+          <span className="absolute top-4 right-1/4 h-2 w-2 rounded-full bg-white/40" />
+          <span className="absolute top-10 right-[18%] h-1 w-1 rounded-full bg-white/50" />
+          <span className="absolute bottom-6 left-[22%] h-1.5 w-1.5 rounded-full bg-white/30" />
+        </div>
 
-        {/* Responsible name */}
-        {showResponsible && (
-          <p className="text-xs text-[var(--theme-muted-text)] font-semibold mt-0.5">
-            Responsável: {profile.nome}
-          </p>
-        )}
+        <div className="w-full px-6 pb-6 flex flex-col items-center">
+          {/* Logo redondo sobreposto à capa */}
+          {theme.showProfileImage ? (
+            <div
+              style={{
+                width: logoPx,
+                height: logoPx,
+                marginTop: -logoPx / 2,
+                boxShadow: `0 12px 30px -12px ${brandSoft(0.55)}`,
+                outline: "4px solid var(--theme-surface)",
+              }}
+              className={`relative mx-auto rounded-full flex items-center justify-center overflow-hidden mb-3 ${profile.fotoLogoUrl ? "bg-white" : ""}`}
+            >
+              {profile.fotoLogoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={profile.fotoLogoUrl} alt={`Logo de ${profile.nomeNegocio}`} className="h-full w-full object-contain object-center p-[7%]" />
+              ) : (
+                <span
+                  className={`h-full w-full flex items-center justify-center font-black ${{ sm: "text-xl", md: "text-2xl", lg: "text-3xl", xl: "text-4xl" }[theme.profileImageSize ?? "md"]}`}
+                  style={{ color: getBestTextColor(corBrand), backgroundColor: corBrand }}
+                >
+                  {initials}
+                </span>
+              )}
+            </div>
+          ) : (
+            <div className="h-5" />
+          )}
 
-        {/* Location type badge */}
-        {showLocationBadge && locationLabel && (
-          <span
-            className="mt-2 px-3 py-0.5 rounded-full text-[11px] font-bold border"
-            style={{
-              borderColor: `${corBrand}40`,
-              color: corBrand,
-              backgroundColor: `${corBrand}12`,
-            }}
+          {/* Business name */}
+          <h1
+            className="text-2xl font-extrabold text-[var(--theme-text)] leading-tight"
+            style={{ fontFamily: "var(--theme-heading-font)" }}
           >
-            {locationLabel}
-          </span>
-        )}
+            {profile.nomeNegocio}
+          </h1>
 
-        {/* Welcome message */}
-        {showMessage && (
-          <p className="text-sm text-[var(--theme-muted-text)] mt-3 max-w-sm leading-relaxed">
-            {welcomeMessage}
-          </p>
-        )}
+          {/* Responsible name */}
+          {showResponsible && (
+            <p className="text-xs text-[var(--theme-muted-text)] font-semibold mt-1">
+              Responsável: {profile.nome}
+            </p>
+          )}
 
-        {/* Contact row */}
-        {(showPhone || showWhatsApp || showInstagram) && (
-          <div className="mt-4 pt-3 border-t border-[rgba(255,255,255,0.07)] w-full flex flex-wrap items-center justify-center gap-2">
-            {showPhone && profile.publicPhone && (
-              <a
-                href={isPreview ? undefined : buildTelUrl(profile.publicPhone)}
-                onClick={isPreview ? (e) => e.preventDefault() : undefined}
-                aria-label={`Ligar para ${profile.nomeNegocio}`}
-                className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)] transition-opacity hover:opacity-80 ${btnRadiusClass} border border-[rgba(255,255,255,0.1)] bg-[var(--theme-surface)]`}
-                style={{ color: "var(--theme-text)" }}
-              >
-                <Phone className="h-3.5 w-3.5 shrink-0" style={{ color: corBrand }} aria-hidden="true" />
-                <span>{formatPhoneFriendly(profile.publicPhone)}</span>
-              </a>
-            )}
+          {/* Location type badge */}
+          {showLocationBadge && locationLabel && (
+            <span
+              className="mt-2 px-3 py-0.5 rounded-full text-[11px] font-bold border"
+              style={{ borderColor: brandSoft(0.25), color: corBrand, backgroundColor: brandSoft(0.07) }}
+            >
+              {locationLabel}
+            </span>
+          )}
 
-            {showWhatsApp && profile.telefoneWhatsapp && (
-              <a
-                href={isPreview ? undefined : buildWhatsAppUrl(profile.telefoneWhatsapp)}
-                target={isPreview ? undefined : "_blank"}
-                rel="noopener noreferrer"
-                onClick={isPreview ? (e) => e.preventDefault() : undefined}
-                aria-label={`WhatsApp de ${profile.nomeNegocio}`}
-                className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)] transition-opacity active:scale-[0.97] ${btnRadiusClass}`}
-                style={{
-                  backgroundColor: corBrand,
-                  color: getBestTextColor(corBrand),
-                }}
-              >
-                <MessageCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                <span>WhatsApp</span>
-              </a>
-            )}
+          {/* Welcome message */}
+          {showMessage && (
+            <p className="text-sm text-[var(--theme-muted-text)] mt-3 max-w-sm leading-relaxed">
+              {welcomeMessage}
+            </p>
+          )}
 
-            {showInstagram && profile.instagram && (
-              <a
-                href={isPreview ? undefined : `https://instagram.com/${profile.instagram}`}
-                target={isPreview ? undefined : "_blank"}
-                rel="noopener noreferrer"
-                onClick={isPreview ? (e) => e.preventDefault() : undefined}
-                aria-label={`Instagram de ${profile.nomeNegocio}`}
-                className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)] transition-opacity hover:opacity-80 ${btnRadiusClass} border border-[rgba(255,255,255,0.1)] bg-[var(--theme-surface)]`}
-                style={{ color: "var(--theme-text)" }}
-              >
-                <Instagram className="h-3.5 w-3.5 shrink-0" style={{ color: corBrand }} aria-hidden="true" />
-                <span>@{profile.instagram}</span>
-              </a>
-            )}
-          </div>
-        )}
-
-        {/* Address */}
-        {showAddress && profile.publicAddress && profile.serviceLocationType !== "online" && (
-          <div className="mt-3 pt-3 border-t border-[rgba(255,255,255,0.07)] w-full">
-            {profile.serviceLocationType === "mobile" ? (
-              <p className="text-xs text-[var(--theme-muted-text)] text-center">
-                Atendimento em domicílio — consulte a área de atendimento.
-              </p>
-            ) : (
-              <div className="flex flex-col items-center gap-2 w-full">
-                <div className="flex items-start gap-1.5 text-xs text-[var(--theme-muted-text)] max-w-xs text-center leading-relaxed">
-                  <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5" style={{ color: corBrand }} aria-hidden="true" />
-                  <span>{addressText}</span>
-                </div>
-
-                {/* Mini mapa incorporado */}
-                {mapsEmbedUrl && showMap && !isPreview && (
-                  <div className="w-full max-w-xs rounded-xl overflow-hidden border border-[rgba(255,255,255,0.08)] shadow-md mt-1" style={{ height: 140 }}>
-                    <iframe
-                      title="Localização"
-                      src={mapsEmbedUrl}
-                      width="100%"
-                      height="140"
-                      style={{ border: 0 }}
-                      loading="lazy"
-                      referrerPolicy="no-referrer-when-downgrade"
-                    />
-                  </div>
-                )}
-
-                {canShowDirections && (
-                  <button
-                    type="button"
-                    onClick={handleDirectionsClick}
-                    className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)] transition-opacity hover:opacity-80 active:scale-[0.97] border ${btnRadiusClass}`}
-                    style={{
-                      borderColor: `${corBrand}40`,
-                      color: corBrand,
-                      backgroundColor: `${corBrand}10`,
-                    }}
+          {/* Ações rápidas: botões redondos lado a lado */}
+          {actions.length > 0 && (
+            <div className="mt-5 flex w-full items-start justify-center gap-5 sm:gap-7">
+              {actions.map((a) => {
+                const circle = (
+                  <span
+                    className="h-12 w-12 rounded-full flex items-center justify-center shadow-sm transition-transform group-active:scale-90"
+                    style={a.filled
+                      ? { backgroundColor: corBrand, color: getBestTextColor(corBrand), boxShadow: `0 8px 18px -8px ${brandSoft(0.7)}` }
+                      : { backgroundColor: brandSoft(0.1), color: corBrand, border: `1px solid ${brandSoft(0.22)}` }}
                   >
-                    <ChevronRight className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                    <span>Como chegar</span>
+                    {a.icon}
+                  </span>
+                );
+                const label = <span className="text-[11px] font-semibold text-[var(--theme-text)]">{a.label}</span>;
+                const cls = "group flex w-16 flex-col items-center gap-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)] rounded-xl";
+                return a.href ? (
+                  <a
+                    key={a.key}
+                    href={isPreview ? undefined : a.href}
+                    target={a.external && !isPreview ? "_blank" : undefined}
+                    rel={a.external ? "noopener noreferrer" : undefined}
+                    onClick={isPreview ? (e) => e.preventDefault() : undefined}
+                    aria-label={a.ariaLabel}
+                    className={cls}
+                  >
+                    {circle}{label}
+                  </a>
+                ) : (
+                  <button key={a.key} type="button" onClick={a.onClick} aria-label={a.ariaLabel} className={cls}>
+                    {circle}{label}
                   </button>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+                );
+              })}
+            </div>
+          )}
+
+          {/* Endereço com mapa recolhido (o mapa só carrega ao tocar) */}
+          {showAddress && profile.publicAddress && profile.serviceLocationType !== "online" && (
+            <div className="mt-5 w-full rounded-2xl px-4 py-3" style={{ backgroundColor: brandSoft(0.05), border: `1px solid ${brandSoft(0.12)}` }}>
+              {profile.serviceLocationType === "mobile" ? (
+                <p className="text-xs text-[var(--theme-muted-text)] text-center">
+                  Atendimento em domicílio — consulte a área de atendimento.
+                </p>
+              ) : (
+                <>
+                  <div className="flex items-start justify-center gap-1.5 text-xs text-[var(--theme-muted-text)] text-center leading-relaxed">
+                    <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5" style={{ color: corBrand }} aria-hidden="true" />
+                    <span>{addressText}</span>
+                  </div>
+                  {mapsEmbedUrl && showMap && !isPreview && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setMapOpen((o) => !o)}
+                        aria-expanded={mapOpen}
+                        className="mt-2 inline-flex items-center gap-1 text-xs font-semibold"
+                        style={{ color: corBrand }}
+                      >
+                        <MapIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                        {mapOpen ? "Esconder mapa" : "Ver no mapa"}
+                        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${mapOpen ? "rotate-180" : ""}`} aria-hidden="true" />
+                      </button>
+                      {mapOpen && (
+                        <div className="rt-rise mt-2 w-full rounded-xl overflow-hidden border border-[rgba(128,128,128,0.2)]" style={{ height: 170 }}>
+                          <iframe
+                            title="Localização"
+                            src={mapsEmbedUrl}
+                            width="100%"
+                            height="170"
+                            style={{ border: 0 }}
+                            loading="lazy"
+                            referrerPolicy="no-referrer-when-downgrade"
+                          />
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Directions modal */}

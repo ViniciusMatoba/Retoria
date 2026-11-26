@@ -375,6 +375,18 @@ export default function PublicBookingExperience({
   const selectedServiceIdsKey = selectedServices.map(s => s.id).join(",");
   const currentProfId = activeProfessionalId ?? professional.id;
 
+  // Selo "Mais pedido" (só o id do serviço; nenhum dado de cliente)
+  const [popularId, setPopularId] = useState<string | null>(null);
+  useEffect(() => {
+    if (previewMode || !professional.slugPublico || !currentProfId) return;
+    let cancelled = false;
+    fetch(`/api/p/${encodeURIComponent(professional.slugPublico)}/popular?pid=${encodeURIComponent(currentProfId)}`)
+      .then((r) => (r.ok ? r.json() : { serviceId: null }))
+      .then((d) => { if (!cancelled) setPopularId(typeof d.serviceId === "string" ? d.serviceId : null); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [previewMode, professional.slugPublico, currentProfId]);
+
   useEffect(() => {
     if (previewMode || !slotSuggestionOn || step !== 2 || !selectedServiceIdsKey) return;
     let cancelled = false;
@@ -617,8 +629,11 @@ export default function PublicBookingExperience({
 
         {theme.backgroundType === "solid" && (
           <div
-            className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[300px] rounded-full blur-[120px] pointer-events-none opacity-15"
-            style={{ backgroundColor: corBrand }}
+            aria-hidden="true"
+            className="absolute inset-x-0 top-0 h-[520px] pointer-events-none"
+            style={{
+              background: `radial-gradient(120% 70% at 50% 0%, ${hexToRgba(corBrand, 0.16) ?? "transparent"} 0%, ${hexToRgba(corBrand, 0.05) ?? "transparent"} 45%, transparent 75%)`,
+            }}
           />
         )}
 
@@ -806,6 +821,7 @@ export default function PublicBookingExperience({
                           cardStyle={theme.cardStyle}
                           cardRadius={theme.cardRadius}
                           primaryColor={theme.primaryColor}
+                          popular={service.id === popularId}
                         />
                         {offered.length > 0 && (
                           <button
@@ -866,7 +882,7 @@ export default function PublicBookingExperience({
                     onClick={handleNextStep}
                     disabled={selectedServices.length === 0}
                     style={selectedServices.length > 0 ? { backgroundColor: theme.primaryColor, color: getBestTextColor(theme.primaryColor), fontFamily: "var(--theme-body-font)" } : {}}
-                    className={`${hasTeam ? "" : "w-full"} flex-1 py-3.5 px-4 font-semibold text-sm transition-all shadow-lg flex items-center justify-center gap-2 active:scale-[0.98] ${btnRadiusClass} ${selectedServices.length === 0 ? "bg-slate-800 text-slate-500 cursor-not-allowed shadow-none" : "hover:brightness-110"}`}
+                    className={`${hasTeam ? "" : "w-full"} flex-1 py-3.5 px-4 font-semibold text-sm transition-all shadow-lg flex items-center justify-center gap-2 active:scale-[0.98] ${btnRadiusClass} ${selectedServices.length === 0 ? "bg-[rgba(128,128,128,0.16)] text-[var(--theme-muted-text)] cursor-not-allowed shadow-none" : "hover:brightness-110"}`}
                   >
                     <span>Escolher Data & Horário</span>
                     <ChevronRight className="h-4 w-4" />
@@ -1102,7 +1118,7 @@ export default function PublicBookingExperience({
                     onClick={handleNextStep}
                     disabled={!selectedDate || !selectedSlot}
                     style={(selectedDate && selectedSlot) ? { backgroundColor: theme.primaryColor, color: getBestTextColor(theme.primaryColor), fontFamily: "var(--theme-body-font)" } : {}}
-                    className={`flex-[2] py-3.5 px-4 font-semibold text-sm transition-all shadow-lg flex items-center justify-center gap-2 active:scale-[0.98] ${btnRadiusClass} ${(!selectedDate || !selectedSlot) ? "bg-slate-800 text-slate-500 cursor-not-allowed shadow-none" : "hover:brightness-110"}`}
+                    className={`flex-[2] py-3.5 px-4 font-semibold text-sm transition-all shadow-lg flex items-center justify-center gap-2 active:scale-[0.98] ${btnRadiusClass} ${(!selectedDate || !selectedSlot) ? "bg-[rgba(128,128,128,0.16)] text-[var(--theme-muted-text)] cursor-not-allowed shadow-none" : "hover:brightness-110"}`}
                   >
                     <span>Preencher Seus Dados</span><ChevronRight className="h-4 w-4" />
                   </button>
@@ -1197,7 +1213,7 @@ export default function PublicBookingExperience({
                       type="submit"
                       disabled={submitting || !!pendingFee}
                       style={submitting ? {} : { backgroundColor: theme.primaryColor, color: getBestTextColor(theme.primaryColor), fontFamily: "var(--theme-body-font)" }}
-                      className={`flex-[2] py-3.5 px-4 font-semibold text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${btnRadiusClass} ${submitting ? "bg-slate-800 text-slate-500 cursor-not-allowed shadow-none" : "hover:brightness-110 shadow-lg"}`}
+                      className={`flex-[2] py-3.5 px-4 font-semibold text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${btnRadiusClass} ${submitting ? "bg-[rgba(128,128,128,0.16)] text-[var(--theme-muted-text)] cursor-not-allowed shadow-none" : "hover:brightness-110 shadow-lg"}`}
                     >
                       {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <><Smartphone className="h-4 w-4" /><span>{previewMode ? "Confirmar (prévia)" : "Enviar pedido de agendamento"}</span></>}
                     </button>
@@ -1265,6 +1281,13 @@ export default function PublicBookingExperience({
             )}
             </div>
           </div>
+
+          {/* Rodapé discreto */}
+          <footer className="pt-2 pb-4 text-center">
+            <p className="text-[11px] text-[var(--theme-muted-text)] opacity-70">
+              Desenvolvido por <span className="font-semibold">William Teixeira</span>
+            </p>
+          </footer>
         </div>
 
         {/* Aviso da taxa de não comparecimento */}
