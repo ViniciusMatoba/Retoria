@@ -257,7 +257,9 @@ export default function PublicBookingExperience({
   const mainList = addonsOn ? mainServices(services) : services;
   // Visual "app": novidade ligada só nas contas autorizadas (lib/accountFeatures)
   const appLook = hasFeature(professional.id, "visualApp");
-  const coverImageUrl = appLook && theme.showServiceImages ? (mainList.find(s => !!s.imagemUrl)?.imagemUrl ?? null) : null;
+  // Foto na capa: desligada por enquanto a pedido do usuário (26/11/2026); a capa volta ao degradê.
+  // O cabeçalho continua aceitando `coverImageUrl` para quando houver uma foto escolhida para a capa.
+  const coverImageUrl: string | null = null;
 
   const toggleService = (service: Service) => {
     const adding = !selectedServices.some(s => s.id === service.id);
