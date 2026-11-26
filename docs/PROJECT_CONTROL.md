@@ -427,4 +427,5 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **Testes**: `test:popular-service` 9/9 (novo) e demais aprovados. **Build**: Aprovado.
 * **Demonstração local** (celular 375px, tema parecido com o da Michele): capa, logo redondo, três botões de contato, mapa só carregado ao tocar, cartões com preço e duração, selo, rodapé conferidos.
 * **Não verificado**: fotos reais de serviço (só servidas em produção) e o selo com dados reais.
+* **Deploy**: merge em `main` (`705c1d6`), Vercel success. Pós-deploy: `/` e página pública 200; página publicada já tem mapa recolhido, selo e rodapé; rota `popular` responde (400 para id inválido, `null` para profissional que não é da página).
 
