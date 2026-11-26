@@ -435,4 +435,5 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **Pedido**: o que é feito para a Michele não pode ir para a Natália sem autorização, e vice-versa. Decisões do usuário: chave por conta; a Natália mantém tudo o que já foi publicado; serviços adicionais saem da Michele; correções de erro valem para as duas.
 * **Alterações**: `src/lib/accountFeatures.ts` (ADR 5); serviços adicionais (página pública e cadastro em Serviços) só com `hasFeature(..., "servicosAdicionais")`, ligado só para a Natália; regra registrada em `AGENTS.md` (seção 6).
 * **TypeScript**: sem erros. **Testes**: `test:account-features` 3/3 (novo), `test:service-addons` 24/24. **Build**: Aprovado. **Lint**: igual à `main`.
+* **Deploy (2026-11-26)**: merge `24e1691` em `main` com autorização do usuário ("Pode publicar"); push como ViniciusMatoba; Vercel "Deployment has completed". Pós-deploy: `/`, `/login` e `/p/natalia-coelho-unhas` respondem 200 e o código da chave por conta está no JS publicado. **Status**: Implementado e Testado; falta homologar (Michele sem adicionais, Natália com adicionais).
 
