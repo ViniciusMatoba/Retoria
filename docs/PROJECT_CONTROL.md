@@ -412,3 +412,19 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **Demonstração local** (celular 375px, tema parecido com o da Michele): cabeçalho e botão conferidos; centralização no navegador com logo deslocado: margens antes 85/7 px (esq./dir.), depois 66/64 px.
 * **Deploy**: merge em `main` (`d909ef4`), Vercel success. Pós-deploy: `/`, `/dashboard/profile` e página pública 200; página pública publicada já tem o botão "Meus agendamentos" novo e a mensagem nova. Logo da Michele só centraliza depois de reenviado no perfil.
 
+## Verificação 2026-11-25 (2)
+
+* **Branch**: `feat/pagina-publica-visual` (a partir de `main` `891d0e6`). Backup prévio: `Documentos/Retoria-backups/Retoria-2026-11-25-b.bundle` (verificado).
+* **Alterações** (página pública, escolhidas pelo usuário, sem biblioteca nova):
+  * Cabeçalho com capa em degradê na cor da página e logo redondo sobreposto.
+  * WhatsApp, Instagram, Ligar e Como chegar em botões redondos lado a lado.
+  * Mapa recolhido em "Ver no mapa": o mapa do Google só carrega ao tocar, o que deixa a página mais leve.
+  * Cartões de serviço: fotos mantidas, preço em destaque ao lado do nome, duração em etiqueta visível; sem foto, ícone na cor da página no lugar do quadro escuro "Procedimento".
+  * Selo "Mais pedido": serviço com mais agendamentos nos últimos 90 dias (mínimo 3, sem empate). Rota `/api/p/[slug]/popular` devolve só o id do serviço, em cache de 1 h.
+  * Fundo com brilho suave na cor da página e botões desativados em cinza claro.
+  * Rodapé "Desenvolvido por William Teixeira".
+* **TypeScript**: sem erros. **Lint**: arquivos novos sem problemas; alterados iguais à `main`.
+* **Testes**: `test:popular-service` 9/9 (novo) e demais aprovados. **Build**: Aprovado.
+* **Demonstração local** (celular 375px, tema parecido com o da Michele): capa, logo redondo, três botões de contato, mapa só carregado ao tocar, cartões com preço e duração, selo, rodapé conferidos.
+* **Não verificado**: fotos reais de serviço (só servidas em produção) e o selo com dados reais.
+
