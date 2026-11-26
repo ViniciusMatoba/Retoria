@@ -69,12 +69,15 @@ interface PublicProfessionalHeaderProps {
   profile: PublicProfileInfo;
   theme: ThemeConfig;
   isPreview?: boolean;
+  /** Foto de trabalho na capa (visual "app", ligado por conta). Sem foto: capa em degradê. */
+  coverImageUrl?: string | null;
 }
 
 export default function PublicProfessionalHeader({
   profile,
   theme,
   isPreview = false,
+  coverImageUrl = null,
 }: PublicProfessionalHeaderProps) {
   const [showDirections, setShowDirections] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
@@ -173,9 +176,16 @@ export default function PublicProfessionalHeader({
         {/* Capa: degradê na cor da página com brilhos suaves (só CSS) */}
         <div
           aria-hidden="true"
-          className="relative w-full h-28 sm:h-32 overflow-hidden"
+          className={`relative w-full overflow-hidden ${coverImageUrl ? "h-40 sm:h-44" : "h-28 sm:h-32"}`}
           style={{ background: `linear-gradient(135deg, ${corBrand} 0%, ${brandSoft(0.82)} 45%, ${brandSoft(0.55)} 100%)` }}
         >
+          {coverImageUrl && (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={coverImageUrl} alt="" loading="eager" decoding="async" className="absolute inset-0 h-full w-full object-cover object-center" />
+              <span className="absolute inset-0" style={{ background: `linear-gradient(180deg, ${brandSoft(0.05)} 0%, ${brandSoft(0.35)} 55%, ${brandSoft(0.85)} 100%)` }} />
+            </>
+          )}
           <span className="absolute -top-10 -left-8 h-36 w-36 rounded-full bg-white/15 blur-2xl" />
           <span className="absolute -bottom-12 right-6 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
           <span className="absolute top-4 right-1/4 h-2 w-2 rounded-full bg-white/40" />
