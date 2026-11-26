@@ -23,3 +23,12 @@ Este documento registra as principais decisões de design de software e escolhas
 * **Consequências**:
   * A funcionalidade sobe só com o deploy do app, sem passo manual de regras.
   * Cada leitura passa pelo servidor (sem tempo real nem cache local do Firestore); a validação fica em `src/lib/costs.ts`.
+
+## ADR 5: Novidades ligadas por conta (Michele × Natália)
+* **Contexto**: Michele e Natália usam o mesmo sistema e o mesmo site. Toda mudança publicada aparecia nas duas. Em 25/11/2026 o usuário determinou: nada feito para uma conta entra na outra sem a autorização dele, e vice-versa.
+* **Decisão**: Um sistema só, com chave por conta em `src/lib/accountFeatures.ts` (lista de contas por novidade, pelo uid do dono). Toda novidade de aparência ou de funcionamento nova nasce ligada só na conta que pediu. Correções de erro e de segurança (sem mudar aparência ou uso) valem para todas.
+* **Estado em 25/11/2026**: a Natália mantém tudo o que já tinha sido publicado (visual novo, animações, status e taxa com Pix). Os serviços adicionais (feitos para a Natália) ficam só nela.
+* **Consequências**:
+  * Ligar uma novidade em outra conta = acrescentar o uid na lista e publicar (só com autorização do usuário).
+  * A alternativa de duas cópias do sistema (dois projetos no Vercel) foi descartada: exige a conta do Vinicius e manter duas versões.
+

@@ -429,3 +429,10 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **Não verificado**: fotos reais de serviço (só servidas em produção) e o selo com dados reais.
 * **Deploy**: merge em `main` (`705c1d6`), Vercel success. Pós-deploy: `/` e página pública 200; página publicada já tem mapa recolhido, selo e rodapé; rota `popular` responde (400 para id inválido, `null` para profissional que não é da página).
 
+## Verificação 2026-11-25 (3)
+
+* **Branch**: `feat/chave-por-conta` (a partir de `main` `87b74c1`). Backup prévio: `Documentos/Retoria-backups/Retoria-2026-11-25-c.bundle` (verificado).
+* **Pedido**: o que é feito para a Michele não pode ir para a Natália sem autorização, e vice-versa. Decisões do usuário: chave por conta; a Natália mantém tudo o que já foi publicado; serviços adicionais saem da Michele; correções de erro valem para as duas.
+* **Alterações**: `src/lib/accountFeatures.ts` (ADR 5); serviços adicionais (página pública e cadastro em Serviços) só com `hasFeature(..., "servicosAdicionais")`, ligado só para a Natália; regra registrada em `AGENTS.md` (seção 6).
+* **TypeScript**: sem erros. **Testes**: `test:account-features` 3/3 (novo), `test:service-addons` 24/24. **Build**: Aprovado. **Lint**: igual à `main`.
+

@@ -14,6 +14,7 @@ import {
 import { useAppModal } from "@/components/ModalProvider";
 import { validateImageFile, buildVersionedImageUrl } from "../../../lib/themeUtils";
 import { ADDON_DURATION_LABEL, sanitizeAddonIds } from "@/lib/serviceAddons";
+import { hasFeature } from "@/lib/accountFeatures";
 
 interface Service {
   id: string;
@@ -739,7 +740,8 @@ export default function ServicesPage() {
                 <label htmlFor="ativo" className="text-sm font-semibold text-slate-350 cursor-pointer">Disponível para agendamento (Ativo)</label>
               </div>
 
-              {/* Adicionais */}
+              {/* Adicionais (novidade ligada só nas contas autorizadas: lib/accountFeatures) */}
+              {hasFeature(user?.uid, "servicosAdicionais") && (
               <div className="space-y-3 border-t border-slate-800/60 pt-4">
                 <div className="flex items-center justify-between gap-3 px-4 py-3 bg-slate-950/60 border border-slate-800/60 rounded-xl">
                   <div>
@@ -785,6 +787,7 @@ export default function ServicesPage() {
                   );
                 })()}
               </div>
+              )}
 
               {/* Imagem */}
               <div className="space-y-2 border-t border-slate-800/60 pt-4">

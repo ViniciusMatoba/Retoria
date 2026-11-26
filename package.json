@@ -24,6 +24,7 @@
     "test:lead-status": "npx tsx scripts/test-lead-status.ts",
     "test:logo-centering": "npx tsx scripts/test-logo-centering.ts",
     "test:popular-service": "npx tsx scripts/test-popular-service.ts",
+    "test:account-features": "npx tsx scripts/test-account-features.ts",
     "check:governance": "node scripts/check-project-governance.mjs"
   },
   "dependencies": {

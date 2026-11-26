@@ -72,3 +72,10 @@ Ao finalizar a tarefa, o agente deve obrigatoriamente:
 6. Atualizar os checklists e release gates correspondentes.
 7. Atualizar riscos em [docs/RISKS_AND_LIMITATIONS.md](file:///C:/Users/Usuario/Desktop/Retoria/docs/RISKS_AND_LIMITATIONS.md) ou decisões em [docs/ARCHITECTURE_DECISIONS.md](file:///C:/Users/Usuario/Desktop/Retoria/docs/docs/ARCHITECTURE_DECISIONS.md) se necessário.
 8. Apresentar o encerramento estruturado seguindo o template em [docs/TASK_CLOSEOUT_TEMPLATE.md](file:///C:/Users/Usuario/Desktop/Retoria/docs/TASK_CLOSEOUT_TEMPLATE.md).
+
+## 6. Separação por conta (Michele × Natália) — obrigatório
+Michele e Natália usam o mesmo sistema. **Nenhuma novidade de aparência ou de funcionamento feita para uma conta pode aparecer na outra sem autorização explícita do usuário.**
+* Toda novidade nova entra em `src/lib/accountFeatures.ts`, ligada só na conta que pediu (`hasFeature(uidDoDono, "nome")`). Pergunte ao usuário para qual conta é, se não estiver claro.
+* Correções de erro e de segurança que não mudam aparência nem forma de uso podem valer para todas.
+* Ligar uma novidade em outra conta só com o "pode ligar" do usuário. Ver ADR 5 em `docs/ARCHITECTURE_DECISIONS.md`.
+

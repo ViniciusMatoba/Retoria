@@ -21,6 +21,7 @@ import {
 import PublicThemeProvider from "./PublicThemeProvider";
 import PublicServiceCard from "./PublicServiceCard";
 import ServiceAddonsModal from "./ServiceAddonsModal";
+import { hasFeature } from "@/lib/accountFeatures";
 import { serviceAgendaMinutes, addonsFor, applyAddonChoice, hasMainService, isAddon, mainServices, removeMainService, selectedAddonsOf } from "@/lib/serviceAddons";
 import PublicProfessionalHeader from "./PublicProfessionalHeader";
 import AppointmentLookup, { type RebookRequest } from "./AppointmentLookup";
@@ -246,7 +247,10 @@ export default function PublicBookingExperience({
 
   // Janela de adicionais aberta para um serviço principal (ex.: Francesinha para "Mão tradicional")
   const [addonsFor_, setAddonsFor] = useState<Service | null>(null);
-  const mainList = mainServices(services);
+  // Serviços adicionais: novidade ligada só nas contas autorizadas (lib/accountFeatures)
+  const addonsOn = hasFeature(professional.id, "servicosAdicionais");
+  const offeredAddons = (s: Service) => (addonsOn ? addonsFor(s, services) : []);
+  const mainList = addonsOn ? mainServices(services) : services;
 
   const toggleService = (service: Service) => {
     const adding = !selectedServices.some(s => s.id === service.id);
@@ -254,7 +258,7 @@ export default function PublicBookingExperience({
       setSelectedServices(prev => removeMainService(prev, service.id, services));
     } else {
       setSelectedServices(prev => [...prev, service]);
-      if (addonsFor(service, services).length > 0) setAddonsFor(service);
+      if (offeredAddons(service).length > 0) setAddonsFor(service);
     }
     setError("");
     // A barra de resumo fixa no rodapé mostra o total e o botão de continuar; no modo prévia
@@ -809,7 +813,7 @@ export default function PublicBookingExperience({
                   <div className="space-y-3 pt-2">
                     {mainList.map((service, serviceIndex) => {
                       const isSel = selectedServices.some(s => s.id === service.id);
-                      const offered = isSel ? addonsFor(service, services) : [];
+                      const offered = isSel ? offeredAddons(service) : [];
                       const chosenAddons = offered.length > 0 ? selectedAddonsOf(service, selectedServices, services) : [];
                       return (
                       <div key={service.id} className="rt-rise" style={{ ["--i" as string]: serviceIndex }}>
