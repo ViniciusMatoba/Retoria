@@ -129,16 +129,23 @@ export function buildWazeDirectionsUrl(addr: PublicAddress | null | undefined): 
 // ─── Welcome message ──────────────────────────────────────────────────────────
 
 export const DEFAULT_WELCOME_MESSAGE =
-  "Seja bem-vindo! Escolha um serviço e encontre o melhor horário para você.";
+  "Que bom ter você aqui! Agende seu horário em poucos toques: escolha o serviço, o dia e pronto.";
 
 export function sanitizeWelcomeMessage(msg: string): string {
   // Strip any HTML tags and collapse whitespace
   return msg.replace(/<[^>]*>/g, "").replace(/\s{2,}/g, " ").trim();
 }
 
+// Textos padrão antigos (gravados no cadastro): contam como "não personalizado" e mostram o padrão atual.
+const LEGACY_WELCOME_MESSAGES = [
+  "Seja bem-vindo! Escolha um serviço e encontre o melhor horário para você.",
+  "Seja bem-vindo ao meu canal de pré-agendamentos!",
+];
+
 export function getWelcomeMessage(descricaoCurta?: string | null): string {
   if (!descricaoCurta) return DEFAULT_WELCOME_MESSAGE;
   const clean = sanitizeWelcomeMessage(descricaoCurta);
+  if (LEGACY_WELCOME_MESSAGES.includes(clean)) return DEFAULT_WELCOME_MESSAGE;
   return clean || DEFAULT_WELCOME_MESSAGE;
 }
 

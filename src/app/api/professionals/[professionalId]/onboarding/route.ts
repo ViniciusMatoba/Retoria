@@ -50,7 +50,8 @@ export async function POST(req: NextRequest, { params }: Params) {
         slugPublico: slug,
         telefoneWhatsapp: telefone,
         segment,
-        descricaoCurta: data.descricaoCurta || "Seja bem-vindo ao meu canal de pré-agendamentos!",
+        // Vazio = usa a mensagem padrão atual da página (lib/contactUtils)
+        descricaoCurta: data.descricaoCurta || "",
         professionalStatus: "trial",
         trialStartedAt: data.trialStartedAt ?? FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),

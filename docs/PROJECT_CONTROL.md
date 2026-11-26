@@ -400,3 +400,14 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **NÃO TESTADO**: janela de adicionais e cadastro na tela (sem credenciais locais do Firebase para abrir o app aqui); depende de cadastrar os adicionais.
 * **Ajuste pedido pelo usuário (mesmo dia)**: adicional não consome tempo. `serviceAgendaMinutes` devolve 0 para `adicional: true` (vale também para adicional já cadastrado com duração); usado em `bookings/create`, `next-slots` e no total da página pública. No cadastro, o campo de duração some e o adicional é salvo com "0 min". `test:service-addons` 24/24; build aprovado. Branch `fix/adicional-sem-tempo`.
 * **Deploy do ajuste**: merge em `main` (`77752f0`), Vercel success; `/p/natalia-coelho-unhas` e `/dashboard/services` 200. Não testado na tela.
+
+## Verificação 2026-11-25
+
+* **Branch**: `feat/cabecalho-publico` (a partir de `main` `85da4c7`). Backup prévio: `Documentos/Retoria-backups/Retoria-2026-11-25.bundle` (verificado).
+* **Alterações** (página pública, a pedido do usuário, sem biblioteca nova):
+  * Logo: ao enviar em Editar Perfil, se a imagem tem fundo liso, o desenho é recortado e recolocado no centro do quadrado (`src/lib/logoCentering.ts`); fotos ficam como estão. Logos já enviados só mudam se forem reenviados. Moldura do logo com fundo branco, sombra e contorno na cor da página.
+  * Mensagem padrão nova ("Que bom ter você aqui! Agende seu horário em poucos toques: escolha o serviço, o dia e pronto."); os dois textos padrão antigos gravados nos perfis passam a mostrar a nova. Cadastros novos gravam a mensagem vazia (usa o padrão).
+  * Botão "Meus agendamentos" em destaque: cartão na cor da página, ícone, subtítulo "Consultar, remarcar ou cancelar".
+* **TypeScript**: sem erros. **Lint**: igual à `main`. **Testes**: `test:logo-centering` 10/10 (novo) e demais aprovados. **Build**: Aprovado.
+* **Demonstração local** (celular 375px, tema parecido com o da Michele): cabeçalho e botão conferidos; centralização no navegador com logo deslocado: margens antes 85/7 px (esq./dir.), depois 66/64 px.
+

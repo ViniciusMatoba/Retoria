@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import ImageCropModal from "@/components/ImageCropModal";
+import { centerLogoBlob } from "@/lib/logoCentering";
 import AppTab from "./components/AppTab";
 import BookingAlertsCard from "../components/BookingAlertsCard";
 import { doc, updateDoc, collection, query, where, getDocs, orderBy } from "firebase/firestore";
@@ -218,7 +219,8 @@ export default function ProfilePage() {
     setSuccess("");
     try {
       const storageRef = ref(storage, `logos/${user.uid}/logo`);
-      await uploadBytes(storageRef, blob);
+      // Logo com fundo liso: recoloca o desenho no centro do quadrado (fotos ficam como estão)
+      await uploadBytes(storageRef, await centerLogoBlob(blob));
       const downloadUrl = await getDownloadURL(storageRef);
       setFotoLogoUrl(downloadUrl);
       setSuccess("Logo carregada! Lembre-se de salvar as alterações do perfil.");
@@ -634,7 +636,7 @@ export default function ProfilePage() {
                   <textarea
                     value={descricaoCurta}
                     onChange={(e) => setDescricaoCurta(e.target.value)}
-                    placeholder="Seja bem-vindo! Escolha um serviço e encontre o melhor horário para você."
+                    placeholder="Que bom ter você aqui! Agende seu horário em poucos toques: escolha o serviço, o dia e pronto."
                     rows={3}
                     className="w-full pl-9 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500 text-slate-100 text-sm transition-all resize-none"
                   />

@@ -184,7 +184,7 @@ function RegisterForm() {
           nomeNegocio: nomeNegocio.trim(),
           slugPublico: cleanSlug,
           telefoneWhatsapp: cleanPhone,
-          descricaoCurta: "Seja bem-vindo ao meu canal de pré-agendamentos!",
+          descricaoCurta: "",
           fotoLogoUrl: "",
           corPrincipal: "#6366f1",
           professionalStatus: "trial",
