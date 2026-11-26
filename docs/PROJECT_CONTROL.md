@@ -464,3 +464,4 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **Correção** (vale para as duas contas, ADR 5): Leads também escuta `where("taxaNaoComparecimento.status", "==", "pendente")` e junta com a lista (conta única e "todos" com equipe). Nenhum dado alterado.
 * **TypeScript**: sem erros. **Testes**: todos os `test:*` aprovados. **Build**: Aprovado. **Lint**: igual à `main`. **Governança**: OK. **Pendente**: confirmar no painel real (não há acesso de leitura autenticada aqui).
 
+* **Deploy (2026-11-26)**: merge `616812a` em `main` com autorização do usuário ("Pode publicar"); Vercel success; `/` e `/dashboard/leads` respondem 200. **Status**: Implementado e Testado; falta o usuário confirmar no painel que a Débora aparece com "Dar baixa"/"Dispensar".
