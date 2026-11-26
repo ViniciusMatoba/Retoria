@@ -454,3 +454,4 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **Alteração**: `coverImageUrl` fixo em `null` na página pública; o cabeçalho segue aceitando foto de capa para uso futuro. Demais itens do visual de app mantidos.
 * **TypeScript**: sem erros. **Build**: Aprovado. **Lint**: igual à `main`.
 
+* **Deploy (2026-11-26)**: merge `1dc9c0f` em `main` com autorização do usuário ("Pode publicar"); Vercel success. Pós-deploy (celular 375px): `/p/michele-moraes-sobrancelhas` com capa em degradê, sem foto, e etapas numeradas mantidas.
