@@ -410,4 +410,5 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
   * Botão "Meus agendamentos" em destaque: cartão na cor da página, ícone, subtítulo "Consultar, remarcar ou cancelar".
 * **TypeScript**: sem erros. **Lint**: igual à `main`. **Testes**: `test:logo-centering` 10/10 (novo) e demais aprovados. **Build**: Aprovado.
 * **Demonstração local** (celular 375px, tema parecido com o da Michele): cabeçalho e botão conferidos; centralização no navegador com logo deslocado: margens antes 85/7 px (esq./dir.), depois 66/64 px.
+* **Deploy**: merge em `main` (`d909ef4`), Vercel success. Pós-deploy: `/`, `/dashboard/profile` e página pública 200; página pública publicada já tem o botão "Meus agendamentos" novo e a mensagem nova. Logo da Michele só centraliza depois de reenviado no perfil.
 
