@@ -446,3 +446,11 @@ Suporte a clínicas, consultórios e salões com múltiplos profissionais integr
 * **Demonstração local** (celular 375px): fluxo completo serviço → horário → dados → confirmação → pedido registrado; seta de voltar mantém os dados digitados; com o uid da Natália a página continua no visual antigo.
 * **Desbloqueado**: o usuário informou o link `/p/michele-moraes-sobrancelhas`; uid lido em `/api/p/{slug}` e gravado em `ACCOUNTS.michele`. `test:account-features` 6/6.
 * **Deploy (2026-11-26)**: merge `0185a5c` em `main` com autorização do usuário ("Pode publicar"); build aprovado antes do merge; Vercel success. Pós-deploy (celular 375px): `/p/michele-moraes-sobrancelhas` mostra etapas numeradas, "Escolha seu serviço" e foto de capa (arte do serviço Brow Lamination); `/p/natalia-coelho-unhas` segue no visual antigo. **Status**: Implementado e Testado; falta homologar o agendamento real até a tela de confirmação.
+
+## Verificação 2026-11-26 (2)
+
+* **Branch**: `fix/capa-degrade-michele` (a partir de `main` `e58baa1`).
+* **Pedido**: tirar a foto da capa da Michele (usava a arte do Brow Lamination) e voltar ao degradê de antes, por enquanto.
+* **Alteração**: `coverImageUrl` fixo em `null` na página pública; o cabeçalho segue aceitando foto de capa para uso futuro. Demais itens do visual de app mantidos.
+* **TypeScript**: sem erros. **Build**: Aprovado. **Lint**: igual à `main`.
+
